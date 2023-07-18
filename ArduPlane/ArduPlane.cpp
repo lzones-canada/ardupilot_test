@@ -303,21 +303,28 @@ void Plane::update_payload_control(void)
             break;
         case 2:
         case 3:
+        case 4:
             hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_OFF);
             break;
-        case 4:
         case 5:
         case 6:
             hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_ON);
             break;
         case 7:
-        case 8: // add one tick to do period be a multiple of the second
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+        case 16:
             hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_OFF);
             break;
         default:
             // reset counter to restart the sequence
             heartbeat_counter = -1;
-            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "HERE");
             break;
     }
     
