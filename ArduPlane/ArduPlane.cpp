@@ -109,6 +109,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(Log_Write_FullRate,        400,    300, 117),
     SCHED_TASK(update_logging10,        10,    300, 120),
     SCHED_TASK(update_logging25,        25,    300, 123),
+    SCHED_TASK(update_payload_control,  50,    300, 125),
 #if HAL_SOARING_ENABLED
     SCHED_TASK(update_soaring,         50,    400, 126),
 #endif
@@ -279,6 +280,49 @@ void Plane::update_logging25(void)
     if (should_log(MASK_LOG_IMU))
         AP::ins().Write_Vibration();
 }
+
+/*
+  do 50Hz payload control
+ */
+void Plane::update_payload_control(void)
+{
+    // 50hz Counter.
+    _pyld_counter++;
+
+    // counter2 used to drop frequency down to 16hz
+    uint8_t counter2 = _pyld_counter / 3;
+
+    if ((counter2 & 0x2) == 0) {
+        heartbeat_counter++;
+    }
+
+    // heartbeat light
+    switch(heartbeat_counter) {
+        case 0:
+        case 1:
+            hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_ON);
+            break;
+        case 2:
+        case 3:
+            hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_OFF);
+            break;
+        case 4:
+        case 5:
+        case 6:
+            hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_ON);
+            break;
+        case 7:
+        case 8: // add one tick to do period be a multiple of the second
+            hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_OFF);
+            break;
+        default:
+            // reset counter to restart the sequence
+            heartbeat_counter = -1;
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "HERE");
+            break;
+    }
+    
+} 
 
 
 /*
