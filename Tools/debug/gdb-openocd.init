@@ -11,3 +11,5 @@ b HardFault_Handler
 b chSysHalt
 set confirm off
 set auto-load safe-path /
+
+list main

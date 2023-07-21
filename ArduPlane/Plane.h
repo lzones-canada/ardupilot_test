@@ -310,10 +310,6 @@ private:
     // last time we ran roll/pitch stabilization
     uint32_t last_stabilize_ms;
 
-    // counter incremented at 50Hz
-    uint8_t _pyld_counter = 0;
-    uint8_t heartbeat_counter = 0;
-
     // Failsafe
     struct {
         // Used to track if the value on channel 3 (throtttle) has fallen below the failsafe threshold
@@ -1030,7 +1026,9 @@ private:
     void compass_save(void);
     void update_logging10(void);
     void update_logging25(void);
+    void init_payload_control(void);
     void update_payload_control(void);
+    void do_heartbeat(void);
     void update_control_mode(void);
     void update_fly_forward(void);
     void update_flight_stage();

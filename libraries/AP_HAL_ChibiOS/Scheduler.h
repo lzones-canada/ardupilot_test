@@ -139,6 +139,7 @@ public:
 
     // pat the watchdog
     void watchdog_pat(void);
+    void ext_watchdog_pat(void);
 
 private:
     bool _initialized;
@@ -160,6 +161,13 @@ private:
     volatile bool _in_io_proc;
     uint32_t last_watchdog_pat_ms;
 
+#if defined(HAL_GPIO_PIN_EXT_WDOG)
+    // External Watchdog timers and flags.
+    static const uint16_t WATCHDOG_RESET_TIMEOUT = 25;
+    static const uint16_t KICK_WATCHDOG_PERIOD = 0.06;
+    static const uint16_t UPDATE_PERIOD = 0.02;
+    bool watchdog_reset_done;
+#endif
     thread_t* _timer_thread_ctx;
     thread_t* _rcout_thread_ctx;
     thread_t* _rcin_thread_ctx;
@@ -193,13 +201,6 @@ private:
 
     // check for free stack space
     void check_stack_free(void);
-
-#if defined(HAL_GPIO_PIN_EXT_WDOG)
-    // external watchdog GPIO support
-    void ext_watchdog_pat(uint32_t now_ms);
-    uint32_t last_ext_watchdog_ms;
-    bool watchdog_reset_done;
-#endif
 
     static void try_force_mutex(void);
 };
