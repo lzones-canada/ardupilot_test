@@ -108,7 +108,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(Log_Write_FullRate,        400,    300, 117),
     SCHED_TASK(update_logging10,        10,    300, 120),
     SCHED_TASK(update_logging25,        25,    300, 123),
-    SCHED_TASK(update_payload_control,  50,    300, 125),
+    //SCHED_TASK(update_payload_control,  50,    100, 76),
 #if HAL_SOARING_ENABLED
     SCHED_TASK(update_soaring,         50,    400, 126),
 #endif
@@ -280,55 +280,60 @@ void Plane::update_logging25(void)
         AP::ins().Write_Vibration();
 }
 
+void Plane::init_payload_control(void)
+{
+    // initialise payload control
+    return;
+} 
+
 /*
   do 50Hz payload control
  */
-void Plane::update_payload_control(void)
+void Plane::update_payload_control()
+{
+    do_heartbeat();
+
+    return;
+} 
+
+/*
+  Heartbeat Control at 50Hz
+ */
+void Plane::do_heartbeat()
 {
     // 50hz Counter.
-    _pyld_counter++;
+    static uint16_t heartbeat_count = 0;
+    static const double HEARTBEAT_PERIOD = 50; // 50hz
+    static const uint16_t FIRST_ON_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.15); // 15% on
+    static const uint16_t OFF_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.1); // 10% off
+    static const uint16_t SECOND_ON_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.2); // 20% on
 
-    // counter2 used to drop frequency down to 16hz
-    uint8_t counter2 = _pyld_counter / 3;
-
-    if ((counter2 & 0x2) == 0) {
-        heartbeat_counter++;
+    if(FIRST_ON_TIME > heartbeat_count)
+    {
+        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_ON);
+    }
+    else if((FIRST_ON_TIME + OFF_TIME) > heartbeat_count)
+    {
+        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_OFF);
+    }
+    else if((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > heartbeat_count)
+    {
+        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_ON);
+    }
+    else if(((uint16_t)round(HEARTBEAT_PERIOD)) > heartbeat_count)
+    {
+        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_OFF);
+    }
+    else
+    {
+        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_OFF);
+        heartbeat_count = 0;
     }
 
-    // heartbeat light
-    switch(heartbeat_counter) {
-        case 0:
-        case 1:
-            hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_ON);
-            break;
-        case 2:
-        case 3:
-        case 4:
-            hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_OFF);
-            break;
-        case 5:
-        case 6:
-            hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_ON);
-            break;
-        case 7:
-        case 8:
-        case 9:
-        case 10:
-        case 11:
-        case 12:
-        case 13:
-        case 14:
-        case 15:
-        case 16:
-            hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_OFF);
-            break;
-        default:
-            // reset counter to restart the sequence
-            heartbeat_counter = -1;
-            break;
-    }
-    
-} 
+    ++heartbeat_count;
+
+    return;
+}
 
 
 /*
@@ -460,6 +465,8 @@ void Plane::update_GPS_50Hz(void)
     gps.update();
 
     update_current_loc();
+
+    update_payload_control();
 }
 
 /*
