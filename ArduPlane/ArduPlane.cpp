@@ -108,7 +108,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(Log_Write_FullRate,        400,    300, 117),
     SCHED_TASK(update_logging10,        10,    300, 120),
     SCHED_TASK(update_logging25,        25,    300, 123),
-    //SCHED_TASK(update_payload_control,  50,    100, 76),
+    SCHED_TASK(update_payload_control,  50,    400, 125),
 #if HAL_SOARING_ENABLED
     SCHED_TASK(update_soaring,         50,    400, 126),
 #endif
@@ -466,7 +466,7 @@ void Plane::update_GPS_50Hz(void)
 
     update_current_loc();
 
-    update_payload_control();
+    //update_payload_control();
 }
 
 /*

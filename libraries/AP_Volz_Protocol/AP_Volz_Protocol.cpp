@@ -95,11 +95,33 @@ void AP_Volz_Protocol::update()
             // prepare Volz protocol data.
             uint8_t data[VOLZ_DATA_FRAME_SIZE];
 
-            data[0] = VOLZ_SET_EXTENDED_POSITION_CMD;
-            data[1] = i + 1;		// send actuator id as 1 based index so ch1 will have id 1, ch2 will have id 2 ....
+            data[0] = 0x9A;
+            data[1] = 1;		// send actuator id as 1 based index so ch1 will have id 1, ch2 will have id 2 ....
             data[2] = HIGHBYTE(value);
             data[3] = LOWBYTE(value);
 
+            static double counter = 0;
+            // Forward.
+            if (counter < 600) {
+                data[2] = 0xFD;
+                data[3] = 0xFF;
+            }
+            // Stop.
+            else if (counter > 600 && counter < 800) {
+                data[2] = 0xAB;
+                data[3] = 0x46;
+            }
+            // Backwards.
+            else if (counter > 800 && counter < 1400) {
+                data[2] = 0xBD;
+                data[3] = 0xFF;
+            }
+            // Stop.
+            else {
+                data[2] = 0xAB;
+                data[3] = 0x46;
+            }
+            counter++;
             send_command(data);
         }
     }
@@ -129,6 +151,7 @@ void AP_Volz_Protocol::send_command(uint8_t data[VOLZ_DATA_FRAME_SIZE])
     // add CRC result to the message
     data[4] = HIGHBYTE(crc);
     data[5] = LOWBYTE(crc);
+    //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Data sent: 0x%02X, 0x%02X, \033[1;91m0x%02X, 0x%02X\033[0m, 0x%02X, 0x%02X\n", data[0], data[1], data[2], data[3], data[4], data[5]);
     port->write(data, VOLZ_DATA_FRAME_SIZE);
 }
 
