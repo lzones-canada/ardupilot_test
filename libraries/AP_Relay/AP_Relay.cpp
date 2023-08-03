@@ -143,6 +143,8 @@ void AP_Relay::init()
     // Custom heartbeat LED
     hal.gpio->pinMode(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_OUTPUT);
     hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_OFF);
+    // Custom Wing Limit Switch
+    hal.gpio->pinMode(HAL_GPIO_PIN_WING_LIMIT, HAL_GPIO_INPUT);
 }
 
 void AP_Relay::set(const uint8_t instance, const bool value)
