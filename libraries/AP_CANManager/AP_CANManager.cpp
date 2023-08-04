@@ -26,6 +26,7 @@
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 #include <AP_UAVCAN/AP_UAVCAN.h>
 #include <AP_KDECAN/AP_KDECAN.h>
+#include <AP_SAEJ1939/AP_SAEJ1939.h>
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_PiccoloCAN/AP_PiccoloCAN.h>
 #include <AP_EFI/AP_EFI_NWPMU.h>
@@ -234,17 +235,18 @@ void AP_CANManager::init()
 
             AP_Param::load_object_from_eeprom((AP_PiccoloCAN*)_drivers[drv_num], AP_PiccoloCAN::var_info);
 #endif
-        } else if (drv_type[drv_num] == Driver_Type_CANTester) {
-#if HAL_NUM_CAN_IFACES > 1 && !HAL_MINIMIZE_FEATURES && HAL_ENABLE_CANTESTER
-            _drivers[drv_num] = _drv_param[drv_num]._testcan = new CANTester;
+#if AP_SAEJ1939_ENABLED
+         if (drv_type[drv_num] == AP_CAN::Protocol::SAE_J1939) {
+            _drivers[drv_num] = _drv_param[drv_num]._saej1939 = new AP_SAEJ1939;
 
             if (_drivers[drv_num] == nullptr) {
-                AP_BoardConfig::allocation_error("CANTester %d", drv_num + 1);
+                AP_BoardConfig::allocation_error("SAE_J1939 %d", drv_num + 1);
                 continue;
             }
-            AP_Param::load_object_from_eeprom((CANTester*)_drivers[drv_num], CANTester::var_info);
+
+        } else
 #endif
-        } else {
+        {
             continue;
         }
 
@@ -286,7 +288,7 @@ void AP_CANManager::init()
 bool AP_CANManager::register_driver(Driver_Type dtype, AP_CANDriver *driver)
 {
     WITH_SEMAPHORE(_sem);
-
+    log_text(AP_CANManager::LOG_INFO, LOG_TAG, "pre loop register_driver");
     for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++) {
         uint8_t drv_num = _interfaces[i]._driver_number;
         if (drv_num == 0 || drv_num > HAL_MAX_CAN_PROTOCOL_DRIVERS) {
@@ -295,10 +297,12 @@ bool AP_CANManager::register_driver(Driver_Type dtype, AP_CANDriver *driver)
         // from 1 based to 0 based
         drv_num--;
 
-        if (dtype != (Driver_Type)_drv_param[drv_num]._driver_type.get()) {
+        if (dtype != (AP_CAN::Protocol)_drv_param[drv_num]._driver_type.get()) {
+            log_text(AP_CANManager::LOG_INFO, LOG_TAG, "_drv_param[%d]", drv_num);
             continue;
         }
         if (_drivers[drv_num] != nullptr) {
+            log_text(AP_CANManager::LOG_INFO, LOG_TAG, "_drivers[%d] != nullptr", drv_num);
             continue;
         }
         if (_num_drivers >= HAL_MAX_CAN_PROTOCOL_DRIVERS) {
@@ -308,6 +312,7 @@ bool AP_CANManager::register_driver(Driver_Type dtype, AP_CANDriver *driver)
         if (hal.can[i] == nullptr) {
             // if this interface is not allocated allocate it here,
             // also pass the index of the CANBus
+            log_text(AP_CANManager::LOG_INFO, LOG_TAG, "nullptr == const_cast <AP_HAL::HAL&> (hal).can[%d]", i);
             const_cast <AP_HAL::HAL&> (hal).can[i] = new HAL_CANIface(i);
         }
 
@@ -315,9 +320,11 @@ bool AP_CANManager::register_driver(Driver_Type dtype, AP_CANDriver *driver)
         if (hal.can[i] == nullptr) {
             continue;
         }
+        log_text(AP_CANManager::LOG_INFO, LOG_TAG, "AP_HAL::CANIface* iface = hal.can[%d]", i);
         AP_HAL::CANIface* iface = hal.can[i];
 
         _drivers[drv_num] = driver;
+        log_text(AP_CANManager::LOG_INFO, LOG_TAG, "_drivers[%d]->add_interface(iface)", drv_num);
         _drivers[drv_num]->add_interface(iface);
         log_text(AP_CANManager::LOG_INFO, LOG_TAG, "Adding Interface %d to Driver %d", i + 1, drv_num + 1);
 

@@ -13,33 +13,34 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /*
- * AP_J1939CAN.h
+ * AP_SAEJ1939.h
  *
  *      Author: Kyle Fruson
  */
  
 #pragma once
 
-#include <AP_J1939CAN/AP_J1939CAN_config.h>
-
-#if AP_J1939CAN_ENABLED
+#include <AP_SAEJ1939/AP_SAEJ1939_config.h>
 #include <AP_HAL/AP_HAL.h>
-
 #include <AP_CANManager/AP_CANSensor.h>
-#include <AP_Param/AP_Param.h>
 
-#define AP_J1939CAN_USE_EVENTS (defined(CH_CFG_USE_EVENTS) && CH_CFG_USE_EVENTS == TRUE)
+#if AP_SAEJ1939_ENABLED
 
-#if AP_J1939CAN_USE_EVENTS
-#include <ch.h>
-#endif
+// structure for data field frames 
+union frame_data_t {
+    struct PACKED {
+        uint16_t angle_1;
+        uint16_t angle_2;
+        uint16_t reserved;
+        uint8_t  error;
+        uint8_t  chksum;
+    };
+};
 
-class AP_J1939CAN_Driver : public CANSensor
+class AP_SAEJ1939 : public CANSensor 
 {
 public:
-    AP_J1939CAN_Driver();
-
-private:
+    AP_SAEJ1939() : CANSensor("SAE_J1939") {}
 
     // handler for incoming frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
@@ -48,23 +49,20 @@ private:
     bool send_frame(const uint32_t pgn, const uint8_t dest_address, const uint8_t priority, const uint8_t *data, const uint8_t data_len);
     
     // handler for Amphenol checksum calculations
-    uint8_t get_CheckSum(uint8_t data[]);
+    uint8_t get_CheckSum(const AP_HAL::CANFrame frame);
 
-    void loop();
+    // Getter function to access the working_data_buffer
+     const frame_data_t* get_working_data_buffer() const { return &working_data_buffer; }
 
-    struct {
-        uint32_t detected_bitmask;
-        uint32_t detected_bitmask_ms;
-    } _init;
+private:
 
-    struct {
-        HAL_Semaphore sem;
-        bool is_new;
-        uint32_t last_new_ms;
-#if AP_J1939CAN_USE_EVENTS
-        thread_t *thread_ctx;
-#endif
-    } _output;
+    // amphenol servo constants
+    static const uint8_t SOURCE_ADDRESS = 0x80;
+    static const uint16_t J1939_SERVO_PGN = 0xFF0B;
+    static const uint8_t BROADCAST_ADDRESS = 0xFF;
+    
+    // Declare working_data_buffer as a static member variable
+    static frame_data_t working_data_buffer;
 
     // structure for CAN ID frames
     union frame_id_t {
@@ -78,41 +76,20 @@ private:
         uint32_t value;
     };
 
-    // structure for data field frames 
-    union frame_data_t {
+    // structure for sending data frames 
+    union send_frame_data_t {
         struct PACKED {
-            uint16_t angle_1;
-            uint16_t angle_2;
-            uint16_t reserved;
-            uint8_t  error;
-            uint8_t  chksum;
+            uint8_t data0;
+            uint8_t data1;
+            uint8_t data2;
+            uint8_t data3;
+            uint8_t data4;
+            uint8_t data5;
+            uint8_t data6;
+            uint8_t data7;
         };
     };
 
-    static const uint8_t SOURCE_ADDRESS = 0x80;
-    static const uint16_t J1939_SERVO_PGN = 0xFF0B;
-    static const uint8_t BROADCAST_ADDRESS = 0xFF;
 };
 
-class AP_J1939CAN {
-public:
-    AP_J1939CAN();
-
-    void init();
-
-    /* Do not allow copies */
-    CLASS_NO_COPY(AP_J1939CAN);
-
-    static const struct AP_Param::GroupInfo var_info[];
-    static AP_J1939CAN *get_singleton() { return _singleton; }
-
-private:
-    static AP_J1939CAN *_singleton;
-
-    AP_J1939CAN_Driver *_driver;
-};
-namespace AP {
-    AP_J1939CAN *j1939can();
-};
-
-#endif // AP_J1939CAN_ENABLED
+#endif  // AP_SAEJ1939_ENABLED
