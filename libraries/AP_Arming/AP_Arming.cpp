@@ -1191,6 +1191,7 @@ bool AP_Arming::can_checks(bool report)
                 case AP_CAN::Protocol::Scripting2:
                 case AP_CAN::Protocol::Benewake:
                 case AP_CAN::Protocol::KDECAN:
+                case AP_CAN::Protocol::SAE_J1939:
                     break;
             }
         }

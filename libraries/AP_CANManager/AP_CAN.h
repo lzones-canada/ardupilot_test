@@ -27,5 +27,6 @@ public:
         Scripting = 10,
         Benewake = 11,
         Scripting2 = 12,
+        SAE_J1939 = 13,
     };
 };

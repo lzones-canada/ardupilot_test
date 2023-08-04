@@ -66,6 +66,7 @@
 #include <AP_NavEKF2/AP_NavEKF2.h>
 #include <AP_NavEKF3/AP_NavEKF3.h>
 #include <AP_Mission/AP_Mission.h>     // Mission command library
+#include <AP_SAEJ1939/AP_SAEJ1939.h>
 
 #include <AP_Soaring/AP_Soaring.h>
 #include <AP_BattMonitor/AP_BattMonitor.h> // Battery monitor library
@@ -246,8 +247,13 @@ private:
 #endif
 
 #if HAL_RALLY_ENABLED
-    // Rally Ponints
+    // Rally Points
     AP_Rally rally;
+#endif
+
+    // SAE J1939
+#if AP_SAEJ1939_ENABLED
+    AP_SAEJ1939 saej1939;
 #endif
 
     // returns a Location for a rally point or home; if
