@@ -27,14 +27,9 @@
 #if AP_SAEJ1939_ENABLED
 
 // structure for data field frames 
-union frame_data_t {
-    struct PACKED {
-        uint16_t angle_1;
-        uint16_t angle_2;
-        uint16_t reserved;
-        uint8_t  error;
-        uint8_t  chksum;
-    };
+struct frame_data_angles_t {
+    uint16_t angle_1;
+    uint16_t angle_2;
 };
 
 class AP_SAEJ1939 : public CANSensor 
@@ -52,7 +47,7 @@ public:
     uint8_t get_CheckSum(const AP_HAL::CANFrame frame);
 
     // Getter function to access the working_data_buffer
-     const frame_data_t* get_working_data_buffer() const { return &working_data_buffer; }
+     const frame_data_angles_t* get_working_data_buffer() const { return &working_data_buffer; }
 
 private:
 
@@ -60,9 +55,9 @@ private:
     static const uint8_t SOURCE_ADDRESS = 0x80;
     static const uint16_t J1939_SERVO_PGN = 0xFF0B;
     static const uint8_t BROADCAST_ADDRESS = 0xFF;
-    
+
     // Declare working_data_buffer as a static member variable
-    static frame_data_t working_data_buffer;
+    static frame_data_angles_t working_data_buffer;
 
     // structure for CAN ID frames
     union frame_id_t {
@@ -87,6 +82,17 @@ private:
             uint8_t data5;
             uint8_t data6;
             uint8_t data7;
+        };
+    };
+
+    // structure for data field frames 
+    union frame_data_t {
+        struct PACKED {
+            uint16_t angle_1;
+            uint16_t angle_2;
+            uint16_t reserved;
+            uint8_t  error;
+            uint8_t  chksum;
         };
     };
 
