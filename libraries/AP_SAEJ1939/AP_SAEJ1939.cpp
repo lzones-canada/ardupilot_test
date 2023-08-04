@@ -28,8 +28,9 @@
 #include <AP_Math/AP_Math.h>    // for MIN,MAX
 
 extern const AP_HAL::HAL& hal;
+
 // Define the static member variable
-frame_data_t AP_SAEJ1939::working_data_buffer;
+frame_data_angles_t AP_SAEJ1939::working_data_buffer;
 
 #define AP_SAEJ1939_DEBUG 1
 
@@ -85,7 +86,7 @@ void AP_SAEJ1939::handle_frame(AP_HAL::CANFrame &frame)
     };
 
     //memcopy to a shared working buffer for usage.
-    memcpy(&working_data_buffer, &data, sizeof(data));
+    memcpy(&working_data_buffer, &data, (sizeof(data)/2));
 
 #if AP_SAEJ1939_DEBUG
     GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"CAN[0x%lX] data  parsed: Angle1:%d, Angle2:%d, Reserved:0x%02X, Error:0x%02X, ChkSum:0x%02X", id.value, data.angle_1, data.angle_2, data.reserved, data.error, data.chksum);
@@ -107,7 +108,7 @@ void AP_SAEJ1939::handle_frame(AP_HAL::CANFrame &frame)
 
     send_frame(0xFED8, 0x81, 7, (uint8_t*)&data_frame, sizeof(data));
 
-    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"CAN Working data buffer: Angle1:%d, Angle2:%d, Reserved:0x%02X, Error:0x%02X, ChkSum:0x%02X", working_data_buffer.angle_1, working_data_buffer.angle_2, working_data_buffer.reserved, working_data_buffer.error, working_data_buffer.chksum);
+    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"CAN Working data buffer: Angle1:%d, Angle2:%d", working_data_buffer.angle_1, working_data_buffer.angle_2);
 
     return;
 }
