@@ -161,13 +161,18 @@ private:
     volatile bool _in_io_proc;
     uint32_t last_watchdog_pat_ms;
 
+    // external watchdog setups.
 #if defined(HAL_GPIO_PIN_EXT_WDOG)
     // External Watchdog timers and flags.
     static const uint16_t WATCHDOG_RESET_TIMEOUT = 25;
     static const uint16_t KICK_WATCHDOG_PERIOD = 0.06;
     static const uint16_t UPDATE_PERIOD = 0.02;
     bool watchdog_reset_done;
+
+    AP_HAL::DigitalSource *_ext_wdog;
+    AP_HAL::DigitalSource *_ext_wdog_reset;
 #endif
+
     thread_t* _timer_thread_ctx;
     thread_t* _rcout_thread_ctx;
     thread_t* _rcin_thread_ctx;

@@ -134,20 +134,6 @@ void AP_Relay::init()
     for (uint8_t i=0; i<AP_RELAY_NUM_RELAYS; i++) {
         set(i, _default);
     }
-    // Custom Pin Settings for external watchdog.
-#if defined(HAL_GPIO_PIN_EXT_WDOG)
-    // initialize ext-wdog pinModes to output.
-    hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OUTPUT);
-    hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG_RESET, HAL_GPIO_OUTPUT);
-    // drive pin low to start.
-    hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG, 0);
-    hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG_RESET, 0);
-#endif
-    // Custom heartbeat LED
-    hal.gpio->pinMode(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_OUTPUT);
-    hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_LED_OFF);
-    // Custom Wing Limit Switch
-    hal.gpio->pinMode(HAL_GPIO_PIN_WING_LIMIT, HAL_GPIO_INPUT);
 }
 
 void AP_Relay::set(const uint8_t instance, const bool value)

@@ -66,7 +66,7 @@
 #include <AP_NavEKF2/AP_NavEKF2.h>
 #include <AP_NavEKF3/AP_NavEKF3.h>
 #include <AP_Mission/AP_Mission.h>     // Mission command library
-#include <AP_SAEJ1939/AP_SAEJ1939.h>
+#include <AP_WingSensor/AP_WingSensor.h>
 
 #include <AP_Soaring/AP_Soaring.h>
 #include <AP_BattMonitor/AP_BattMonitor.h> // Battery monitor library
@@ -185,6 +185,9 @@ private:
 
     AP_Logger logger;
 
+    AP_HAL::DigitalSource *_hbeat;
+    AP_HAL::DigitalSource *_wing_limt;
+
     // scaled roll limit based on pitch
     int32_t roll_limit_cd;
     int32_t pitch_limit_min_cd;
@@ -251,9 +254,8 @@ private:
     AP_Rally rally;
 #endif
 
-    // SAE J1939
-#if AP_SAEJ1939_ENABLED
-    AP_SAEJ1939 saej1939;
+#if AP_WINGSENSOR_ENABLED
+    AP_WingSensor wing_sensor;
 #endif
 
     // returns a Location for a rally point or home; if
