@@ -155,6 +155,11 @@ void Plane::init_ardupilot()
 #if AP_GRIPPER_ENABLED
     g2.gripper.init();
 #endif
+
+#if AP_WINGSENSOR_ENABLED
+    wing_sensor.init();
+#endif
+
     // Placeholder for future use if needed to init user code.
     init_payload_control();
 }

@@ -140,6 +140,16 @@ void Scheduler::init()
                      this);                  /* Thread parameter.      */
 #endif
 
+#if defined(HAL_GPIO_PIN_EXT_WDOG)
+    // initialize ext-wdog pinModes to output.
+    _ext_wdog = hal.gpio->channel(HAL_GPIO_PIN_EXT_WDOG);
+    _ext_wdog->mode(HAL_GPIO_OUTPUT);
+    _ext_wdog->write(HAL_GPIO_OFF);
+
+    _ext_wdog_reset = hal.gpio->channel(HAL_GPIO_PIN_EXT_WDOG_RESET);
+    _ext_wdog_reset->mode(HAL_GPIO_OUTPUT);
+    _ext_wdog_reset->write(HAL_GPIO_OFF);
+#endif
 }
 
 void Scheduler::delay_microseconds(uint16_t usec)
@@ -776,14 +786,14 @@ void Scheduler::ext_watchdog_pat(void)
     // Watchdog reset timer.
     if(0 == _watchdog_reset_timer)
     {
-        hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG_RESET, HAL_GPIO_ON);
+        _ext_wdog_reset->write(HAL_GPIO_ON);
         watchdog_reset_done = true;
     }
     else
     {
         --_watchdog_reset_timer;
-        hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG_RESET, HAL_GPIO_OFF);
-        hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OFF);
+        _ext_wdog_reset->write(HAL_GPIO_OFF);
+        _ext_wdog->write(HAL_GPIO_OFF);
     }
 
     //---------------------------------------------------------------------------
@@ -797,11 +807,11 @@ void Scheduler::ext_watchdog_pat(void)
     {
         if(0 == watchdog_counter)
         {
-            hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_ON);
+            _ext_wdog->write(HAL_GPIO_ON);
         }
         else
         {
-            hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OFF);
+            _ext_wdog->write(HAL_GPIO_OFF);
         }
 
         ++watchdog_counter;
@@ -813,27 +823,6 @@ void Scheduler::ext_watchdog_pat(void)
     }
 
     return;
-    // Trigger Ext Wdog GPIO when reset is complete.
-    // if(watchdog_reset_done) {
-    //     // toggle watchdog GPIO every EXT_WDOG_INTERVAL_MS
-    //     if ((now_ms - last_ext_watchdog_ms) >= EXT_WDOG_INTERVAL_MS) {
-    //         hal.gpio->toggle(HAL_GPIO_PIN_EXT_WDOG);
-    //         last_ext_watchdog_ms = now_ms;
-    //     }
-    // }
-    // // Watchdog reset timer.
-    // else {
-    //     // Drive HAL_GPIO_PIN_EXT_WDOG_RESET Hi(1) as EXT_WDOG_RESET_MS timer has expired.
-    //     if(now_ms > EXT_WDOG_RESET_MS) {
-    //         hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG_RESET, 1);
-    //         last_ext_watchdog_ms = now_ms;
-    //         watchdog_reset_done = true;
-    //     }
-    //     // Drive HAL_GPIO_PIN_EXT_WDOG_RESET Lo(1) until EXT_WDOG_RESET_MS timer expires.
-    //     else {
-    //         hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG_RESET, 0);
-    //     }
-    // }
 }
 #endif
 

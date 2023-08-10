@@ -283,8 +283,15 @@ void Plane::update_logging25(void)
 void Plane::init_payload_control(void)
 {
     // initialise payload control
+    // heartbeat pin
+    _hbeat = hal.gpio->channel(HAL_GPIO_PIN_HEARTBEAT);
+    _hbeat->mode(HAL_GPIO_OUTPUT);
+    _hbeat->write(HAL_GPIO_OFF);
+    // wing limit servo pin
+    _wing_limt = hal.gpio->channel(HAL_GPIO_PIN_WING_LIMIT);
+    _wing_limt->mode(HAL_GPIO_INPUT);
     return;
-} 
+}
 
 /*
   do 50Hz payload control
@@ -293,6 +300,23 @@ void Plane::update_payload_control()
 {
     do_heartbeat();
 
+    // wing_sensor.update();
+
+    // static uint16_t counter = 0;
+    // counter++;
+    // if (counter > 500) {
+    //     counter = 0;
+    //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Plane_Angle: Angle1:%f, Angle2:%f", wing_sensor.get_angle_1(), wing_sensor.get_angle_2());
+    // }
+    // return;
+
+    static uint8_t counter = 0;
+    counter++;
+    if (counter > 100) {
+        counter = 0;
+        //GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"Wing Limit Pin: %s", wing_limit ? "true" : "false");
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"Wing Limit Pin: %s", _wing_limt->read() ? "true" : "false");
+    }
     return;
 } 
 
@@ -310,23 +334,23 @@ void Plane::do_heartbeat()
 
     if(FIRST_ON_TIME > heartbeat_count)
     {
-        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_ON);
+        _hbeat->write(HAL_GPIO_ON);
     }
     else if((FIRST_ON_TIME + OFF_TIME) > heartbeat_count)
     {
-        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_OFF);
+        _hbeat->write(HAL_GPIO_OFF);
     }
     else if((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > heartbeat_count)
     {
-        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_ON);
+        _hbeat->write(HAL_GPIO_ON);
     }
     else if(((uint16_t)round(HEARTBEAT_PERIOD)) > heartbeat_count)
     {
-        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_OFF);
+        _hbeat->write(HAL_GPIO_OFF);
     }
     else
     {
-        hal.gpio->write(HAL_GPIO_PIN_HEARTBEAT, HAL_GPIO_OFF);
+        _hbeat->write(HAL_GPIO_OFF);
         heartbeat_count = 0;
     }
 
