@@ -90,6 +90,9 @@
 #include "quadplane.h"
 #include "tuning.h"
 
+// IMET libraries declaration
+#include <AP_IMET/AP_IMET.h>
+
 // Configuration
 #include "config.h"
 
@@ -187,6 +190,9 @@ private:
 
     AP_HAL::DigitalSource *_hbeat;
     AP_HAL::DigitalSource *_wing_limt;
+
+    // IMET sensor
+    AP_IMET imet; 
 
     // scaled roll limit based on pitch
     int32_t roll_limit_cd;
