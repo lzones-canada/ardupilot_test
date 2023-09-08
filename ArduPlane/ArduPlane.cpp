@@ -310,14 +310,13 @@ void Plane::update_payload_control()
     // }
     // return;
 
-    static uint8_t counter = 0;
-    counter++;
-    if (counter > 100) {
-        counter = 0;
-        //GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"Wing Limit Pin: %s", wing_limit ? "true" : "false");
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"Wing Limit Pin: %s", _wing_limt->read() ? "true" : "false");
-    }
-    return;
+    // static uint8_t counter = 0;
+    // counter++;
+    // if (counter > 100) {
+    //     counter = 0;
+    //     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"Wing Limit Pin: %s", _wing_limt->read() ? "true" : "false");
+    // }
+    // return;
 } 
 
 /*
