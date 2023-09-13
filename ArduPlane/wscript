@@ -31,7 +31,7 @@ def build(bld):
             'AP_KDECAN',
             'AP_Follow',
             'AP_WingSensor',
-            'AP_IMET',
+            'AP_MAX14830',
         ],
     )
 

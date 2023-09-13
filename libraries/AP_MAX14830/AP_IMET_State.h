@@ -28,9 +28,7 @@
 
 // Stores the current state read by system
 // All backends are required to fill in this state structure
-struct IMET_state {
-    // When this structure was last updated (milliseconds)
-    //uint32_t last_updated_ms;
+struct IMET_Main_State {
 
     // Sensor ID for package
     int sensorID;
@@ -46,4 +44,51 @@ struct IMET_state {
 
     // Humidity Sensor Substrate Temperature (Celsius)
     double humidityTemp;
+};
+
+
+// GPS Sensor State
+struct IMET_GPS_State {
+
+    // Sensor ID for package (03)
+    int sensorID;
+
+    // Date (YYYY/MM/DD), Time (HH:MM:SS UTC)
+    time_t datetime;
+
+    // Latitude (degrees)
+    double latitude;
+
+    // Longitude (degrees)
+    double longitude;
+
+    // Number of satellites visible and count.
+    double satelliteCount;
+};
+
+
+// Air Temperature Sensor State
+struct IMET_Temp_State {
+
+    // Sensor ID for package (05) - A Configuration
+    int sensorID;
+
+    // Glass Bead NTC Thermistor
+    double airTemp;
+
+    // Resistance of Thermistor (Ohms)
+    double resistance;
+};
+
+// Main Sensor Structure for IMET
+struct IMET_Sensor_State {
+
+    // Main Board Sensor ID (0)
+    IMET_Main_State mainSensor;
+
+    // GPS Sensor ID (03)
+    IMET_GPS_State gpsSensor;
+
+    // Air Temperature Sensor ID (05)
+    IMET_Temp_State airTempSensor;
 };

@@ -90,8 +90,8 @@
 #include "quadplane.h"
 #include "tuning.h"
 
-// IMET libraries declaration
-#include <AP_IMET/AP_IMET.h>
+// MAX14830 libraries declaration
+#include <AP_MAX14830/AP_MAX14830.h>
 
 // Configuration
 #include "config.h"
@@ -192,7 +192,7 @@ private:
     AP_HAL::DigitalSource *_wing_limt;
 
     // IMET sensor
-    AP_IMET imet; 
+    AP_MAX14830 max14830;
 
     // scaled roll limit based on pitch
     int32_t roll_limit_cd;

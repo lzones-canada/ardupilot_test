@@ -160,8 +160,8 @@ void Plane::init_ardupilot()
     wing_sensor.init();
 #endif
 
-    // Init IMET Sensor
-    imet.init();
+    // Init MAX14830 SPI-UART
+    max14830.init();
 
     // Placeholder for future use if needed to init user code.
     init_payload_control();
