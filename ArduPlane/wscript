@@ -30,7 +30,7 @@ def build(bld):
             'AC_AutoTune',
             'AP_Follow',
             'AP_WingSensor',
-            'AP_IMET',
+            'AP_MAX14830',
         ],
     )
 

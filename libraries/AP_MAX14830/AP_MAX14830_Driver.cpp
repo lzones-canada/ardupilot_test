@@ -13,16 +13,14 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /*
- * AP_MAX14830.cpp
+ * AP_MAX14830_Driver.cpp
  *
  *      Author: Kyle Fruson
  */
 
-#include <utility>
-#include <stdio.h>
-#include <AP_HAL/AP_HAL.h>
-#include <AP_Math/AP_Math.h>
-#include "AP_MAX14830.h"
+
+#include "AP_MAX14830_Driver.h"
+
 
 extern const AP_HAL::HAL& hal;
 
@@ -39,10 +37,6 @@ static const uint32_t RS232_PLL_CLK = (RS232_EXT_CLK / RS232_PLL_PREDIV);
 //static const uint32_t RS232_PLL_CLK = 6 * (RS232_EXT_CLK / RS232_PLL_PREDIV);
 //static const uint32_t RS232_PLL_CLK = 6*(25000000/42);
 
-static const uint8_t UART_ADDR_1 =  0x00;
-static const uint8_t UART_ADDR_2 =  0x01;
-static const uint8_t UART_ADDR_3 =  0x02;
-static const uint8_t UART_ADDR_4 =  0x03;
 
 
 /*=========================================================================*/
@@ -95,7 +89,7 @@ static const uint8_t UART_ADDR_4 =  0x03;
 
 extern const AP_HAL::HAL &hal;
 
-AP_MAX14830::AP_MAX14830() :
+AP_MAX14830_Driver::AP_MAX14830_Driver() :
     _dev(nullptr)
 {
 }
@@ -103,7 +97,7 @@ AP_MAX14830::AP_MAX14830() :
 /* ************************************************************************* */
 
 // MAX14830 initialization
-bool AP_MAX14830::init()
+bool AP_MAX14830_Driver::init()
 {
     // Check if already initialized / exists.
     if (_dev) {
@@ -172,6 +166,12 @@ bool AP_MAX14830::init()
         // delay to allow for reset
         hal.scheduler->delay(1);
 
+
+
+        // Setup UART 2 - ADSB ----------------------------------------------------
+
+
+
         // Read known Register (RevID) - break out once we get known value
         rev_id = _read_register(0x1F);
         hal.scheduler->delay(1);
@@ -182,8 +182,6 @@ bool AP_MAX14830::init()
             break;
         }
     }
-
-    // Setup UART 2 - ADSB ----------------------------------------------------
 
     // Setup UART 3 - Future --------------------------------------------------
     
@@ -210,7 +208,7 @@ bool AP_MAX14830::init()
 /* ************************************************************************* */
 
 // Set UART address for UART Selection
-void AP_MAX14830::set_uart_address(uint8_t addr)
+void AP_MAX14830_Driver::set_uart_address(uint8_t addr)
 {
     _uart_address = addr;
     return;
@@ -219,7 +217,7 @@ void AP_MAX14830::set_uart_address(uint8_t addr)
 /* ************************************************************************* */
 
 // Software reset of the MAX Chip.
-void AP_MAX14830::_max_soft_reset()
+void AP_MAX14830_Driver::_max_soft_reset()
 {
     _write_register(MAX14830R_MODE2, 0x01);
     _write_register(MAX14830R_MODE2, 0x00);
@@ -229,7 +227,7 @@ void AP_MAX14830::_max_soft_reset()
 /* ************************************************************************* */
 
 // Clear FIFOs, both TX and RX cleared/flushed
-void AP_MAX14830::fifo_reset()
+void AP_MAX14830_Driver::fifo_reset()
 {
     uint8_t mode2_state;
     // Capture State of MODE2 Register
@@ -249,12 +247,12 @@ void AP_MAX14830::fifo_reset()
 /* ************************************************************************* */
 
 // Register location to write data
-bool AP_MAX14830::_write_register(uint8_t reg, uint8_t data)
+bool AP_MAX14830_Driver::_write_register(uint8_t reg, uint8_t data)
 {
     // Write transaction is indicated by MSbit of the MAX3108 register address byte = 1
     reg |= MAX14830_WRITE_FLAG; //| _uart_address;
-    // Write to SPI Device.
 
+    // Write to SPI Device.
     for (uint8_t i=0; i<8; i++) {
         _dev->write_register(reg, data);
         uint8_t result = _read_register(reg);
@@ -262,34 +260,54 @@ bool AP_MAX14830::_write_register(uint8_t reg, uint8_t data)
             return true;
         }
     }
+
+    // Discard the write flag when sending to understand the Register Clearly.
     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"BAD_WRITE_REG: 0x%02X", (reg &= MAX14830_READ_FLAG));
     return false;
 }
 
 /* ************************************************************************* */
 
-// Byte of data from register
-int AP_MAX14830::_read_register(uint8_t reg)
+// Software write for MAX Chip (Data stuffed in Transmit Hold Register).
+uint8_t AP_MAX14830_Driver::fifo_tx_write(uint8_t *txdata, uint8_t len)
 {
-    // for SPI we need to discard the first returned byte.
+    // Init Tx Buffer for SPI Write.
+    uint8_t txbuf[len+1];
+    memset(txbuf, 0x00, len+1);
+    
+    // Write transaction is indicated by MSbit of the MAX3108 register address byte = 1
+    txbuf[0] = MAX14830R_THR | MAX14830_WRITE_FLAG;
+    // Copy rest of data over for transmission.
+    memcpy(txbuf+1, txdata, len);
+
+    // Write to SPI Device.
+    return _dev->transfer(txbuf, len+1, nullptr, 0);
+}
+
+/* ************************************************************************* */
+
+// Byte of data from register
+int AP_MAX14830_Driver::_read_register(uint8_t reg)
+{
+    // Init Rx Buffer for SPI Read.
     uint8_t rxbuf[2];
     memset(rxbuf, 0x00, 2);
 
     // Read transaction is indicated by MSbit of the MAX3108 register address byte = 0
-    rxbuf[0] = reg & MAX14830_READ_FLAG;
+    reg &= MAX14830_READ_FLAG;
 
-    // Read from SPI Device
-    if (!_dev->transfer(rxbuf, 2, rxbuf, 2)) {
+    // Read from SPI Device.
+    if (!_dev->read_registers(reg, rxbuf, sizeof(rxbuf))) {
         return false;
     }
-    // Dummy Return at idx 0, value at idx 1
-    return rxbuf[1];
+
+    return rxbuf[0];
 }
 
 /* ************************************************************************* */
 
 // Software read for MAX Chip (Data in Receiver Hold Register).
-uint8_t AP_MAX14830::rx_fifo_read(uint8_t *rxdata, uint8_t len)
+uint8_t AP_MAX14830_Driver::fifo_rx_read(uint8_t *rxdata, uint8_t len)
 {
     // Length of RX FIFO Chars to read
     uint8_t fifoLen = _read_register(MAX14830R_RXFIFOLVL);
@@ -308,7 +326,7 @@ uint8_t AP_MAX14830::rx_fifo_read(uint8_t *rxdata, uint8_t len)
 /* ************************************************************************* */
 
 // Configure rx fifo interrupt (0=disable 1=enable)
-void AP_MAX14830::_set_rx_interrupt(bool enable) 
+void AP_MAX14830_Driver::_set_rx_interrupt(bool enable) 
 {
     // Peserve State of IRQEN Register
     uint8_t irqen_state;
@@ -340,7 +358,7 @@ void AP_MAX14830::_set_rx_interrupt(bool enable)
 /* ************************************************************************* */
 
 // Configure the Rx timeout line status interrupt register (0=disable 1=enable)
-void AP_MAX14830::_set_rx_timeout_interrupt(bool enable) 
+void AP_MAX14830_Driver::_set_rx_timeout_interrupt(bool enable) 
 {
     // Peserve State of LSR Register
     uint8_t lsr_state;
@@ -365,7 +383,7 @@ void AP_MAX14830::_set_rx_timeout_interrupt(bool enable)
 /* ************************************************************************* */
 
 // Configure rx byte timeout value for interrupt(default to 2 byte timeout)
-void AP_MAX14830::_set_rx_byte_timeout(bool enable)
+void AP_MAX14830_Driver::_set_rx_byte_timeout(bool enable)
 {
     // Peserve State of Rx Timeout Register
     uint8_t rxto_state;
@@ -387,7 +405,7 @@ void AP_MAX14830::_set_rx_byte_timeout(bool enable)
 /* ************************************************************************* */
 
 // Clear Interrupts - Read ISR Register
-void AP_MAX14830::clear_interrupts() 
+void AP_MAX14830_Driver::clear_interrupts() 
 {
     // Read Interrupt Status Register to clear interrupts
     _read_register(MAX14830R_ISR); //COR
@@ -397,7 +415,7 @@ void AP_MAX14830::clear_interrupts()
 /* ************************************************************************* */
 
 // Configure auto tx/rx control (0=disable 1=enable)
-void AP_MAX14830::_set_autotrans(bool enable)
+void AP_MAX14830_Driver::_set_autotrans(bool enable)
 {
     // Peserve State of MODE1 Register
     uint8_t mode1_state;
@@ -419,7 +437,7 @@ void AP_MAX14830::_set_autotrans(bool enable)
 /* ************************************************************************* */
 
 // Configure baud rate for the UART line
-void AP_MAX14830::_set_baud(BAUD::value baud)
+void AP_MAX14830_Driver::_set_baud(BAUD::value baud)
 {
     // Peserve State of Clock Source Register
     //uint8_t clksrc_state;
@@ -463,7 +481,7 @@ void AP_MAX14830::_set_baud(BAUD::value baud)
 /* ************************************************************************* */
 
 // Parity bit (0=disable, 1=enable), 2 StopBits (0=disable, 1=enable), Word length (5, 6, 7, 8)
-void AP_MAX14830::_set_line(bool parity, bool stop)
+void AP_MAX14830_Driver::_set_line(bool parity, bool stop)
 {
     // Peserve State of LCR Register
     uint8_t lcr_state;
@@ -498,7 +516,7 @@ void AP_MAX14830::_set_line(bool parity, bool stop)
 /* ************************************************************************* */
 
 // Trigger Level to set on the RX Fifo with 8 times granularity.
-void AP_MAX14830::_set_fifo_trg_lvl(FIFO_TRIG::value trg_level)
+void AP_MAX14830_Driver::_set_fifo_trg_lvl(FIFO_TRIG::value trg_level)
 {
     // Peserve State of Trger Level Register
     uint8_t trglevel_state;
@@ -518,6 +536,8 @@ void AP_MAX14830::_set_fifo_trg_lvl(FIFO_TRIG::value trg_level)
         case FIFO_TRIG::LEVEL_12:
             trglevel_state &= ~(FIFOTRGLVL::RXTRIG0);
             trglevel_state &= ~(FIFOTRGLVL::RXTRIG1);
+            trglevel_state |=  (FIFOTRGLVL::RXTRIG2);
+            trglevel_state |=  (FIFOTRGLVL::RXTRIG3);
             break;
         case FIFO_TRIG::LEVEL_11:
             trglevel_state &= ~(FIFOTRGLVL::RXTRIG2);
@@ -586,7 +606,7 @@ void AP_MAX14830::_set_fifo_trg_lvl(FIFO_TRIG::value trg_level)
 /* ************************************************************************* */
 
 // exposed polling function for ISR interrupt.
-uint8_t AP_MAX14830::poll_global_isr()
+uint8_t AP_MAX14830_Driver::poll_global_isr()
 {
     // Retrieve and store state from Global IRQ Register
     uint8_t isr_state;
@@ -602,14 +622,17 @@ uint8_t AP_MAX14830::poll_global_isr()
         return 0;
     }
 
-    // Return true when Interrupt is triggered (UA0)
-    // return isr_state & GLOBALIRQ::IRQ0;
+
+    // uint8_t global_irq;
+    // global_irq = _read_register(MAX14830R_GLOBALIRQ);
+
+    // return global_irq;
 }
 
 /* ************************************************************************* */
 
 // Register periodic callback for device
-AP_HAL::Device::PeriodicHandle AP_MAX14830::register_periodic_callback(uint32_t period_usec, AP_HAL::Device::PeriodicCb cb)
+AP_HAL::Device::PeriodicHandle AP_MAX14830_Driver::register_periodic_callback(uint32_t period_usec, AP_HAL::Device::PeriodicCb cb)
 {
     return _dev->register_periodic_callback(period_usec, cb);
 }

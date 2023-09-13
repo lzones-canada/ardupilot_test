@@ -13,15 +13,15 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /*
- * AP_MAX14830.h
+ * AP_MAX14830_Driver.h
  *
  *      Author: Kyle Fruson
  */
 
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
+#include <AP_Math/AP_Math.h>
 #include <AP_HAL/Semaphores.h>
-#include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/AP_HAL_Namespace.h>
 #include <AP_HAL/Device.h>
 #include <AP_HAL/utility/sparse-endian.h>
@@ -30,6 +30,8 @@
 #include <hal.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS.h>
+#include <utility>
+#include <stdio.h>
 
 
 /*=========================================================================*/
@@ -102,15 +104,31 @@ struct WORDLEN
         WORD_MAX,
     };
 };
+
+
+// Global IRQ Register
+struct GLOBALIRQ
+{
+	enum
+	{
+		BLANK4 = (0x01 << 7),
+		BLANK3 = (0x01 << 6),
+		BLANK2 = (0x01 << 5),
+		BLANK1 = (0x01 << 4),
+		IRQ3   = (0x01 << 3),
+		IRQ2   = (0x01 << 2),
+		IRQ1   = (0x01 << 1),
+		IRQ0   = (0x01 << 0)
+	};
+};
 /*=========================================================================*/
 
 
 
-
-class AP_MAX14830 {
+class AP_MAX14830_Driver {
 public:
-    AP_MAX14830(void);
-    ~AP_MAX14830(void){}
+    AP_MAX14830_Driver(void);
+    ~AP_MAX14830_Driver(void){}
 
     static constexpr const char *name = "max14830";
 
@@ -120,8 +138,11 @@ public:
     // Sets UART address as MAX14830 has 4 UART Channels to write too.
     void set_uart_address(uint8_t addr);
 
-    // Middle layer read function for Max chip RX Buffer Read
-    uint8_t rx_fifo_read(uint8_t *rxdata, uint8_t len);
+    // Middle layer read function for Max Rx Buffer Read
+    uint8_t fifo_rx_read(uint8_t *rxdata, uint8_t len);
+
+	// Middle layer write function for Max Tx Buffer Write
+    uint8_t fifo_tx_write(uint8_t *txdata, uint8_t len);
 
     // Poll Global ISR for UART Specific Data Ready in the Rx Fifo
     uint8_t poll_global_isr();
@@ -320,22 +341,6 @@ private:
 			PLLEN     = (0x01 << 2),
 			CRYSTALEN = (0x01 << 1),
 			NOUSE1    = (0x01 << 0)
-		};
-	};
-
-    // Global IRQ Register
-    struct GLOBALIRQ
-	{
-		enum
-		{
-			BLANK4 = (0x01 << 7),
-			BLANK3 = (0x01 << 6),
-			BLANK2 = (0x01 << 5),
-			BLANK1 = (0x01 << 4),
-			IRQ3   = (0x01 << 3),
-			IRQ2   = (0x01 << 2),
-			IRQ1   = (0x01 << 1),
-			IRQ0   = (0x01 << 0)
 		};
 	};
 

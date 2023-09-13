@@ -13,16 +13,12 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /*
- * AP_IMET.cpp
+ * AP_MAX14830.cpp
  *
  *      Author: Kyle Fruson
  */
 
-#include "AP_IMET.h"
-#include <utility>
-#include <stdio.h>
-#include <AP_HAL/AP_HAL.h>
-#include <AP_Math/AP_Math.h>
+#include "AP_MAX14830.h"
 
 extern const AP_HAL::HAL &hal;
 
@@ -31,7 +27,11 @@ extern const AP_HAL::HAL &hal;
 //------------------------------------------------------------------------------
 
 static const uint8_t MESSAGE_BUFFER_LENGTH = 255;
-static uint8_t rx_fifo_buffer[MESSAGE_BUFFER_LENGTH];
+
+// IMET UART1 FIFO Buffer
+static uint8_t rx_fifo_buffer1[MESSAGE_BUFFER_LENGTH];
+// ADSB UART2 FIFO Buffer
+//static uint8_t rx_fifo_buffer2[MESSAGE_BUFFER_LENGTH];
 
 //------------------------------------------------------------------------------
 // Static buffer to store the message to be converted in.
@@ -55,17 +55,17 @@ static uint8_t prev_len = 0;
 
 
 // Constructor
-AP_IMET::AP_IMET() 
+AP_MAX14830::AP_MAX14830() 
 {
 }
 
-void AP_IMET::init()
+void AP_MAX14830::init()
 {
     // Init UART-SPI Max Driver
     _driver.init();
 
     /* Request 2Hz update (500ms) */
-    _driver.register_periodic_callback(500 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_IMET::_timer, void));
+    _driver.register_periodic_callback(500 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
 
     // _drdy_pin = hal.gpio->channel(HAL_GPIO_PIN_DRDY1_BMP388);
     // _drdy_pin->mode(HAL_GPIO_INPUT);
@@ -75,45 +75,79 @@ void AP_IMET::init()
 }
 
 /* ************************************************************************* */
-void AP_IMET::_timer(void)
+void AP_MAX14830::_timer(void)
 {
-    if(!_driver.poll_global_isr()) {
-        return;
+    // Poll for global interrupt.
+    uint8_t global_isr = _driver.poll_global_isr();
+
+    // Switch on global interrupt per UART/Address basis.
+    switch(global_isr)
+    {
+        case(GLOBALIRQ::IRQ0):
+        {
+            // Handle UART1 Interrupt - IMET data.
+            handle_imet_uart1_interrupt();
+            break;
+        }
+        case(GLOBALIRQ::IRQ1):
+        {
+            // Handle UART2 Interrupt - ADSB data.
+            handle_adsb_uart2_interrupt();
+            break;
+        }
+        // Future Use
+        // case(GLOBALIRQ::IRQ2):
+        // {
+        //     break;
+        // }
+        // case(GLOBALIRQ::IRQ3):
+        // {
+        //     break;
+        // }
+        default:
+        {
+            // No interrupt, just break out to return.
+            break;
+        }
     }
 
-    // Handle UART1 Interrupt for IMET data.
-    handle_imet_uart1_interrupt();
 
-    // Parse data to readable field for mavlink message??
+    // SANDBOX
+    static uint8_t counter = 0;
+    counter++;
+    if (counter > 10) {
+        counter = 0;
+        handle_adsb_uart2_interrupt();
+    }
+    return;
 
-    // Handle UART2 Interrupt
 
     return;
 }
 /* ************************************************************************* */
 
 
-void AP_IMET::handle_imet_uart1_interrupt()
+void AP_MAX14830::handle_imet_uart1_interrupt()
 {
     //---------------------------------------------------------------------------
 	// Enumerated data type to define the states of parsing buffer and copying message
 	//---------------------------------------------------------------------------
     static enum
 	{
-		WAIT_FOR_STOP_SYNC_1,		// Carriage return.
-		WAIT_FOR_STOP_SYNC_2		// Line feed.
+		WAIT_FOR_STOP_SYNC_1,		// Carriage return (0x0D).
+		WAIT_FOR_STOP_SYNC_2		// Line feed (0x0A).
 	} parse_state = WAIT_FOR_STOP_SYNC_1;
 
 
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    uint8_t rxbuf_fifo_len = _driver.rx_fifo_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
+    uint8_t rxbuf_fifo_len = _driver.fifo_rx_read(rx_fifo_buffer1, MESSAGE_BUFFER_LENGTH);
 
     // Initialize pointer to the start of FIFO buffer.
-    const uint8_t *byte_ptr = &rx_fifo_buffer[0];
+    const uint8_t *byte_ptr = &rx_fifo_buffer1[0];
     // Initialize buffer pointer.
     rx_buffer_ptr = rx_buffer;
     // Initialize buffer pointer length index.
-    uint8_t byte_ptr_len = 0;
+    uint8_t buffer_ptr_len = 0;
     // Initialize previous message length index.
     prev_len = 0;
 
@@ -130,7 +164,7 @@ void AP_IMET::handle_imet_uart1_interrupt()
 		}
 
         // Parse all data until the end of the fifo buffer.
-        if(rxbuf_fifo_len == byte_ptr_len) {
+        if(rxbuf_fifo_len == buffer_ptr_len) {
             // Finished converting all new data, Clear the interrupt and reset buffer.
             _driver.clear_interrupts();
             break;
@@ -140,7 +174,7 @@ void AP_IMET::handle_imet_uart1_interrupt()
         *rx_buffer_ptr = *byte_ptr;
         ++rx_buffer_ptr;
         // Track length of buffer pointer.
-        ++byte_ptr_len;
+        ++buffer_ptr_len;
 
         // Wait for a stop sync to be received.
         switch(parse_state)
@@ -161,7 +195,7 @@ void AP_IMET::handle_imet_uart1_interrupt()
                 // Line Feed '\n' (0x0A).
 				if(0x0A == *byte_ptr)
 				{
-                    handle_complete_imet_msg(byte_ptr_len);
+                    handle_complete_imet_msg(buffer_ptr_len);
 				    break;
 				}
 				// Reset to the start of the message buffer and start looking for a new message.
@@ -188,12 +222,12 @@ void AP_IMET::handle_imet_uart1_interrupt()
 
 /* ************************************************************************* */
 
-void AP_IMET::handle_complete_imet_msg(const uint8_t ptr_len)
+void AP_MAX14830::handle_complete_imet_msg(const uint8_t ptr_len)
 {
     // Calculate the maximum number of iterations needed.
     uint8_t max_iterations = ptr_len - prev_len;
 
-    // Working buffer point back to start of message. 
+    // Point Working buffer back to start of message. 
     const uint8_t *rx_work_buffer = rx_buffer_ptr - max_iterations;
 
     // Mavlink packet for sending out data.
@@ -221,5 +255,40 @@ void AP_IMET::handle_complete_imet_msg(const uint8_t ptr_len)
     // Send out Mavlink Message
     gcs().send_to_active_channels(MAVLINK_MSG_ID_IMET_SENSOR_RAW, (const char *)&imet_pkt);
 
+    return;
+}
+
+void AP_MAX14830::handle_adsb_uart2_interrupt()
+{
+    //---------------------------------------------------------------------------
+	// Enumerated data type to define the states of parsing buffer and copying message
+	//---------------------------------------------------------------------------
+    // static enum
+	// {
+	// 	WAIT_FOR_START_SYNC,	// ^ (0x5E).
+	// 	WAIT_FOR_STOP_SYNC		// Carriage return (0x0D).
+	// } parse_state = WAIT_FOR_START_SYNC;
+
+    // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
+    //uint8_t rxbuf_fifo_len2 = _driver.fifo_rx_read(rx_fifo_buffer2, MESSAGE_BUFFER_LENGTH);
+
+    uint8_t rx_fifo_buffer2[MESSAGE_BUFFER_LENGTH] = {0x7E, 0x00, 0x81, 0x41, 0xDB, 0xD0, 0x08, 0x02, 0xB3, 0x8B, 0x7E};
+
+    uint8_t rxbuf_fifo_len2 = 11;
+
+    AP_ADSB *adsb = AP_ADSB::get_singleton();
+    
+    if (adsb != nullptr) {
+        // Exposed Custom function to update our backend[1] within the ADSB class.
+        adsb->driver_update(&rx_fifo_buffer2[0], rxbuf_fifo_len2);
+    }
+
+    return;
+}
+
+/* ************************************************************************* */
+
+void AP_MAX14830::handle_complete_adsb_msg()
+{
     return;
 }
