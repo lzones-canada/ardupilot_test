@@ -18,6 +18,7 @@
 
 #include <AC_Fence/AC_Fence.h>
 #include <AP_ADSB/AP_ADSB.h>
+#include <AP_MAX14830/AP_MAX14830.h>
 #include <AP_AdvancedFailsafe/AP_AdvancedFailsafe.h>
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_HAL/AP_HAL.h>
@@ -5558,6 +5559,12 @@ void GCS_MAVLINK::send_uavionix_adsb_out_status() const
     AP_ADSB *adsb = AP::ADSB();
     if (adsb != nullptr) {
         adsb->send_adsb_out_status(chan);
+    }
+
+    // Send out on our Custom Driver
+    AP_MAX14830 *max14830 = AP::MAX14830();
+    if (max14830 != nullptr) {
+        max14830->adsb.send_adsb_out_status(chan);
     }
 }
 #endif

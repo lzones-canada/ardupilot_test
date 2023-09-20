@@ -623,6 +623,7 @@ uint8_t AP_MAX14830_Driver::poll_global_isr()
     }
 
 
+    // FIXME: See below!!
     // uint8_t global_irq;
     // global_irq = _read_register(MAX14830R_GLOBALIRQ);
 
