@@ -32,7 +32,8 @@
 #include <hal.h>
 #include <utility>
 #include <stdio.h>
-#include "AP_IMET_State.h"
+#include "AP_IMET_Sensor.h"
+#include "AP_ADSB_Sensor.h"
 #include "AP_MAX14830_Driver.h"
 
 
@@ -50,30 +51,39 @@ static const uint8_t UART_ADDR_4 =  0x03;
 //------------------------------------------------------------------------------
 class AP_MAX14830 {
 public:
-    AP_MAX14830(void);
-    ~AP_MAX14830(void){}
+    // Constructor
+    AP_MAX14830();
+
+    /* Do not allow copies */
+    CLASS_NO_COPY(AP_MAX14830);
+
+    // get singleton instance
+    static AP_MAX14830 *get_singleton(void) {
+        return _singleton;
+    }
 
     // initialize sensor object
     void init();
 
-    // Handle UART1 Interrupt
-    void handle_imet_uart1_interrupt(void);
-
-    void handle_adsb_uart2_interrupt(void);
-
-    // Handle complete IMET message.
-    void handle_complete_imet_msg(const uint8_t len);
-
-    // Handle complete ABSB message.
-    void handle_complete_adsb_msg();
-
     // Update function for data transmission and saving internal state.
     void update(void);
 
-protected:
-    // Structure for Sensor data
-    IMET_Sensor_State state;
+    // Expose ability to clear interrupt in Driver.
+    void clear_interrupts(void);
 
+    // Expose write function to our attached sensors
+    void tx_write(uint8_t *buf, uint8_t len);
+
+    // Expose read function to our attached sensors
+    uint8_t rx_read(uint8_t *buf, uint8_t len);
+
+    // Structure for ADSB data
+    AP_ADSB_Sensor adsb;
+
+    // Structure for Sensor data
+    AP_IMET_Sensor imet;
+
+protected:
     // Data Ready Interrupt
     bool data_ready();
 
@@ -89,4 +99,10 @@ private:
 
     // update the temperature, called at 20Hz
     void _timer(void);
+
+    static AP_MAX14830 *_singleton;
+};
+
+namespace AP {
+    AP_MAX14830 *MAX14830();
 };
