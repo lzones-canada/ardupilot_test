@@ -72,10 +72,10 @@ public:
     void clear_interrupts(void);
 
     // Expose write function to our attached sensors
-    void tx_write(uint8_t *buf, uint8_t len);
+    void tx_write(uint8_t *buf, uint8_t len, uint8_t uart_addr);
 
     // Expose read function to our attached sensors
-    uint8_t rx_read(uint8_t *buf, uint8_t len);
+    uint8_t rx_read(uint8_t *buf, uint8_t len, uint8_t uart_addr);
 
     // Structure for ADSB data
     AP_ADSB_Sensor adsb;
