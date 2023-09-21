@@ -39,6 +39,7 @@ static uint8_t rx_buffer[MESSAGE_BUFFER_LENGTH];
 //------------------------------------------------------------------------------
 
 static uint8_t *rx_buffer_ptr = rx_buffer;
+static uint8_t  rx_buffer_len = 0;
 
 //------------------------------------------------------------------------------
 // Constructor
@@ -63,17 +64,13 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
 
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
     if (_max14830) {
-        rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
+        rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH, UART_ADDR_1);
     }
 
-    // Initialize pointer to the start of FIFO buffer.
+    // Pointer to the start of FIFO buffer.
     const uint8_t *byte_ptr = &rx_fifo_buffer[0];
-    // Initialize buffer pointer.
-    rx_buffer_ptr = rx_buffer;
-    // Initialize buffer pointer length index.
-    uint8_t buffer_ptr_len = 0;
-    // Initialize previous message length index.
-    prev_len = 0;
+    // length index.
+    uint8_t  byte_count = 0;
 
     // Parse the data in buffer.
     while(true)
@@ -82,13 +79,13 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
 		{
 			// If the message won't all fit in the message buffer, it indicates
 			//  an error.  Reset and start looking for a new message.
-            prev_len = 0;
 			rx_buffer_ptr = rx_buffer;
+			rx_buffer_len = 0;
 			parse_state = WAIT_FOR_STOP_SYNC_1;
 		}
 
         // Parse all data until the end of the fifo buffer.
-        if(rxbuf_fifo_len == buffer_ptr_len) {
+        if(rxbuf_fifo_len == byte_count) {
             // Finished converting all new data, Clear the interrupt and reset buffer.
             if (_max14830) {
                 _max14830->clear_interrupts();
@@ -98,9 +95,13 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
 
         // Copy data over to rx buffer.
         *rx_buffer_ptr = *byte_ptr;
-        ++rx_buffer_ptr;
-        // Track length of buffer pointer.
-        ++buffer_ptr_len;
+        // Increment length of our buffer.
+        rx_buffer_len++;
+
+        // Track length of total message.
+        byte_count++;
+
+        hal.console->printf("%c", *byte_ptr);
 
         // Wait for a stop sync to be received.
         switch(parse_state)
@@ -121,10 +122,15 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
                 // Line Feed '\n' (0x0A).
 				if('\n' == *byte_ptr)
 				{
-                    handle_complete_imet_msg(buffer_ptr_len);
-				    break;
+                    hal.console->printf("*********\n");
+                    hal.console->printf("fifo_len: %d\n", rxbuf_fifo_len);
+                    hal.console->printf("ptr_len: %d\n",  rx_buffer_len);
+                    // Full messaged received... Process it.
+                    handle_complete_imet_msg(rx_buffer_len);
 				}
 				// Reset to the start of the message buffer and start looking for a new message.
+                rx_buffer_ptr = rx_buffer;
+                rx_buffer_len = 0;
 				parse_state = WAIT_FOR_STOP_SYNC_1;
 				break;
 			}
@@ -133,14 +139,15 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
 				// This should never happen.
 				// Reset to the start of the message buffer and start looking for a new message.
 				rx_buffer_ptr = rx_buffer;
-                prev_len = 0;
+                rx_buffer_len = 0;
 				parse_state = WAIT_FOR_STOP_SYNC_1;
 				break;
 			}
 		}
 
-        // Increment byte index.
-        ++byte_ptr;
+        // Increment our buffer indices.
+        byte_ptr++;
+        rx_buffer_ptr++;
     }
 
     return;
@@ -150,46 +157,24 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
 
 void AP_IMET_Sensor::handle_complete_imet_msg(const uint8_t ptr_len)
 {
-    // Calculate the maximum number of iterations needed.
-    uint8_t max_iterations = ptr_len - prev_len;
-
-    // Point Working buffer back to start of message. 
-    const uint8_t *rx_work_buffer = rx_buffer_ptr - max_iterations;
-
-    // Temporary Header Check - Filter out any non-complete Messages.
-    const uint8_t *char_header = rx_work_buffer;
-    // Confirm We have a sensor header to begin message.
-    if(*char_header != MAIN_SENSOR_HEADER && 
-       *char_header != GPS_SENSOR_HEADER  &&
-       *char_header != TEMP_SENSOR_HEADER ) {
-        // If we don't have a sensor header, return.
-        return;
-    }
-    // Confirm comma at next position for sensor header.
-    if(*++char_header != HEADER_COMMA) {
-        // If we don't have a sensor header, return.
-        return;
-    }
+    // Copy over into Working Buffer
+    //  point buffer back to start of message. 
+    const uint8_t *rx_work_buffer = (rx_buffer_ptr - (ptr_len - 1));
 
     // Mavlink packet for sending out data.
     mavlink_imet_sensor_raw_t imet_pkt{};
 
     // for loop to iterate over complete message.
-    for(int i=0; i<max_iterations; i++)
+    for(int i=0; i<ptr_len; i++)
     {
         uint8_t curr_char = *rx_work_buffer;
         // Only add data to the packet if it is not a carriage return or line feed.
         if(curr_char != '\r' && curr_char != '\n') {
-            //hal.console->printf("%c", curr_char);
             // Copy data into mavlink packet, Save the length.
             imet_pkt.data[imet_pkt.data_length++] = curr_char;
         }
         rx_work_buffer++;
     }
-    //hal.console->printf("\n");
-
-    // Save the index of our latest complete message.
-    prev_len = ptr_len;
 
     // Send out Mavlink Message
     gcs().send_to_active_channels(MAVLINK_MSG_ID_IMET_SENSOR_RAW, (const char *)&imet_pkt);

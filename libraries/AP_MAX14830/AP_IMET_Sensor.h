@@ -68,9 +68,6 @@ public:
     // Length of bytes to read - returned from Max14830 FIFO.
     uint8_t rxbuf_fifo_len;
 
-    // Variable to store prev message length
-    uint8_t prev_len = 0;
-
 private:
     // Pointer to MAX14830 object
     AP_MAX14830* _max14830;
