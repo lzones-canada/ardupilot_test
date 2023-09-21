@@ -139,10 +139,10 @@ public:
     void set_uart_address(uint8_t addr);
 
     // Middle layer read function for Max Rx Buffer Read
-    uint8_t fifo_rx_read(uint8_t *rxdata, uint8_t len);
+    uint8_t fifo_rx_read(uint8_t *rxdata, uint8_t len, uint8_t uart_addr);
 
 	// Middle layer write function for Max Tx Buffer Write
-    uint8_t fifo_tx_write(uint8_t *txdata, uint8_t len);
+    uint8_t fifo_tx_write(uint8_t *txdata, uint8_t len, uint8_t uart_addr);
 
     // Poll Global ISR for UART Specific Data Ready in the Rx Fifo
     uint8_t poll_global_isr();

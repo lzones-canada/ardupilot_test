@@ -250,7 +250,7 @@ void AP_MAX14830_Driver::fifo_reset()
 bool AP_MAX14830_Driver::_write_register(uint8_t reg, uint8_t data)
 {
     // Write transaction is indicated by MSbit of the MAX3108 register address byte = 1
-    reg |= MAX14830_WRITE_FLAG; //| _uart_address;
+    reg |= MAX14830_WRITE_FLAG; // | uart_address;
 
     // Write to SPI Device.
     for (uint8_t i=0; i<8; i++) {
@@ -269,14 +269,14 @@ bool AP_MAX14830_Driver::_write_register(uint8_t reg, uint8_t data)
 /* ************************************************************************* */
 
 // Software write for MAX Chip (Data stuffed in Transmit Hold Register).
-uint8_t AP_MAX14830_Driver::fifo_tx_write(uint8_t *txdata, uint8_t len)
+uint8_t AP_MAX14830_Driver::fifo_tx_write(uint8_t *txdata, uint8_t len, uint8_t uart_addr)
 {
     // Init Tx Buffer for SPI Write.
     uint8_t txbuf[len+1];
     memset(txbuf, 0x00, len+1);
     
     // Write transaction is indicated by MSbit of the MAX3108 register address byte = 1
-    txbuf[0] = MAX14830R_THR | MAX14830_WRITE_FLAG;
+    txbuf[0] = MAX14830R_THR | MAX14830_WRITE_FLAG | uart_addr;
     // Copy rest of data over for transmission.
     memcpy(txbuf+1, txdata, len);
 
@@ -307,12 +307,12 @@ int AP_MAX14830_Driver::_read_register(uint8_t reg)
 /* ************************************************************************* */
 
 // Software read for MAX Chip (Data in Receiver Hold Register).
-uint8_t AP_MAX14830_Driver::fifo_rx_read(uint8_t *rxdata, uint8_t len)
+uint8_t AP_MAX14830_Driver::fifo_rx_read(uint8_t *rxdata, uint8_t len, uint8_t uart_addr)
 {
     // Length of RX FIFO Chars to read
     uint8_t fifoLen = _read_register(MAX14830R_RXFIFOLVL);
     // Receiver Hold Register
-    uint8_t recv_hold_reg = (MAX14830R_RHR & MAX14830_READ_FLAG);
+    uint8_t recv_hold_reg = (MAX14830R_RHR & MAX14830_READ_FLAG) | uart_addr;
 
     // Clear rxdata buffer
     memset(rxdata, 0x00, len+1);

@@ -48,7 +48,7 @@ struct MODE
         OFF  = 0x4F,    // 'O'
         STBY = 0x41,    // 'A'
         ON   = 0x43,    // 'C'
-        ALT  = 0x53    // 'S'
+        ALT  = 0x53     // 'S'
     };
 };
 
@@ -57,7 +57,7 @@ struct IDENT
     enum
     {
         ACTVE   = 0x49,  // 'I'
-        INACTVE = 0x2D  // '-'
+        INACTVE = 0x2D   // '-'
     };
 };
 

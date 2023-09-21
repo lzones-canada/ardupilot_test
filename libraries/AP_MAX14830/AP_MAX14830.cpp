@@ -121,18 +121,18 @@ void AP_MAX14830::_timer(void)
 // Exposed Helper Functions for outside Sensors.
 //---------------------------------------------------------------------------
 
-uint8_t AP_MAX14830::rx_read(uint8_t *buf, uint8_t len)
+uint8_t AP_MAX14830::rx_read(uint8_t *buf, uint8_t len, uint8_t uart_addr)
 {
     WITH_SEMAPHORE(_sem);
-    return _driver.fifo_rx_read(buf, len);
+    return _driver.fifo_rx_read(buf, len, uart_addr);
 }
 
 /* ************************************************************************* */
 
-void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len)
+void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len, uint8_t uart_addr)
 {
     WITH_SEMAPHORE(_sem);
-    _driver.fifo_tx_write(buf, len);
+    _driver.fifo_tx_write(buf, len, uart_addr);
     return;
 }
 
@@ -145,8 +145,8 @@ void AP_MAX14830::clear_interrupts()
     return;
 
 
-/* ************************************************************************* */}
-
+}
+/* ************************************************************************* */
 
 // Singleton Pattern
 AP_MAX14830 *AP::MAX14830()
