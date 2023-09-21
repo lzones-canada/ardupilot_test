@@ -101,8 +101,6 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
         // Track length of total message.
         byte_count++;
 
-        hal.console->printf("%c", *byte_ptr);
-
         // Wait for a stop sync to be received.
         switch(parse_state)
 		{
@@ -122,9 +120,6 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
                 // Line Feed '\n' (0x0A).
 				if('\n' == *byte_ptr)
 				{
-                    hal.console->printf("*********\n");
-                    hal.console->printf("fifo_len: %d\n", rxbuf_fifo_len);
-                    hal.console->printf("ptr_len: %d\n",  rx_buffer_len);
                     // Full messaged received... Process it.
                     handle_complete_imet_msg(rx_buffer_len);
 				}
