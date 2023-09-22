@@ -69,8 +69,8 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
 
     // Pointer to the start of FIFO buffer.
     const uint8_t *byte_ptr = &rx_fifo_buffer[0];
-    // length index.
-    uint8_t  byte_count = 0;
+    // Byte length to track the number of bytes parsed.
+    uint8_t byte_count = 0;
 
     // Parse the data in buffer.
     while(true)
