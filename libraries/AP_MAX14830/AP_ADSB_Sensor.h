@@ -78,6 +78,14 @@ struct EMERG
 
 /*=========================================================================*/
 
+//------------------------------------------------------------------------------
+// Struct Pair for Hex to ASCII Chksum conversion.
+//------------------------------------------------------------------------------
+struct CharPair {
+    char highChar;
+    char lowChar;
+};
+
 // Forward declaration
 class AP_MAX14830;
 
@@ -94,11 +102,14 @@ public:
     // Update function for ADSB out.
     void update(void);
 
-    // Operating Mode Message - 1 Second interval (nominal)
-    void send_op_mode_msg(void);
-    
     // Call Sign Message - 1 min interval or on change
     void send_cs_msg(void);
+
+    // Operating Mode Message - 1 Second interval (nominal)
+    void send_op_mode_msg(void);
+
+    // VFR Code Message - 1 min interval or on change
+    void send_vfr_msg(void);
 
     // Handle ADSB-UART2 Interrupt
     void handle_adsb_uart2_interrupt(void);
@@ -112,8 +123,8 @@ public:
     // Expose adbs out function for gcs usage.
     void send_adsb_out_status(const mavlink_channel_t chan);
 
-    // CRC Function for ADSB
-    uint8_t calc_hex_crc(uint8_t *buf, uint8_t len);
+    // CRC Function for ADSB - ASCII Hex Representation.
+    CharPair calc_hex_to_ascii_crc(uint8_t *buf, uint8_t len);
 
     // Mavlink ADSB out status Packet
     mavlink_uavionix_adsb_out_status_t tx_status;

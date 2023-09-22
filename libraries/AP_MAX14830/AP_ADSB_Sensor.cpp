@@ -20,10 +20,11 @@
 
 #include "AP_ADSB_Sensor.h"
 #include "AP_MAX14830.h"
-
+#include <cstdio> // Add this line to include the required header
 
 #define VEHICLE_OP_MODE           800   // 1sec Timeout. Use 800ms to be safe.
-#define VEHICLE_CS_MSG            48000 // 0.8 minute interval
+//#define VEHICLE_CS_MSG            48000 // 0.8 minute interval
+#define VEHICLE_CS_MSG            10000 // 0.8 minute interval
 
 //------------------------------------------------------------------------------
 // Static FIFO buffer to retrieve rx message from ABSB UART2 FIFO
@@ -35,24 +36,17 @@ static uint8_t rx_fifo_buffer[MESSAGE_BUFFER_LENGTH];
 // Static buffer to store/send messages.
 //------------------------------------------------------------------------------
 
-static uint8_t rx_buffer[MESSAGE_BUFFER_LENGTH];
-
 // Tx Buffer for Operating Mode Message.
-// FIXME: Minus 1 Length when '\n' DELETED! */
 static const uint8_t MODE_MSG_LENGTH = 18;
 static uint8_t tx_mode_msg[MODE_MSG_LENGTH];
 
 // Tx Buffer for Call Sign Message.
-// FIXME: Minus 1 Length when '\n' DELETED! */
 static const uint8_t CS_MSG_LENGTH = 16;
 static uint8_t tx_cs_msg[CS_MSG_LENGTH];
 
-
-//------------------------------------------------------------------------------
-// Static pointer to control access to the contents of message_buffer.
-//------------------------------------------------------------------------------
-
-static uint8_t *rx_buffer_ptr = rx_buffer;
+// Tx Buffer for Call Sign Message.
+static const uint8_t VFR_MSG_LENGTH = 12;
+static uint8_t tx_vfr_msg[VFR_MSG_LENGTH];
 
 /* ************************************************************************* */
 
@@ -90,8 +84,9 @@ void AP_ADSB_Sensor::update()
 
     // Call Sign Message - 1 min interval or on change
     // FIXME: Update Timer OR CHANGE
-    if(now - last_cs_msg > 10000) {
+    if(now - last_cs_msg > VEHICLE_CS_MSG) {
         send_cs_msg();
+        send_vfr_msg();
         last_cs_msg = now;
     }
 
@@ -115,29 +110,24 @@ void AP_ADSB_Sensor::send_cs_msg()
     tx_cs_msg[3] = 0x20;          // ' '
     // Update ASCII Flight ID (idx: 4)
     // TODO: Update to use MAVLink Callsign
-    tx_cs_msg[4]  = 'U';
-    tx_cs_msg[5]  = 'A';
-    tx_cs_msg[6]  = 'V';
-    tx_cs_msg[7]  = 'I';
-    tx_cs_msg[8]  = 'O';
-    tx_cs_msg[9]  = 'N';
-    tx_cs_msg[10] = 'I';
-    tx_cs_msg[11] = 'X';
+    tx_cs_msg[4]  = 'N';
+    tx_cs_msg[5]  = 'V';
+    tx_cs_msg[6]  = 'W';
+    tx_cs_msg[7]  = '1';
+    tx_cs_msg[8]  = '2';
+    tx_cs_msg[9]  = '3';
+    tx_cs_msg[10] = '4';
+    tx_cs_msg[11] = '5';
 
     // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
-    uint8_t chksum = calc_hex_crc(tx_cs_msg, CS_MSG_LENGTH-4);
-    // Update Checksum Field (idx: 14-15)
-    // Extract the two hex digits from chksum
-    tx_cs_msg[12] = ((chksum >> 4) & 0xF) +  '0';  // Extract the first hex digit
-    tx_cs_msg[13] = (chksum & 0xF)        +  '0';  // Extract the second hex digit
+    CharPair chksum = calc_hex_to_ascii_crc(tx_cs_msg, CS_MSG_LENGTH-4);
+    // Extract the two ASCII hex digits from chksum
+    tx_cs_msg[12] = chksum.highChar;       // Extract the first hex digit
+    tx_cs_msg[13] = chksum.lowChar;        // Extract the second hex digit
 
     // Append New Line Field (idx: 16)
     tx_cs_msg[14] = 0x0D;  // '\r'
-
-
-
-    // FIXME: TEMPORARY FOR PRINTING!!!************************************************ */
-    tx_cs_msg[15] = 0x0A;  // '\n'
+    tx_cs_msg[15] = 0x0A;  // '\r'
 
     // Send out Message.
     hostTransmit(tx_cs_msg, CS_MSG_LENGTH);
@@ -179,21 +169,16 @@ void AP_ADSB_Sensor::send_op_mode_msg()
 
     // Health bit (idx: 13)
     tx_mode_msg[13] = 0x31;          // In hex ASCII '1'
-    
 
     // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
-    uint8_t chksum = calc_hex_crc(tx_mode_msg, MODE_MSG_LENGTH-4);
-    // Update Checksum Field (idx: 14-15)
-    // Extract the two hex digits from chksum
-    tx_mode_msg[14] = ((chksum >> 4) & 0xF) + '0';  // Extract the first hex digit
-    tx_mode_msg[15] = (chksum & 0xF)        +  '0'; // Extract the second hex digit
+    CharPair chksum = calc_hex_to_ascii_crc(tx_mode_msg, MODE_MSG_LENGTH-4);
+    // Extract the two ASCII hex digits from chksum
+    tx_mode_msg[14] = chksum.highChar;        // Extract the first hex digit
+    tx_mode_msg[15] = chksum.lowChar;         // Extract the second hex digit
 
     // Append New Line Field (idx: 16)
     tx_mode_msg[16] = 0x0D;  // '\r'
-
-
-    // FIXME: TEMPORARY FOR PRINTING!!!************************************************ */
-    tx_mode_msg[17] = 0x0A;  // '\n'
+    tx_mode_msg[17] = 0x0A;  // '\r'
 
     // Send out Message.
     hostTransmit(tx_mode_msg, MODE_MSG_LENGTH);
@@ -203,121 +188,62 @@ void AP_ADSB_Sensor::send_op_mode_msg()
 
 /* ************************************************************************* */
 
+void AP_ADSB_Sensor::send_vfr_msg()
+{
+    // Header (idx: 0-3)
+    tx_vfr_msg[0] = 0x5E;          // '^'
+    tx_vfr_msg[1] = 0x56;          // 'V' 
+    tx_vfr_msg[2] = 0x43;          // 'C'
+    tx_vfr_msg[3] = 0x20;          // ' '
+    // Update Squawk Code in Tx Buffer [idx: 8-11]
+    tx_vfr_msg[4]  = (squawk_octal / 1000)     + '0';   // Thousands digit
+    tx_vfr_msg[5]  = (squawk_octal / 100) % 10 + '0';   // Hundreds digit
+    tx_vfr_msg[6] = (squawk_octal / 10) % 10  + '0';   // Tens digit
+    tx_vfr_msg[7] = (squawk_octal % 10)       + '0';   // Ones digit
+
+    // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
+    CharPair chksum = calc_hex_to_ascii_crc(tx_vfr_msg, VFR_MSG_LENGTH-4);
+    // Extract the two ASCII hex digits from chksum
+    tx_vfr_msg[8] = chksum.highChar;       // Extract the first hex digit
+    tx_vfr_msg[9] = chksum.lowChar;        // Extract the second hex digit
+
+
+    // Append New Line Field (idx: 16)
+    tx_vfr_msg[10] = 0x0D;  // '\r'
+    tx_vfr_msg[11] = 0x0A;  // '\r'
+
+    // Send out Message.
+    hostTransmit(tx_vfr_msg, VFR_MSG_LENGTH);
+
+    return;
+}
+
+/* ************************************************************************* */
+
 void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
-{    
-    // Fill the array with the specified values
-
-    // Flag Byte
-    rx_fifo_buffer[0] = GDL90_FLAG_BYTE;
-    // Msg ID - Heartbeat
-    rx_fifo_buffer[1] = GDL90_ID_HEARTBEAT;
-    // Data - 7
-    rx_fifo_buffer[2] = 0x81;
-    rx_fifo_buffer[3] = 0x41;
-    rx_fifo_buffer[4] = 0xDB;
-    rx_fifo_buffer[5] = 0xD0;
-    rx_fifo_buffer[6] = 0x08;
-    rx_fifo_buffer[7] = 0x02;
-    // CRC
-    rx_fifo_buffer[8] = 0xB3;
-    rx_fifo_buffer[9] = 0x8B;
-    // Flag Byte
-    rx_fifo_buffer[10] = GDL90_FLAG_BYTE;
-
-
-    // Flag Byte
-    rx_fifo_buffer[11] = GDL90_FLAG_BYTE;
-    // Msg ID - Ownship Report
-    rx_fifo_buffer[12] = GDL90_ID_OWNSHIP_REPORT;
-    // Data - 27
-    rx_fifo_buffer[13] = 0x00;
-    rx_fifo_buffer[14] = 0xAB;
-    rx_fifo_buffer[15] = 0x45;
-    rx_fifo_buffer[16] = 0x49;
-    rx_fifo_buffer[17] = 0x1F;
-    rx_fifo_buffer[18] = 0xEF;
-    rx_fifo_buffer[19] = 0x15;
-    rx_fifo_buffer[20] = 0xA8;
-    rx_fifo_buffer[21] = 0x89;
-    rx_fifo_buffer[22] = 0x78;
-    rx_fifo_buffer[23] = 0x0F;
-    rx_fifo_buffer[24] = 0x09;
-    rx_fifo_buffer[25] = 0xA9;
-
-    // Continue filling the array with the values at indices 26 and onwards
-    rx_fifo_buffer[26] = 0x07;
-    rx_fifo_buffer[27] = 0xB0;
-    rx_fifo_buffer[28] = 0x01;
-    rx_fifo_buffer[29] = 0x20;
-    rx_fifo_buffer[30] = 0x01;
-    rx_fifo_buffer[31] = 0x4E;
-    rx_fifo_buffer[32] = 0x38;
-    rx_fifo_buffer[33] = 0x32;
-    rx_fifo_buffer[34] = 0x35;
-    rx_fifo_buffer[35] = 0x56;
-    rx_fifo_buffer[36] = 0x20;
-    rx_fifo_buffer[37] = 0x20;
-    rx_fifo_buffer[38] = 0x20;
-    rx_fifo_buffer[39] = 0x00;
-    // CRC
-    rx_fifo_buffer[40] = 0x85;
-    rx_fifo_buffer[41] = 0x5B;
-    // Flag Byte
-    rx_fifo_buffer[42] = GDL90_FLAG_BYTE;
-
-
-
-    // Flag Byte
-    rx_fifo_buffer[43] = GDL90_FLAG_BYTE;
-    // Msg ID - Ownship Geometric
-    rx_fifo_buffer[44] = GDL90_ID_OWNSHIP_GEOMETRIC_ALTITUDE;
-    // Data - 4
-    rx_fifo_buffer[45] = 0x00;
-    rx_fifo_buffer[46] = 0xC8;
-    rx_fifo_buffer[47] = 0x7F;
-    rx_fifo_buffer[48] = 0xFE;
-    // CRC
-    rx_fifo_buffer[49] = 0x4B;
-    rx_fifo_buffer[50] = 0xD7;
-    // Flag Byte
-    rx_fifo_buffer[51] = GDL90_FLAG_BYTE;
-
-
-    // Init
-    rxbuf_fifo_len = 53;
+{
     rx.status.prev_data = GDL90_FLAG_BYTE;
-
     //---------------------------------------------------------------------------
 	// Enumerated data type to define the states of parsing buffer and copying message
 	//---------------------------------------------------------------------------
     rx.status.state = GDL90_RX_IDLE;
 
-    // FIXME: Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    // if (_max14830) {
-    //     rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
-    // }
+    // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
+    // FIXME: UPDATE TO UART2!
+    if (_max14830) {
+        rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH, UART_ADDR_1);
+    }
 
-    // Initialize pointer to the start of FIFO buffer.
+    // Pointer to the start of FIFO buffer.
     const uint8_t *byte_ptr = &rx_fifo_buffer[0];
-    // Initialize buffer pointer.
-    rx_buffer_ptr = rx_buffer;
-    // Initialize buffer pointer length index.
-    uint8_t buffer_ptr_len = 0;
+    // Byte length to track the number of bytes parsed.
+    uint8_t byte_count = 0;
 
     // Parse the data in buffer.
     while(true)
     {
-        if((rx_buffer + MESSAGE_BUFFER_LENGTH) <= rx_buffer_ptr)
-		{
-			// If the message won't all fit in the message buffer, it indicates
-			//  an error.  Reset and start looking for a new message.
-			rx_buffer_ptr = rx_buffer;
-			rx.status.state = GDL90_RX_IDLE;
-		}
-
         // Parse all data until the end of the fifo buffer.
-        if(rxbuf_fifo_len == buffer_ptr_len) 
-        {
+        if(rxbuf_fifo_len == byte_count) {
             // Finished converting all new data, Clear the interrupt and reset buffer.
             if (_max14830) {
                 _max14830->clear_interrupts();
@@ -325,19 +251,15 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
             break;
         }
 
-        // Copy data over to rx buffer.
-        *rx_buffer_ptr = *byte_ptr;
-        ++rx_buffer_ptr;
         // Track length of buffer pointer.
-        ++buffer_ptr_len;
+        byte_count++;
 
         // Message parsing state machine.
         switch(rx.status.state)
 		{
-
 			case(GDL90_RX_IDLE):
 			{
-                // Carriage Return '\r' (0x0D).
+                // 0x7E is the flag byte. If we see it, we're in a new message.
 				if(GDL90_FLAG_BYTE == *byte_ptr && GDL90_FLAG_BYTE == rx.status.prev_data)
 				{
 					rx.status.length = 0;
@@ -370,9 +292,7 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
                     // NOTE: status.length contains messageId, payload and CRC16. So status.length-3 is effective payload length
                     rx.msg.crc = (uint16_t)crc_LSB | ((uint16_t)crc_MSB << 8);
                     const uint16_t crc = crc16_ccitt_GDL90((uint8_t*)&rx.msg.raw, rx.status.length-2, 0);
-                    // if(rx.msg.messageId == GDL90_ID_OWNSHIP_GEOMETRIC_ALTITUDE) {
-                    //     GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"CRC: 0x%02X, msgCRC: 0x%02X", crc, rx.msg.crc);
-                    // }
+                    //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"CRC: 0x%02X, msgCRC: 0x%02X", crc, rx.msg.crc);
                     if (crc == rx.msg.crc) {
                         rx.status.prev_data = *byte_ptr;
                         // NOTE: this is the only path that returns true ie. HANDLE COMPLETE MESSAGE HERE.
@@ -398,16 +318,13 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
 			default:
 			{
 				// This should never happen.
-				// Reset to the start of the message buffer and start looking for a new message.
-				rx_buffer_ptr = rx_buffer;
-				rx.status.state = GDL90_RX_IDLE;
 				break;
 			}
 		}
         // Store previous byte.
         rx.status.prev_data = *byte_ptr;
         // Increment byte index.
-        ++byte_ptr;
+        byte_ptr++;
     }
 
     return;
@@ -417,7 +334,6 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
 
 void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
 {
-    
     //TODO: TEST WHICH MESSAGES WE ARE RECEIVING!!!!
     //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"msg_id: %d", msg.messageId);
 
@@ -487,6 +403,8 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
                     (unsigned)rx.decoded.identification.primary.serialNumber,
                     primaryFwPartNumber);
             }
+
+            //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_IDENTIFICATION");
             break;
         }
         case(GDL90_ID_TRANSPONDER_CONFIG):
@@ -573,9 +491,10 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
                 ctrl.squawkCode = rx.decoded.transponder_status.squawkCode;
                 ctrl.x_bit = rx.decoded.transponder_status.x_bit;
             }
-            GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"state2: 0x%02X", tx_status.fault);
             run_state.last_packet_Transponder_Status_ms = AP_HAL::millis();
             gcs().send_message(MSG_UAVIONIX_ADSB_OUT_STATUS);
+
+            //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_TRANSPONDER_STATUS");
             break;
         }
         default:
@@ -618,16 +537,28 @@ const char* AP_ADSB_Sensor::get_hardware_name(const uint8_t hwId)
 
 /* ************************************************************************* */
 
-uint8_t AP_ADSB_Sensor::calc_hex_crc(uint8_t *buf, uint8_t len)
+CharPair AP_ADSB_Sensor::calc_hex_to_ascii_crc(uint8_t *buf, uint8_t len)
 {
     // The checksum is algebraic sum of the message byte values.
-    uint8_t sum = 0;
+    uint8_t chksum = 0;
 
     for(int i=0; i<len; i++) {
-        sum += buf[i];
+        chksum += buf[i];
     }
 
-    return sum;
+    // Extract the high and low nibbles
+    unsigned char highNibble = (chksum >> 4) & 0xF;
+    unsigned char lowNibble = chksum & 0xF;
+
+    // Convert the high and low nibbles to ASCII characters
+    char highChar = (highNibble < 10) ? ('0' + highNibble) : ('A' + (highNibble - 10));
+    char lowChar = (lowNibble < 10) ? ('0' + lowNibble) : ('A' + (lowNibble - 10));
+
+    CharPair charPair;
+    charPair.highChar = highChar;
+    charPair.lowChar = lowChar;
+
+    return charPair;
 }
 
 /* ************************************************************************* */
@@ -704,7 +635,8 @@ bool AP_ADSB_Sensor::hostTransmit(uint8_t *buffer, uint16_t length)
       return false;
     }
 
-    //_max14830->tx_write(buffer, length);
+    // FIXME: Udapte to use UART_ADDR_2 when 14830
+    _max14830->tx_write(buffer, length, UART_ADDR_1);
     return true;
 }
 
