@@ -61,14 +61,12 @@ void AP_MAX14830::init()
 }
 
 /* ************************************************************************* */
+
 void AP_MAX14830::_timer(void)
 {
-    // Poll for global interrupt.
+    // Poll MAX14830 for global interrupt.
     uint8_t global_isr = _driver.poll_global_isr();
 
-    // ---------------------------------------
-    // read any data available on serial port
-    // ---------------------------------------
 
     // Switch on global interrupt per UART/Address basis.
     switch(global_isr)
@@ -76,7 +74,9 @@ void AP_MAX14830::_timer(void)
         case(GLOBALIRQ::IRQ0):
         {
             // Handle UART1 Interrupt - IMET data.
-            imet.handle_imet_uart1_interrupt();
+            //imet.handle_imet_uart1_interrupt();
+            // FIXME: Temp workaround
+            adsb.handle_adsb_uart2_interrupt();
             break;
         }
         case(GLOBALIRQ::IRQ1):
@@ -100,25 +100,16 @@ void AP_MAX14830::_timer(void)
             break;
         }
     }
-
-
-    // SANDBOX
-    // static uint8_t counter = 0;
-    // counter++;
-    // if (counter > 15) {
-    //     counter = 0;
-    //     adsb.handle_adsb_uart2_interrupt();
-    // }
     
+    // ---------------------------------------
     adsb.update();
-
 
     return;
 }
 
 
 //---------------------------------------------------------------------------
-// Exposed Helper Functions for outside Sensors.
+// Exposed Helper Functions for outside Sensor Usage.
 //---------------------------------------------------------------------------
 
 uint8_t AP_MAX14830::rx_read(uint8_t *buf, uint8_t len, uint8_t uart_addr)

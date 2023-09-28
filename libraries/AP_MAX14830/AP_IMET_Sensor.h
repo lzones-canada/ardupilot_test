@@ -30,15 +30,7 @@
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
-// Time in milliseconds before we declare the Wing Sensor to be "unhealthy"
-#define HEALTHY_LAST_RECEIVED_MS    3000
 
-#define MAIN_SENSOR_HEADER   '0'
-#define GPS_SENSOR_HEADER    '3'
-#define TEMP_SENSOR_HEADER   '5'
-#define HEADER_COMMA         ','
-
-/*=========================================================================*/
 
 // Forward declaration
 class AP_MAX14830;
