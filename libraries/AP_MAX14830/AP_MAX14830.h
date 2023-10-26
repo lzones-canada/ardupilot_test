@@ -20,30 +20,18 @@
 
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
-#include <AP_HAL/Semaphores.h>
-#include <AP_HAL/utility/sparse-endian.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <AP_Math/AP_Math.h>
 #include <AP_ADSB/AP_ADSB.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <GCS_MAVLink/GCS_config.h>
 #include <GCS_MAVLink/GCS.h>
-#include <AP_HAL/GPIO.h>
 #include <hal.h>
 #include <utility>
 #include <stdio.h>
 #include "AP_IMET_Sensor.h"
 #include "AP_ADSB_Sensor.h"
 #include "AP_MAX14830_Driver.h"
-
-
-/*=========================================================================*/
-// Static member constants for UART Address MAX14830 chip
-/*=========================================================================*/
-static const uint8_t UART_ADDR_1 =  0x00;
-static const uint8_t UART_ADDR_2 =  0x01;
-static const uint8_t UART_ADDR_3 =  0x02;
-static const uint8_t UART_ADDR_4 =  0x03;
 
 
 //------------------------------------------------------------------------------
@@ -66,16 +54,22 @@ public:
     void init();
 
     // Update function for data transmission and saving internal state.
-    void update(void);
+    void update(uint8_t pin, bool high, uint32_t timestamp_us);
 
     // Expose ability to clear interrupt in Driver.
     void clear_interrupts(void);
 
     // Expose write function to our attached sensors
-    void tx_write(uint8_t *buf, uint8_t len, uint8_t uart_addr);
+    void tx_write(uint8_t *buf, uint8_t len);
 
     // Expose read function to our attached sensors
-    uint8_t rx_read(uint8_t *buf, uint8_t len, uint8_t uart_addr);
+    uint8_t rx_read(uint8_t *buf, uint8_t len);
+
+    // Expose ability to set UART address in Driver.
+    void set_uart_address(UART::value addr);
+
+    // Expose ability to set RTS pin in Driver.
+    void set_RTS_state(bool state);
 
     // Structure for ADSB data
     AP_ADSB_Sensor adsb;

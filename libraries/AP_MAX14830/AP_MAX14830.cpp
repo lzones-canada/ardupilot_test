@@ -28,9 +28,9 @@ extern const AP_HAL::HAL &hal;
 AP_MAX14830 *AP_MAX14830::_singleton;
 
 // Constructor
-AP_MAX14830::AP_MAX14830()
-    : adsb(this), 
-      imet(this)
+AP_MAX14830::AP_MAX14830() :
+    adsb(this),
+    imet(this)
 {
     // Singleton Pattern
     if (_singleton != nullptr) {
@@ -47,15 +47,12 @@ void AP_MAX14830::init()
     // Init UART-SPI Max Driver
     _driver.init();
 
-    // /* Request 2Hz update (500ms) */
-    // _driver.register_periodic_callback(500 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
-
     /* Request 5Hz update (200ms) */
-    _driver.register_periodic_callback(200 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
+    _driver.register_periodic_callback(500 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
 
-    // _drdy_pin = hal.gpio->channel(HAL_GPIO_PIN_DRDY1_BMP388);
-    // _drdy_pin->mode(HAL_GPIO_INPUT);
-    // _drdy_pin->attach_interrupt(HAL_GPIO_PIN_DRDY1_EXT, trigger_drdy_interrupt, AP_HAL::GPIO::INTERRUPT_RISING);
+    hal.gpio->pinMode(HAL_GPIO_DRDY1_EXT_IRQ, HAL_GPIO_INPUT);
+    //hal.gpio->attach_interrupt(HAL_GPIO_DRDY1_EXT_IRQ, trigger_irq_event , AP_HAL::GPIO::INTERRUPT_FALLING);
+
 
     return;
 }
@@ -67,33 +64,37 @@ void AP_MAX14830::_timer(void)
     // Poll MAX14830 for global interrupt.
     uint8_t global_isr = _driver.poll_global_isr();
 
-
     // Switch on global interrupt per UART/Address basis.
+    // TODO: READ OUT THE INTERRUPT STATUS REGISTER TO DETERMINE WHICH UART TRIGGERED THE INTERRUPT.
+    //   CAN BOTH HAPPEN AT SAME TIME?? IE. HANDLE CASE WHERE BOTH UARTS HAVE DATA READY.
+    //GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"global_isr: %d", global_isr);
+
+    //uint8_t global_irq = hal.gpio->read(HAL_GPIO_DRDY1_EXT_IRQ);
+    //GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"global_isr: %d %d", global_isr, !global_irq);
+
     switch(global_isr)
     {
-        case(GLOBALIRQ::IRQ0):
+        case(GLOBALIRQ::IRQ1):
         {
             // Handle UART1 Interrupt - IMET data.
-            //imet.handle_imet_uart1_interrupt();
-            // FIXME: Temp workaround
-            adsb.handle_adsb_uart2_interrupt();
+            imet.handle_imet_uart1_interrupt();
             break;
         }
-        case(GLOBALIRQ::IRQ1):
+        case(GLOBALIRQ::IRQ2):
         {
             // Handle UART2 Interrupt - ADSB data.
             adsb.handle_adsb_uart2_interrupt();
             break;
         }
         // Future Use
-        // case(GLOBALIRQ::IRQ2):
-        // {
-        //     break;
-        // }
-        // case(GLOBALIRQ::IRQ3):
-        // {
-        //     break;
-        // }
+        case(GLOBALIRQ::IRQ3):
+        {
+            break;
+        }
+        case(GLOBALIRQ::IRQ4):
+        {
+            break;
+        }
         default:
         {
             // No interrupt, just break out to return.
@@ -102,7 +103,7 @@ void AP_MAX14830::_timer(void)
     }
     
     // ---------------------------------------
-    adsb.update();
+    //adsb.update();
 
     return;
 }
@@ -112,18 +113,18 @@ void AP_MAX14830::_timer(void)
 // Exposed Helper Functions for outside Sensor Usage.
 //---------------------------------------------------------------------------
 
-uint8_t AP_MAX14830::rx_read(uint8_t *buf, uint8_t len, uint8_t uart_addr)
+uint8_t AP_MAX14830::rx_read(uint8_t *buf, uint8_t len)
 {
     WITH_SEMAPHORE(_sem);
-    return _driver.fifo_rx_read(buf, len, uart_addr);
+    return _driver.fifo_rx_read(buf, len);
 }
 
 /* ************************************************************************* */
 
-void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len, uint8_t uart_addr)
+void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len)
 {
     WITH_SEMAPHORE(_sem);
-    _driver.fifo_tx_write(buf, len, uart_addr);
+    _driver.fifo_tx_write(buf, len);
     return;
 }
 
@@ -134,9 +135,26 @@ void AP_MAX14830::clear_interrupts()
     WITH_SEMAPHORE(_sem);
     _driver.clear_interrupts();
     return;
-
-
 }
+
+/* ************************************************************************* */
+
+void AP_MAX14830::set_uart_address(UART::value uart_addr)
+{
+    WITH_SEMAPHORE(_sem);
+    _driver.set_uart_address(uart_addr);
+    return;
+}
+
+/* ************************************************************************* */
+
+void AP_MAX14830::set_RTS_state(bool state)
+{
+    WITH_SEMAPHORE(_sem);
+    _driver.set_RTS_state(state);
+    return;
+}
+
 /* ************************************************************************* */
 
 // Singleton Pattern

@@ -31,6 +31,7 @@
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <AP_ADSB/GDL90_protocol/GDL90_Message_Structs.h>
 #include <AP_ADSB/GDL90_protocol/hostGDL90Support.h>
+#include "AP_ADSB/sagetech-sdk/sagetech_mxs.h"
 
 
 /*=========================================================================*/
@@ -119,11 +120,26 @@ public:
     // Leverage DATA16 mavlink message for ADSB Call Sign.
     void handle_data16_packet(mavlink_channel_t chan, const mavlink_data16_t &m);
 
+    // mavlink message handler
+    void handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg);
+
+    // configure ADSB-out transceivers
+    void handle_out_cfg(const mavlink_uavionix_adsb_out_cfg_t &packet);
+
+    // control ADSB-out transcievers
+    void handle_out_control(const mavlink_uavionix_adsb_out_control_t &packet);
+
+    // Helper function to return operating mode.
+    uint8_t get_mode(void);
+
     // CRC Function for ADSB - ASCII Hex Representation.
     CharPair calc_hex_to_ascii_crc(uint8_t *buf, uint8_t len);
 
     // Mavlink ADSB out status Packet
     mavlink_uavionix_adsb_out_status_t tx_status;
+
+    // Mavlink ADSB out dynamic Packet
+    mavlink_uavionix_adsb_out_dynamic_t tx_dynamic;
 
     // ADSB Squak Code
     enum ap_var_type ptype;
@@ -172,6 +188,29 @@ public:
         } decoded;
 
     } rx;
+
+    struct
+    {
+        bool baroCrossChecked;
+        uint8_t airGroundState;
+        bool identActive;
+        bool modeAEnabled;
+        bool modeCEnabled;
+        bool modeSEnabled;
+        bool es1090TxEnabled;
+        int32_t externalBaroAltitude_mm;
+        uint16_t squawkCode;
+        uint8_t emergencyState;
+        uint8_t callsign[8];
+        uint8_t mode = MODE::OFF;
+        bool x_bit;
+    } ctrl; // Declare ctrl as a member variable
+
+    struct adsb_vehicle_t 
+    {
+        mavlink_adsb_vehicle_t info; // the whole mavlink struct with all the juicy details. sizeof() == 38
+        uint32_t last_update_ms; // last time this was refreshed, allows timeouts
+    };
 
 private:
     // Pointer to MAX14830 object
