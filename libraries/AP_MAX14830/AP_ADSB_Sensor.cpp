@@ -30,6 +30,11 @@
 #define HEALTHY_LAST_RECEIVED_MSG       10000     // 10sec Timeout.
 #define VEHICLE_OP_MODE                 1000      // 1sec Interval.
 #define VEHICLE_CS_MSG                  60 *1000  // 1min Interval.
+// GDL90 Heading Resolution
+#define GDL_RES_HEAD 256.0 / 360.0
+// GDL90 Vertical Velocity Resolution
+#define GDL_RES_VERTVEL 64.0
+
 
 //------------------------------------------------------------------------------
 // Static FIFO buffer to retrieve rx message from ABSB UART2 FIFO
@@ -112,14 +117,14 @@ void AP_ADSB_Sensor::send_cs_msg()
     tx_cs_msg[3] = 0x20;          // ' '
     // Update ASCII Flight ID (idx: 4)
     // TODO: Update to use MAVLink Callsign
-    tx_cs_msg[4]  = callsign[0];
-    tx_cs_msg[5]  = callsign[1];
-    tx_cs_msg[6]  = callsign[2];
-    tx_cs_msg[7]  = callsign[3];
-    tx_cs_msg[8]  = callsign[4];
-    tx_cs_msg[9]  = callsign[5];
-    tx_cs_msg[10] = callsign[6];
-    tx_cs_msg[11] = callsign[7];
+    tx_cs_msg[4]  = ctrl.callsign[0];
+    tx_cs_msg[5]  = ctrl.callsign[1];
+    tx_cs_msg[6]  = ctrl.callsign[2];
+    tx_cs_msg[7]  = ctrl.callsign[3];
+    tx_cs_msg[8]  = ctrl.callsign[4];
+    tx_cs_msg[9]  = ctrl.callsign[5];
+    tx_cs_msg[10] = ctrl.callsign[6];
+    tx_cs_msg[11] = ctrl.callsign[7];
 
     // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
     CharPair chksum = calc_hex_to_ascii_crc(tx_cs_msg, CS_MSG_LENGTH-4);
@@ -130,8 +135,11 @@ void AP_ADSB_Sensor::send_cs_msg()
     // Append New Line Field (idx: 16)
     tx_cs_msg[14] = 0x0D;  // '\r'
 
+    //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"tx_cs_msg: %s", tx_cs_msg);
+
     // Send out Message.
     _tx_write(tx_cs_msg, CS_MSG_LENGTH);
+
 
     return;
 }
@@ -147,26 +155,28 @@ void AP_ADSB_Sensor::send_op_mode_msg()
     tx_mode_msg[3] = 0x20;          // ' '
 
     // Update Mode Field (idx: 4)
-    tx_mode_msg[4] = MODE::STBY;
+    tx_mode_msg[4] = get_mode();
 
     // Comma Field (idx: 5)
     tx_mode_msg[5] = 0x2C;          // ','
 
     // Update Ident Field (idx: 6)
-    tx_mode_msg[6] = IDENT::ACTVE;
+    tx_mode_msg[6] = ctrl.identActive ? IDENT::ACTVE : IDENT::INACTVE;
+    // only send identButtonActive once per request
+    ctrl.identActive = false;
 
     // Comma Field (idx: 7)
     tx_mode_msg[7] = 0x2C;          // ','
 
     // Update Squawk Code in Tx Buffer [idx: 8-11]
     //  Convert to ASCII Hex
-    tx_mode_msg[8]  = (squawk_octal / 1000)     + '0';   // Thousands digit
-    tx_mode_msg[9]  = (squawk_octal / 100) % 10 + '0';   // Hundreds digit
-    tx_mode_msg[10] = (squawk_octal / 10) % 10  + '0';   // Tens digit
-    tx_mode_msg[11] = (squawk_octal % 10)       + '0';   // Ones digit
+    tx_mode_msg[8]  = (ctrl.squawkCode / 1000)     + '0';   // Thousands digit
+    tx_mode_msg[9]  = (ctrl.squawkCode / 100) % 10 + '0';   // Hundreds digit
+    tx_mode_msg[10] = (ctrl.squawkCode / 10) % 10  + '0';   // Tens digit
+    tx_mode_msg[11] = (ctrl.squawkCode % 10)       + '0';   // Ones digit
 
     // Update Emergency Field (idx: 12)
-    tx_mode_msg[12] = EMERG::NONE;
+    tx_mode_msg[12] = (sg_emergc_t) ctrl.emergencyState + '0'; // In hex ASCII
 
     // Health bit (idx: 13)
     tx_mode_msg[13] = 0x31;          // In hex ASCII '1'
@@ -180,11 +190,10 @@ void AP_ADSB_Sensor::send_op_mode_msg()
     // Append New Line Field (idx: 16)
     tx_mode_msg[16] = 0x0D;  // '\r'
 
+    //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"tx_mode_msg: %s", tx_mode_msg);
+
     // Send out Message.
     _tx_write(tx_mode_msg, MODE_MSG_LENGTH);
-
-    // Save the most recent squawk for mavlink transmission.
-    tx_status.squawk = squawk_octal;
 
     return;
 }
@@ -199,10 +208,10 @@ void AP_ADSB_Sensor::send_vfr_msg()
     tx_vfr_msg[2] = 0x43;          // 'C'
     tx_vfr_msg[3] = 0x20;          // ' '
     // Update Squawk Code in Tx Buffer [idx: 8-11]
-    tx_vfr_msg[4]  = (squawk_octal / 1000)     + '0';   // Thousands digit
-    tx_vfr_msg[5]  = (squawk_octal / 100) % 10 + '0';   // Hundreds digit
-    tx_vfr_msg[6] = (squawk_octal / 10) % 10  + '0';   // Tens digit
-    tx_vfr_msg[7] = (squawk_octal % 10)       + '0';   // Ones digit
+    tx_vfr_msg[4] = (ctrl.squawkCode / 1000)     + '0';   // Thousands digit
+    tx_vfr_msg[5] = (ctrl.squawkCode / 100) % 10 + '0';   // Hundreds digit
+    tx_vfr_msg[6] = (ctrl.squawkCode / 10) % 10  + '0';   // Tens digit
+    tx_vfr_msg[7] = (ctrl.squawkCode % 10)       + '0';   // Ones digit
 
     // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
     CharPair chksum = calc_hex_to_ascii_crc(tx_vfr_msg, VFR_MSG_LENGTH-4);
@@ -226,15 +235,13 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
 {
     rx.status.prev_data = GDL90_FLAG_BYTE;
     //---------------------------------------------------------------------------
-	// Enumerated data type to define the states of parsing buffer and copying message
-	//---------------------------------------------------------------------------
+    // Enumerated data type to define the states of parsing buffer and copying message
+    //---------------------------------------------------------------------------
     rx.status.state = GDL90_RX_IDLE;
 
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    // FIXME: UPDATE TO UART_ADDR_2!
-    if (_max14830) {
-        rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH, UART_ADDR_1);
-    }
+    _max14830->set_uart_address(UART::ADDR_2);
+    rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
 
     // Pointer to the start of FIFO buffer.
     const uint8_t *byte_ptr = &rx_fifo_buffer[0];
@@ -247,9 +254,7 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
         // Parse all data until the end of the fifo buffer.
         if(rxbuf_fifo_len == byte_count) {
             // Finished converting all new data, Clear the interrupt and reset buffer.
-            if (_max14830) {
-                _max14830->clear_interrupts();
-            }
+            _max14830->clear_interrupts();
             break;
         }
 
@@ -258,25 +263,25 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
 
         // Message parsing state machine.
         switch(rx.status.state)
-		{
-			case(GDL90_RX_IDLE):
-			{
+        {
+            case(GDL90_RX_IDLE):
+            {
                 // 0x7E is the flag byte. If we see it, we're in a new message.
-				if(GDL90_FLAG_BYTE == *byte_ptr && GDL90_FLAG_BYTE == rx.status.prev_data)
-				{
-					rx.status.length = 0;
+                if(GDL90_FLAG_BYTE == *byte_ptr && GDL90_FLAG_BYTE == rx.status.prev_data)
+                {
+                    rx.status.length = 0;
                     rx.status.state = GDL90_RX_IN_PACKET;
-				}
-				// This if statement has no else, as this will be normal while the
-				//  contents of the message are being copied to the message buffer.
-				break;
-			}
-			case(GDL90_RX_IN_PACKET):
-			{
-				if(GDL90_CONTROL_ESCAPE_BYTE == *byte_ptr)
-				{
+                }
+                // This if statement has no else, as this will be normal while the
+                //  contents of the message are being copied to the message buffer.
+                break;
+            }
+            case(GDL90_RX_IN_PACKET):
+            {
+                if(GDL90_CONTROL_ESCAPE_BYTE == *byte_ptr)
+                {
                     rx.status.state = GDL90_RX_UNSTUFF;
-				}
+                }
                 else if (GDL90_FLAG_BYTE == *byte_ptr) 
                 {
                     // packet complete! Check CRC and restart packet cycle on all pass or fail scenarios
@@ -309,20 +314,20 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
                 {
                     rx.status.state = GDL90_RX_IDLE;
                 }
-				break;
-			}
+                break;
+            }
             case(GDL90_RX_UNSTUFF):
-			{
+            {
                 rx.msg.raw[rx.status.length++] = *byte_ptr ^ GDL90_STUFF_BYTE;
                 rx.status.state = GDL90_RX_IN_PACKET;
-				break;
-			}
-			default:
-			{
-				// This should never happen.
-				break;
-			}
-		}
+                break;
+            }
+            default:
+            {
+                // This should never happen.
+                break;
+            }
+        }
         // Store previous byte.
         rx.status.prev_data = *byte_ptr;
         // Increment byte index.
@@ -349,32 +354,51 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
 
             // this is always true. The "ground/air bit place" is set meaning we're always in the air
             tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_ON_GROUND;
-
+            // Faults
             if (rx.decoded.heartbeat.status.one.maintenanceRequired) {
                 tx_status.fault |= UAVIONIX_ADSB_OUT_STATUS_FAULT_MAINT_REQ;
             } else {
                 tx_status.fault &= ~UAVIONIX_ADSB_OUT_STATUS_FAULT_MAINT_REQ;
             }
-
+            // Faults
             if (rx.decoded.heartbeat.status.two.functionFailureGnssUnavailable) {
                 tx_status.fault |= UAVIONIX_ADSB_OUT_STATUS_FAULT_GPS_UNAVAIL;
             } else {
                 tx_status.fault &= ~UAVIONIX_ADSB_OUT_STATUS_FAULT_GPS_UNAVAIL;
             }
-
+            // Faults
             if (rx.decoded.heartbeat.status.two.functionFailureGnssNo3dFix) {
                 tx_status.fault |= UAVIONIX_ADSB_OUT_STATUS_FAULT_GPS_NO_POS;
             } else {
                 tx_status.fault &= ~UAVIONIX_ADSB_OUT_STATUS_FAULT_GPS_NO_POS;
             }
-
+            // Faults
             if (rx.decoded.heartbeat.status.two.functionFailureTransmitSystem) {
                 tx_status.fault |= UAVIONIX_ADSB_OUT_STATUS_FAULT_TX_SYSTEM_FAIL;
             } else {
                 tx_status.fault &= ~UAVIONIX_ADSB_OUT_STATUS_FAULT_TX_SYSTEM_FAIL;
             }
-
+            // Faults
             tx_status.fault &= ~UAVIONIX_ADSB_OUT_STATUS_FAULT_STATUS_MESSAGE_UNAVAIL;
+
+            // Identifier
+            if (rx.decoded.heartbeat.status.one.ident) {
+                tx_status.state  |= UAVIONIX_ADSB_OUT_STATUS_STATE_IDENT_ACTIVE;
+                tx_dynamic.state |= UAVIONIX_ADSB_OUT_DYNAMIC_STATE_IDENT;
+            } else {
+                tx_status.state  &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_IDENT_ACTIVE;
+                tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_DYNAMIC_STATE_IDENT;
+            }
+
+            // GPS Fix
+            if (rx.decoded.heartbeat.status.one.gpsPositionValid) {
+                tx_dynamic.gpsFix = GPS_FIX_TYPE_3D_FIX;
+            } else {
+                tx_dynamic.gpsFix = GPS_FIX_TYPE_NO_FIX;
+            }
+            
+            // UTC Time
+            tx_dynamic.utcTime = rx.decoded.heartbeat.timestamp;
 
             //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_HEARTBEAT");
             break;
@@ -388,12 +412,52 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             // update for the UCP protocol. All fields in the ownship message are transmitted MSB first
             memcpy(&rx.decoded.ownship_report, rx.msg.raw, sizeof(rx.decoded.ownship_report));
             last_Ownship_ms = AP_HAL::millis();
+            // Integrity (NIC) & Accuracy (NACp)
             tx_status.NIC_NACp = rx.decoded.ownship_report.report.NIC | (rx.decoded.ownship_report.report.NACp << 4);
+            // Flight ID
             memcpy(tx_status.flight_id, rx.decoded.ownship_report.report.callsign, sizeof(tx_status.flight_id));
             // there is no message in the vocabulary of the 200x that has board temperature
             //  tx_status.temperature = rx.decoded.ownship_report.report.temperature;
 
-            //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_OWNSHIP_REPORT");
+            // Repurpose boardTemp for EmergencyStatus
+            tx_status.boardTemp = rx.decoded.ownship_report.report.emergencyCode;
+
+            // Latitude
+            double latitude = toLatLon(rx.decoded.ownship_report.report.latitude);
+            tx_dynamic.gpsLat = (latitude * 1e7);
+            // Longitude
+            double longitude = toLatLon(rx.decoded.ownship_report.report.longitude);
+            tx_dynamic.gpsLon = (longitude * 1e7);
+
+            // Extract the altitudeMisc field
+            uint16_t altitudeMiscValue = rx.decoded.ownship_report.report.altitudeMisc;
+            // Flip byte order as per the GDL90 Message Struct
+            rx.decoded.ownship_report.report.altitudeMisc = htobe16(altitudeMiscValue);
+
+            // GNSS Altitude
+            tx_dynamic.gpsAlt = toAlt2(rx.decoded.ownship_report.report.altitude);
+            // Baro ALtitude
+            tx_dynamic.baroAltMSL = (tx_dynamic.gpsAlt / 3.281);
+
+            // Extract the velocities field
+            uint32_t velocitiesValue = rx.decoded.ownship_report.report.velocities;
+            // Flip byte order as per the GDL90 Message Struct
+            rx.decoded.ownship_report.report.velocities = htobe32(velocitiesValue);
+
+            // Heading Repurposed in Vertical Accuracy
+            tx_dynamic.accuracyVert = rx.decoded.ownship_report.report.heading * GDL_RES_HEAD;
+            //double tmp = rx.decoded.ownship_report.report.heading * GDL_RES_HEAD;
+
+            // Vertical Velocity - 64 Feet per Minute
+            tx_dynamic.velVert = rx.decoded.ownship_report.report.verticalVelocity * GDL_RES_VERTVEL;
+
+            // Horizontal Velocity - Knots
+            tx_dynamic.accuracyHor = rx.decoded.ownship_report.report.horizontalVelocity;
+
+            // Emergency Status
+            tx_dynamic.emergencyStatus = rx.decoded.ownship_report.report.emergencyCode;
+
+            //gcs().send_message(MSG_UAVIONIX_ADSB_OUT_DYNAMIC);
             break;
         }
         case(GDL90_ID_OWNSHIP_GEOMETRIC_ALTITUDE):
@@ -412,6 +476,51 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             // This should never happen.
             break;
         }
+    }
+
+    // Squawk Code
+    tx_status.squawk  = ctrl.squawkCode;
+    tx_dynamic.squawk = ctrl.squawkCode;
+
+    // Operating Mode        
+    if (ctrl.modeAEnabled) {
+        tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_A_ENABLED;
+        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_A_ENABLED;
+    } else {
+        tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_A_ENABLED;
+        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_A_ENABLED;
+    }
+
+    if (ctrl.modeCEnabled) {
+        tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_C_ENABLED;
+        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_C_ENABLED;
+    } else {
+        tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_C_ENABLED;
+        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_C_ENABLED;
+    }
+
+    if (ctrl.modeSEnabled) {
+        tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_S_ENABLED;
+        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_S_ENABLED;
+    } else {
+        tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_S_ENABLED;
+        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_S_ENABLED;
+    }
+
+    if (ctrl.es1090TxEnabled) {
+        tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_1090ES_TX_ENABLED;
+        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_1090ES_TX_ENABLED;
+    } else {
+        tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_1090ES_TX_ENABLED;
+        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_1090ES_TX_ENABLED;
+    }
+
+    if (ctrl.x_bit) {
+        tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
+        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
+    } else {
+        tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
+        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
     }
 
     return;
@@ -435,6 +544,74 @@ void AP_ADSB_Sensor::handle_data16_packet(mavlink_channel_t chan, const mavlink_
 {
     // Extract Call Sign from packet.
     memcpy(&callsign, &m.data[0], sizeof(callsign));
+    // Signal change of callsign flag.
+    cs_flag_change = true;
+
+    return;
+}
+
+/* ************************************************************************* */
+
+void AP_ADSB_Sensor::handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg)
+{
+    switch (msg.msgid) {
+        case MAVLINK_MSG_ID_ADSB_VEHICLE: {
+            adsb_vehicle_t vehicle {};
+            mavlink_msg_adsb_vehicle_decode(&msg, &vehicle.info);
+            vehicle.last_update_ms = AP_HAL::millis() - uint32_t(vehicle.info.tslc * 1000U);
+            //handle_adsb_vehicle(vehicle);
+            break;
+        }
+
+        case MAVLINK_MSG_ID_UAVIONIX_ADSB_TRANSCEIVER_HEALTH_REPORT: {
+            mavlink_uavionix_adsb_transceiver_health_report_t packet {};
+            mavlink_msg_uavionix_adsb_transceiver_health_report_decode(&msg, &packet);
+            //handle_transceiver_report(chan, packet);
+            break;
+        }
+
+        case MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_CFG: {
+            mavlink_uavionix_adsb_out_cfg_t packet {};
+            mavlink_msg_uavionix_adsb_out_cfg_decode(&msg, &packet);
+            //handle_out_cfg(packet);
+            break;
+        }
+
+        case MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_DYNAMIC:
+            // unhandled, this is an outbound packet only
+            break;
+
+        case MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_CONTROL: {
+            mavlink_uavionix_adsb_out_control_t packet {};            
+            mavlink_msg_uavionix_adsb_out_control_decode(&msg, &packet);
+            handle_out_control(packet);
+            break;
+        }
+    }
+
+}
+
+/* ************************************************************************* */
+
+/*
+ * handle incoming packet UAVIONIX_ADSB_OUT_CONTROL
+ * allows a GCS to set the contents of the control message sent by ardupilot to the transponder
+ */
+void AP_ADSB_Sensor::handle_out_control(const mavlink_uavionix_adsb_out_control_t &packet)
+{
+    ctrl.baroCrossChecked = packet.state & UAVIONIX_ADSB_OUT_CONTROL_STATE::UAVIONIX_ADSB_OUT_CONTROL_STATE_EXTERNAL_BARO_CROSSCHECKED;
+    ctrl.airGroundState = packet.state & UAVIONIX_ADSB_OUT_CONTROL_STATE::UAVIONIX_ADSB_OUT_CONTROL_STATE_ON_GROUND;
+    ctrl.identActive = packet.state & UAVIONIX_ADSB_OUT_CONTROL_STATE::UAVIONIX_ADSB_OUT_CONTROL_STATE_IDENT_BUTTON_ACTIVE;
+    ctrl.modeAEnabled = packet.state & UAVIONIX_ADSB_OUT_CONTROL_STATE::UAVIONIX_ADSB_OUT_CONTROL_STATE_MODE_A_ENABLED;
+    ctrl.modeCEnabled = packet.state & UAVIONIX_ADSB_OUT_CONTROL_STATE::UAVIONIX_ADSB_OUT_CONTROL_STATE_MODE_C_ENABLED;
+    ctrl.modeSEnabled = packet.state & UAVIONIX_ADSB_OUT_CONTROL_STATE::UAVIONIX_ADSB_OUT_CONTROL_STATE_MODE_S_ENABLED;
+    ctrl.es1090TxEnabled = packet.state & UAVIONIX_ADSB_OUT_CONTROL_STATE::UAVIONIX_ADSB_OUT_CONTROL_STATE_1090ES_TX_ENABLED;
+    ctrl.externalBaroAltitude_mm = packet.baroAltMSL;
+    ctrl.squawkCode = packet.squawk;
+    ctrl.emergencyState = packet.emergencyStatus;
+    memcpy(ctrl.callsign, packet.flight_id, sizeof(ctrl.callsign));
+    ctrl.x_bit = packet.x_bit;
+
     // Signal change of callsign flag.
     cs_flag_change = true;
 
@@ -471,13 +648,30 @@ CharPair AP_ADSB_Sensor::calc_hex_to_ascii_crc(uint8_t *buf, uint8_t len)
 
 bool AP_ADSB_Sensor::_tx_write(uint8_t *buffer, uint16_t length)
 {
-    if (_max14830 == nullptr) {
-      return false;
-    }
-
-    // FIXME: Update to use UART_ADDR_2!!
-    _max14830->tx_write(buffer, length, UART_ADDR_1);
+    _max14830->set_uart_address(UART::ADDR_2);
+    _max14830->tx_write(buffer, length);
+    
     return true;
+}
+
+/* ************************************************************************* */
+
+uint8_t AP_ADSB_Sensor::get_mode()
+{
+    if (!ctrl.modeAEnabled && !ctrl.modeCEnabled && !ctrl.modeSEnabled && !ctrl.es1090TxEnabled) {
+        ctrl.mode = MODE::STBY;
+    }
+    if (ctrl.modeAEnabled && !ctrl.modeCEnabled && ctrl.modeSEnabled && ctrl.es1090TxEnabled) {
+        ctrl.mode = MODE::ON;
+    }
+    if (ctrl.modeAEnabled && ctrl.modeCEnabled &&  ctrl.modeSEnabled && ctrl.es1090TxEnabled) {
+        ctrl.mode = MODE::ALT;
+    }
+    // if ((cfg.rfSelect & 1) == 0) {
+    //     ctrl.op_mode = MODE::OFF;
+    // }
+
+    return ctrl.mode;
 }
 
 /* ************************************************************************* */

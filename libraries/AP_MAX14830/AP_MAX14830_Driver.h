@@ -42,10 +42,10 @@ struct UART
 {
     enum value
     {
-        ADDR_0  = (0x00 << 5),
-        ADDR_1  = (0x01 << 5),
-        ADDR_2  = (0x02 << 5),
-        ADDR_3  = (0x03 << 5)
+        ADDR_1  = (0x00 << 5),  // 0x00
+        ADDR_2  = (0x01 << 5),  // 0x20
+        ADDR_3  = (0x02 << 5),  // 0x40
+        ADDR_4  = (0x03 << 5)   // 0x60
     };
 };
 // Baudrate
@@ -53,13 +53,23 @@ struct BAUD
 {
     enum value
     {
+        RATE_300      = 300,        //
+        RATE_450      = 450,        // 
+        RATE_600      = 600,        // 
+        RATE_900      = 900,        // 
         RATE_1200     = 1200,       // 
-        RATE_2400     = 2400,       // 
-        RATE_4800     = 4800,       // 
+        RATE_1800     = 1800,       // 
+        RATE_2400     = 2400,       //
+        RATE_3600     = 3600,       //
+        RATE_4800     = 4800,       //
+        RATE_7200     = 7200,       //
         RATE_9600     = 9600,       // *#
+        RATE_14400    = 14400,      //
         RATE_19200    = 19200,      // *#
+        RATE_28800    = 28800,      //
         RATE_38400    = 38400,      // *#
         RATE_57600    = 57600,      // *#
+        RATE_76800    = 76800,      //
         RATE_115200   = 115200,     // *#
         RATE_230400   = 230400,     // *#
         RATE_460800   = 460800,     // *#
@@ -115,12 +125,46 @@ struct GLOBALIRQ
 		BLANK3 = (0x01 << 6),
 		BLANK2 = (0x01 << 5),
 		BLANK1 = (0x01 << 4),
-		IRQ3   = (0x01 << 3),
-		IRQ2   = (0x01 << 2),
-		IRQ1   = (0x01 << 1),
-		IRQ0   = (0x01 << 0)
+		IRQ4   = (0x01 << 3),
+		IRQ3   = (0x01 << 2),
+		IRQ2   = (0x01 << 1),
+		IRQ1   = (0x01 << 0)
 	};
 };
+
+//------------------------------------------------------------------------------
+// Enumerated data type for controlling the baud rate of the MAX14830 UARTS.
+//  The bit rate is a combination of 2 bytes:
+//	 Baud-Rate Generator LSB Divisor Register
+//	 Baud-Rate Generator MSB Divisor Register
+//
+// These values are calculated from a spreadsheet obtained from:
+//   https://www.analog.com/en/app-notes/programming-baud-rates-of-the-max3108-uart.html
+//------------------------------------------------------------------------------
+
+enum MAX14830_bit_rate
+{
+	bps_230400	= 0x0100,
+	bps_115200	= 0x0200,
+	bps_57600	= 0x0400,
+	bps_28800	= 0x0800,
+	bps_14400	= 0x1000,
+	bps_7200	= 0x2000,
+	bps_3600	= 0x4000,
+	bps_1800	= 0x8000,
+	bps_900		= 0x0001,
+	bps_450		= 0x0002,
+	bps_76800	= 0x0300,
+	bps_38400	= 0x0600,
+	bps_19200	= 0x0C00,
+	bps_9600	= 0x1800,
+	bps_4800	= 0x3000,
+	bps_2400	= 0x6000,
+	bps_1200	= 0xC000,
+	bps_600		= 0x8001,
+	bps_300		= 0x0003
+};
+
 /*=========================================================================*/
 
 
@@ -136,13 +180,13 @@ public:
     bool init(void);
 
     // Sets UART address as MAX14830 has 4 UART Channels to write too.
-    void set_uart_address(uint8_t addr);
+    void set_uart_address(UART::value uart_addr);
 
     // Middle layer read function for Max Rx Buffer Read
-    uint8_t fifo_rx_read(uint8_t *rxdata, uint8_t len, uint8_t uart_addr);
+    uint8_t fifo_rx_read(uint8_t *rxdata, uint8_t len);
 
 	// Middle layer write function for Max Tx Buffer Write
-    uint8_t fifo_tx_write(uint8_t *txdata, uint8_t len, uint8_t uart_addr);
+    uint8_t fifo_tx_write(uint8_t *txdata, uint8_t len);
 
     // Poll Global ISR for UART Specific Data Ready in the Rx Fifo
     uint8_t poll_global_isr();
@@ -150,11 +194,25 @@ public:
 	// Clear Interrupts for Max chip by reading the Interrupt Status Register
     void clear_interrupts(void);
 
+    // Set RTS pin state needed for Diagnostic Port on Modem.
+    void set_RTS_state(bool set_bit);
+
 	// Clear FIFOs, both TX and RX cleared/flushed
     void fifo_reset(void);
 
     // Register Periodic Callback for higher level functions to use
     AP_HAL::Device::PeriodicHandle register_periodic_callback(uint32_t period_usec, AP_HAL::Device::PeriodicCb);
+
+    // Bus locking mechanism
+    bool lock_bus(void)
+    {
+        _dev->get_semaphore()->take_blocking();
+        return true;
+    }
+    void unlock_bus(void)
+    {
+        _dev->get_semaphore()->give();
+    }
 
 protected:
     uint8_t _uart_address = 0;
@@ -162,9 +220,6 @@ protected:
 private:
     // SPI object for communication management
     AP_HAL::OwnPtr<AP_HAL::Device> _dev;
-
-    // Iterruption object for data logging management
-    HAL_Semaphore _sem;
 
     // Perform Software Reset
     void _max_soft_reset(void);
@@ -184,8 +239,8 @@ private:
     // Configure rx byte timeout register (default to 2 byte timeout)
     void _set_rx_byte_timeout(bool enable);
 
-    // Set auto transceiver control
-    void _set_autotrans(bool enable);
+    // Set Hardware IRQ Interrupt to outside world.
+    void _set_irq_interrupt(bool enable);
 
     // Set baud rate
     void _set_baud(BAUD::value baud);
@@ -195,6 +250,8 @@ private:
 
     // Set Fifo Trigger Level on the RX Fifo
     void _set_fifo_trg_lvl(FIFO_TRIG::value trg_level);
+
+    enum MAX14830_bit_rate _get_bit_rate_enum(BAUD::value bit_rate);
 
     /*=========================================================================*/
     // MAX14830R Register map Definitions.
@@ -285,7 +342,7 @@ private:
 	{
 		enum
 		{
-			RTS         = (0x01 << 7),
+			RTSBIT      = (0x01 << 7),
 			TXBREAK     = (0x01 << 6),
 			FORCEPARITY = (0x01 << 5),
 			EVENPARITY  = (0x01 << 4),

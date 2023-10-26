@@ -138,6 +138,15 @@ double toLatLon(const uint8_t bytes[]);
 double toAlt(const uint8_t bytes[]);
 
 /**
+ * Convert an altitude.
+ *
+ * @param alt The altitude to convert.
+ *
+ * @return The converted altitude.
+ */
+double toAlt2(const double alt);
+
+/**
  * Converts an array of bytes to an airborne velocity.
  *
  * @param bytes The bytes to extract the velocity.

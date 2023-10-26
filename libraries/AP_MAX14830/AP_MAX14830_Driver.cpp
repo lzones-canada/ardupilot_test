@@ -26,20 +26,6 @@ extern const AP_HAL::HAL& hal;
 
 
 /*=========================================================================*/
-// Some static member constants for the comms with the MAX14830 chip
-/*=========================================================================*/
-
-static const uint32_t RS232_EXT_CLK =                3686400;
-//static const uint32_t RS232_EXT_CLK =                8000000;
-static const uint32_t RS232_PLL_PREDIV =             1;
-static const uint32_t RS232_PLL_CLK = (RS232_EXT_CLK / RS232_PLL_PREDIV);
-
-//static const uint32_t RS232_PLL_CLK = 6 * (RS232_EXT_CLK / RS232_PLL_PREDIV);
-//static const uint32_t RS232_PLL_CLK = 6*(25000000/42);
-
-
-
-/*=========================================================================*/
 // MAX14830R Register map defines
 /*=========================================================================*/
 #define MAX14830R_RHR            (0x00)
@@ -114,23 +100,29 @@ bool AP_MAX14830_Driver::init()
 
     _dev->set_speed(AP_HAL::Device::SPEED_LOW);
 
-    for (unsigned i = 0; i < 5; i++) {
+    /*=======================================================================*/
 
-        // write software reset
-        _max_soft_reset();
-        // delay to allow for reset
-        hal.scheduler->delay(2);
+    // Command reset to MAX Chip
+    _max_soft_reset();
+    // delay to allow for reset
+    hal.scheduler->delay(2);
 
-        // Waiting for board reset.. read known Register RevID..
+    // For loop to allow for startup attempts.
+    for (unsigned i = 0; i < 6; i++) 
+    {
+        // Waiting for board reset.. read known Register REVID..
         uint8_t rev_id = 0;
+        // FIXME: Update too MAX14830R_REVID
         rev_id = _read_register(0x1F);
         hal.scheduler->delay(1);
-
-        if (rev_id != 0xA1) {
+        rev_id >>= 4;
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"REVID1: 0x%X", rev_id);
+        if (rev_id != 0xA) {
             continue;
         }
 
         // Setup UART 1 - IMET ----------------------------------------------------
+        set_uart_address(UART::ADDR_1);
 
         // Read Interrupt Status Register to clear interrupts.
         _read_register(MAX14830R_ISR);
@@ -166,39 +158,73 @@ bool AP_MAX14830_Driver::init()
         // delay to allow for reset
         hal.scheduler->delay(1);
 
-
+        // Set IRQ Interrupt Enable
+        _set_irq_interrupt(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
 
         // Setup UART 2 - ADSB ----------------------------------------------------
+        // // set_uart_address(UART::ADDR_2);
+
+        // // // Read Interrupt Status Register to clear interrupts.
+        // // _read_register(MAX14830R_ISR);
+
+        // // // Set baud rate
+        // // _set_baud(BAUD::RATE_57600);
+        // // // delay to allow for reset
+        // // hal.scheduler->delay(1);
+
+        // // // Enable Rx Interrupt
+        // // _set_rx_interrupt(true);
+        // // // delay to allow for reset
+        // // hal.scheduler->delay(1);
+        
+        // // // Set Rx Timeout Enable Register
+        // // _set_rx_timeout_interrupt(true);
+        // // // delay to allow for reset
+        // // hal.scheduler->delay(1);
+
+        // // // No parity, StopBit, 8 Data Bits
+        // // _set_line(false, false);
+        // // // delay to allow for reset
+        // // hal.scheduler->delay(1);
+
+        // // // Rx Timeout (default 2 byte timeout)
+        // // _set_rx_byte_timeout(true);
+        // // // delay to allow for reset
+        // // hal.scheduler->delay(1);
+
+        // // // Set FIFO Interrupt Trigger Level at 3/4 full?
+        // // // Actual FIFO trigger level is 8 times RxTrig[7:4], hence, selectable threshold granularity is eight.
+        // // _set_fifo_trg_lvl(FIFO_TRIG::LEVEL_12);
+        // // // delay to allow for reset
+        // // hal.scheduler->delay(1);
+
+        // // Set IRQ Interrupt Enable
+        // // delay to allow for reset
+        // hal.scheduler->delay(1);
+        // _set_irq_interrupt(true);
 
 
+        // Setup UART 3 - Modem Diagnostics ---------------------------------------
+        //set_uart_address(UART::ADDR_3);
+        // TODO: Update baud, etc. to match protocol
 
-        // Read known Register (RevID) - break out once we get known value
+        // Read known Register (REVID) - break out once we get known value
+        // FIXME: Update too MAX14830R_REVID
         rev_id = _read_register(0x1F);
         hal.scheduler->delay(1);
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"RevID: 0x%02X", rev_id);
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"REVID2: 0x%02X", rev_id);
         // as per datasheet: it is recommended to only check for most significant 4 bits: Ah.
         rev_id >>= 4;
         if (rev_id == 0xA) {
             break;
         }
     }
-
-    // Setup UART 3 - Future --------------------------------------------------
     
-    // Setup UART 4 - Future --------------------------------------------------
+    // Setup UART 4 - Future ------------------------------------------------------
 
     /*=======================================================================*/
-    
-
-    // Enable Auto Transceiver Control ??
-    //_set_autotrans(true);
-    // delay to allow for reset
-    //hal.scheduler->delay(1);
-
-    // fifo reset always ?? Clearing all above settings??
-    //_fifo_reset();
-    // delay to allow for reset
-    //hal.scheduler->delay(1);
 
     _dev->set_speed(AP_HAL::Device::SPEED_HIGH);
 
@@ -208,9 +234,10 @@ bool AP_MAX14830_Driver::init()
 /* ************************************************************************* */
 
 // Set UART address for UART Selection
-void AP_MAX14830_Driver::set_uart_address(uint8_t addr)
+void AP_MAX14830_Driver::set_uart_address(UART::value uart_addr)
 {
-    _uart_address = addr;
+    //hal.console->printf("Setting UART Address: 0x%02X\n", uart_addr);
+    _uart_address = uart_addr;
     return;
 }
 
@@ -249,8 +276,10 @@ void AP_MAX14830_Driver::fifo_reset()
 // Register location to write data
 bool AP_MAX14830_Driver::_write_register(uint8_t reg, uint8_t data)
 {
+    // Set address of MAX UART to write to.
+    reg |= _uart_address;
     // Write transaction is indicated by MSbit of the MAX3108 register address byte = 1
-    reg |= MAX14830_WRITE_FLAG; // | uart_address;
+    reg |= MAX14830_WRITE_FLAG;
 
     // Write to SPI Device.
     for (uint8_t i=0; i<8; i++) {
@@ -269,14 +298,14 @@ bool AP_MAX14830_Driver::_write_register(uint8_t reg, uint8_t data)
 /* ************************************************************************* */
 
 // Software write for MAX Chip (Data stuffed in Transmit Hold Register).
-uint8_t AP_MAX14830_Driver::fifo_tx_write(uint8_t *txdata, uint8_t len, uint8_t uart_addr)
+uint8_t AP_MAX14830_Driver::fifo_tx_write(uint8_t *txdata, uint8_t len)
 {
     // Init Tx Buffer for SPI Write.
     uint8_t txbuf[len+1];
     memset(txbuf, 0x00, len+1);
     
     // Write transaction is indicated by MSbit of the MAX3108 register address byte = 1
-    txbuf[0] = MAX14830R_THR | MAX14830_WRITE_FLAG | uart_addr;
+    txbuf[0] = MAX14830R_THR | MAX14830_WRITE_FLAG | _uart_address;
     // Copy rest of data over for transmission.
     memcpy(txbuf+1, txdata, len);
 
@@ -293,6 +322,8 @@ int AP_MAX14830_Driver::_read_register(uint8_t reg)
     uint8_t rxbuf[2];
     memset(rxbuf, 0x00, 2);
 
+    // Set address of MAX UART to read from.
+    reg |= _uart_address;
     // Read transaction is indicated by MSbit of the MAX3108 register address byte = 0
     reg &= MAX14830_READ_FLAG;
 
@@ -307,12 +338,16 @@ int AP_MAX14830_Driver::_read_register(uint8_t reg)
 /* ************************************************************************* */
 
 // Software read for MAX Chip (Data in Receiver Hold Register).
-uint8_t AP_MAX14830_Driver::fifo_rx_read(uint8_t *rxdata, uint8_t len, uint8_t uart_addr)
+uint8_t AP_MAX14830_Driver::fifo_rx_read(uint8_t *rxdata, uint8_t len)
 {
     // Length of RX FIFO Chars to read
     uint8_t fifoLen = _read_register(MAX14830R_RXFIFOLVL);
     // Receiver Hold Register
-    uint8_t recv_hold_reg = (MAX14830R_RHR & MAX14830_READ_FLAG) | uart_addr;
+    uint8_t recv_hold_reg = MAX14830R_RHR;
+    // Set address of MAX UART to read from.
+    recv_hold_reg |= _uart_address;
+    // Read transaction is indicated by MSbit of the MAX3108 register address byte = 0
+    recv_hold_reg &= MAX14830_READ_FLAG;
 
     // Clear rxdata buffer
     memset(rxdata, 0x00, len+1);
@@ -415,19 +450,28 @@ void AP_MAX14830_Driver::clear_interrupts()
 /* ************************************************************************* */
 
 // Configure auto tx/rx control (0=disable 1=enable)
-void AP_MAX14830_Driver::_set_autotrans(bool enable)
+void AP_MAX14830_Driver::_set_irq_interrupt(bool enable)
 {
     // Peserve State of MODE1 Register
     uint8_t mode1_state;
     mode1_state = _read_register(MAX14830R_MODE1);
-    // Enable Auto Tx/Rx Control
+
     if(enable) {
-        mode1_state |= MODE1::TRNSCVCTRL;
+        mode1_state |= MODE1::IRQSEL;
     }
     // Disable Auto Tx/Rx Control 
     else {
-        mode1_state &= ~(MODE1::TRNSCVCTRL);
+        mode1_state &= ~(MODE1::IRQSEL);
     }
+
+    // Enable Auto Tx/Rx Control
+    // if(enable) {
+    //     mode1_state |= MODE1::TRNSCVCTRL;
+    // }
+    // // Disable Auto Tx/Rx Control 
+    // else {
+    //     mode1_state &= ~(MODE1::TRNSCVCTRL);
+    // }
     // Write back to MODE1 Register
     _write_register(MAX14830R_MODE1, mode1_state);
 
@@ -439,41 +483,32 @@ void AP_MAX14830_Driver::_set_autotrans(bool enable)
 // Configure baud rate for the UART line
 void AP_MAX14830_Driver::_set_baud(BAUD::value baud)
 {
-    // Peserve State of Clock Source Register
-    //uint8_t clksrc_state;
-    //clksrc_state = _read_register(MAX14830R_CLKSOURCE);
-
-    // Disable Clock Source
-    //clksrc_state &= ~(CLKSRC::CLOCKEN);
-    //_write_register(MAX14830R_CLKSOURCE, ~(CLKSRC::CLOCKEN));
-
-
-    // Calculate Divisor for Baud Rate
-    float x = 0.0;
-    float d = 0.0;
-    float f = 0.0;
-    uint8_t div = 0;
-    uint8_t fract = 0;
+    uint16_t baud_div = _get_bit_rate_enum(baud);
     
-    x = (float)RS232_PLL_CLK / (float)(16 * baud);
-    f = modff(x, &d);
-    div = d;
-    fract = roundf(16*f);
+    // Extract baud_div into MSB and LSB
+    uint8_t div_lsb = baud_div >> 8;
+    uint8_t div_msb = baud_div;
 
-    // Set PLLConfig
-    _write_register(MAX14830R_PLLCONFIG, RS232_PLL_PREDIV); //0x01
+    // Sets DIV LSB
+    _write_register(MAX14830R_DIVLSB, div_lsb);
 
-    // Set BRGConfig
-    _write_register(MAX14830R_BRGCONFIG, fract); //0x00
-
-    // Set DIV LSB
-    _write_register(MAX14830R_DIVLSB, div); //0x04
-    
     // Set DIV MSB
-    _write_register(MAX14830R_DIVMSB, 0x00); //0x00
+    _write_register(MAX14830R_DIVMSB, div_msb);
     
-    // Re-enable CLK Source - !!!!!WATCH OUT HERE ON CHIP CHANGE!!!!
-    _write_register(MAX14830R_CLKSOURCE, 0x18); //0x18
+    // FIXME: Enable CLK Source - ****** NOT NEEDED ON CHIP CHANGE ******
+    //  // 0x10 CLKENABLE on MAX3107...
+    _write_register(MAX14830R_CLKSOURCE, 0x18);
+
+
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"PLLCONFIG: 0x%02X", _read_register(MAX14830R_PLLCONFIG));
+
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"BRGConfig: 0x%02X", _read_register(MAX14830R_BRGCONFIG));
+
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"DIVLSB: 0x%02X", _read_register(MAX14830R_DIVLSB));
+
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"DIVMSB: 0x%02X", _read_register(MAX14830R_DIVMSB));
+
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"CLKSOURCE: 0x%02X", _read_register(MAX14830R_CLKSOURCE));
 
     return;
 }
@@ -512,6 +547,29 @@ void AP_MAX14830_Driver::_set_line(bool parity, bool stop)
 
     return;
 }
+
+/*******************************************************************************
+* This function sets the discrete bit used for the RTS line.
+*  TODO: Set the UART ADDRESS FOR MODEM PRIOR!!! _max14830->set_uart_address(UART::ADDR_3);
+*******************************************************************************/
+void AP_MAX14830_Driver::set_RTS_state(bool set_bit)
+{
+	// Peserve State of LCR Register
+    uint8_t lcr_state;
+    lcr_state = _read_register(MAX14830R_LCR);
+
+    // If RTSbit is set to 1, then RTS_ is set to logic-high
+    if(set_bit) {
+        lcr_state |= LCR::RTSBIT;
+    }
+    // If RTSbit is set to 0, then RTS_ is set to logic-low
+    else {
+        lcr_state &= ~(LCR::RTSBIT);
+    }
+
+    return;
+}
+
 
 /* ************************************************************************* */
 
@@ -603,6 +661,122 @@ void AP_MAX14830_Driver::_set_fifo_trg_lvl(FIFO_TRIG::value trg_level)
     return;
 }
 
+/*******************************************************************************
+* This function accepts the bit rate requested in the hardware structure and
+*	returns the corresponding enum value required to program an SCI to that
+*	bit rate.  If the bit rate requested is not supported, a default rate of
+*	9600 bps is returned.
+*******************************************************************************/
+
+enum MAX14830_bit_rate AP_MAX14830_Driver::_get_bit_rate_enum(BAUD::value bit_rate)
+{
+	enum MAX14830_bit_rate result;
+	switch(bit_rate)
+	{
+		case(BAUD::RATE_230400):
+		{
+			result = bps_230400;
+			break;
+		}
+		case(BAUD::RATE_115200):
+		{
+			result = bps_115200;
+			break;
+		}
+		case(BAUD::RATE_76800):
+		{
+			result = bps_76800;
+			break;
+		}
+		case(BAUD::RATE_57600):
+		{
+			result = bps_57600;
+			break;
+		}
+		case(BAUD::RATE_38400):
+		{
+			result = bps_38400;
+			break;
+		}
+		case(BAUD::RATE_28800):
+		{
+			result = bps_28800;
+			break;
+		}
+		case(BAUD::RATE_19200):
+		{
+			result = bps_19200;
+			break;
+		}
+		case(BAUD::RATE_14400):
+		{
+			result = bps_14400;
+			break;
+		}
+		case(BAUD::RATE_9600):
+		{
+			result = bps_9600;
+			break;
+		}
+		case(BAUD::RATE_7200):
+		{
+			result = bps_7200;
+			break;
+		}
+		case(BAUD::RATE_4800):
+		{
+			result = bps_4800;
+			break;
+		}
+		case(BAUD::RATE_3600):
+		{
+			result = bps_3600;
+			break;
+		}
+		case(BAUD::RATE_2400):
+		{
+			result = bps_2400;
+			break;
+		}
+		case(BAUD::RATE_1800):
+		{
+			result = bps_1800;
+			break;
+		}
+		case(BAUD::RATE_1200):
+		{
+			result = bps_1200;
+			break;
+		}
+		case(BAUD::RATE_900):
+		{
+			result = bps_900;
+			break;
+		}
+		case(BAUD::RATE_600):
+		{
+			result = bps_600;
+			break;
+		}
+		case(BAUD::RATE_450):
+		{
+			result = bps_450;
+			break;
+		}
+		case(BAUD::RATE_300):
+		{
+			result = bps_300;
+			break;
+		}
+		default:
+		{
+			result = bps_9600;
+			break;
+		}
+	}
+	return(result);
+}
+
 /* ************************************************************************* */
 
 // exposed polling function for ISR interrupt.
@@ -622,12 +796,15 @@ uint8_t AP_MAX14830_Driver::poll_global_isr()
         return 0;
     }
 
+    // FIXME: Retrieve and store state from Global IRQ Register
+    // uint8_t global_irq = _read_register(MAX14830R_GLOBALIRQ);
 
-    // FIXME: See below!!
-    // uint8_t global_irq;
-    // global_irq = _read_register(MAX14830R_GLOBALIRQ);
+    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"global_irq: 0x%02X", global_irq);
 
-    // return global_irq;
+    // // Flip & Mask to keep only lower 4 bits of interest.
+    // uint8_t masked_isr = (~global_irq) & 0x0F; // 0x0F represents binary 00001111
+
+    // return masked_isr;
 }
 
 /* ************************************************************************* */
