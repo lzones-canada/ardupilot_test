@@ -42,19 +42,8 @@ public:
     // Constructor
     AP_MAX14830();
 
-    /* Do not allow copies */
-    CLASS_NO_COPY(AP_MAX14830);
-
-    // get singleton instance
-    static AP_MAX14830 *get_singleton(void) {
-        return _singleton;
-    }
-
     // initialize sensor object
     void init();
-
-    // Update function for data transmission and saving internal state.
-    void update(uint8_t pin, bool high, uint32_t timestamp_us);
 
     // Expose ability to clear interrupt in Driver.
     void clear_interrupts(void);
@@ -77,6 +66,11 @@ public:
     // Structure for Sensor data
     AP_IMET_Sensor imet;
 
+    // get singleton instance
+    static AP_MAX14830 *get_singleton(void) {
+        return _singleton;
+    }
+
 protected:
     // Data Ready Interrupt
     bool data_ready();
@@ -90,6 +84,14 @@ private:
 
     // iterruption object for data logging management
     HAL_Semaphore _sem;
+
+    // Static functions, for interrupt support
+    static thread_t *_irq_handler_ctx;
+    static void trigger_irq_event(void);
+    static void irq_handler_thd(void* arg);
+
+    // IRQ Interrupt Handler 
+    void irq_handler();
 
     // update the temperature, called at 20Hz
     void _timer(void);

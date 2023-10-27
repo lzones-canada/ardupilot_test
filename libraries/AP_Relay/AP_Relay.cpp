@@ -66,7 +66,7 @@ const AP_Param::GroupInfo AP_Relay::var_info[] = {
     // @Description: Digital pin number for first relay control. This is the pin used for camera shutter control. Some common values are given, but see the Wiki's "GPIOs" page for how to determine the pin number for a given autopilot.
     // @User: Standard
     // @Values: -1:Disabled,49:BB Blue GP0 pin 4,50:AUXOUT1,51:AUXOUT2,52:AUXOUT3,53:AUXOUT4,54:AUXOUT5,55:AUXOUT6,57:BB Blue GP0 pin 3,113:BB Blue GP0 pin 6,116:BB Blue GP0 pin 5,27:BBBMini Pin P8.17,101:MainOut1,102:MainOut2,103:MainOut3,104:MainOut4,105:MainOut5,106:MainOut6,107:MainOut7,108:MainOut8
-    AP_GROUPINFO("PIN",  0, AP_Relay, _pin[0], RELAY1_PIN_DEFAULT),
+    AP_GROUPINFO("PIN1",  0, AP_Relay, _pin[0], RELAY1_PIN_DEFAULT),
 
     // @Param: PIN2
     // @DisplayName: Second Relay Pin
