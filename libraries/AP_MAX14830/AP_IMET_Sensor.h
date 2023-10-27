@@ -63,7 +63,6 @@ public:
 private:
     // Pointer to MAX14830 object
     AP_MAX14830* _max14830;
-    HAL_Semaphore _sem; // Protect _max14830 from concurrent access
 };
 
 #endif // AP_IMET_SENSOR_H

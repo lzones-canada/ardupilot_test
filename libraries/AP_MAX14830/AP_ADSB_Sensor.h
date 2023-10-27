@@ -215,7 +215,6 @@ public:
 private:
     // Pointer to MAX14830 object
     AP_MAX14830* _max14830;
-    HAL_Semaphore _sem; // Protect _max14830 from concurrent access
 
     // Write Function for ADSB out.
     bool _tx_write(uint8_t *buffer, uint16_t length);
