@@ -412,6 +412,11 @@ void IOMCU_DigitalSource::write(uint8_t value)
     iomcu.write_GPIO(pin, value);
 }
 
+uint8_t IOMCU_DigitalSource::read()
+{
+    return iomcu.read_GPIO(pin);
+}
+
 void IOMCU_DigitalSource::toggle()
 {
     iomcu.toggle_GPIO(pin);
