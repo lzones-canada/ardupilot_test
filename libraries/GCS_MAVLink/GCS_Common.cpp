@@ -113,6 +113,9 @@ GCS_MAVLINK::GCS_MAVLINK(GCS_MAVLINK_Parameters &parameters,
     _port = &uart;
 
     streamRates = parameters.streamRates;
+
+    link_buffer.clear();
+    link_buffer.resize(WINDOW_SIZE);
 }
 
 bool GCS_MAVLINK::init(uint8_t instance)
@@ -1037,7 +1040,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
 #if HAL_ADSB_ENABLED
         { MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_STATUS, MSG_UAVIONIX_ADSB_OUT_STATUS},
 #endif
-            };
+    };
 
     for (uint8_t i=0; i<ARRAY_SIZE(map); i++) {
         if (map[i].mavlink_id == mavlink_id) {
@@ -1790,6 +1793,22 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         }
     }
 
+    // calculate uplink once per second.
+    if (tnow - last_uplink_calc > 1000) {
+        // Track the difference of packets received and lost.
+        pktReceived = (_channel_status.packet_rx_success_count - prevPktReceived);
+        pktLost     = (_channel_status.packet_rx_drop_count    - prevPktLost);
+        // Update link quality buffer
+        update_link_quality(pktReceived, pktLost);
+        // Calculate the link quality.
+        calc_link_quality();
+        // Store the current values for the next calculation.
+        prevPktReceived  = _channel_status.packet_rx_success_count;
+        prevPktLost      = _channel_status.packet_rx_drop_count;
+        // Reset the timer.
+        last_uplink_calc = tnow;
+    }
+
 #if GCS_DEBUG_SEND_MESSAGE_TIMINGS
 
     const uint16_t now16_ms{AP_HAL::millis16()};
@@ -1863,6 +1882,33 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         try_send_message_stats.statustext_last_sent_ms = now16_ms;
     }
 #endif
+}
+
+/*
+  update uplink quality
+*/
+void GCS_MAVLINK::update_link_quality(int received, int lost)
+{
+    // Add the new data to the circular buffer at the current index.
+    link_buffer[link_idx] = (received * 255) / (received + lost);
+
+    // Update the current index in a circular manner.
+    link_idx = (link_idx + 1) % WINDOW_SIZE;
+    return;
+}
+
+/*
+  calculate update uplink quality
+*/
+void GCS_MAVLINK::calc_link_quality()
+{
+    // Calculate the average link quality over the last 3 seconds.
+    uint16_t sum = 0;
+    for (const uint16_t& value : link_buffer) {
+        sum += value;
+    }
+
+    _link_quality = (sum / WINDOW_SIZE);
 }
 
 /*
@@ -3794,6 +3840,11 @@ void GCS_MAVLINK::handle_adsb_message(const mavlink_message_t &msg)
         adsb->handle_message(chan, msg);
     }
 #endif
+    // Send out on our Custom Driver
+    AP_MAX14830 *max14830 = AP::MAX14830();
+    if (max14830 != nullptr) {
+        max14830->adsb.handle_message(chan, msg);
+    }
 }
 
 void GCS_MAVLINK::handle_osd_param_config(const mavlink_message_t &msg) const
@@ -5334,6 +5385,7 @@ void GCS_MAVLINK::send_sys_status()
     const uint16_t errors1 = errors & 0xffff;
     const uint16_t errors2 = (errors>>16) & 0xffff;
     const uint16_t errors4 = AP::internalerror().count() & 0xffff;
+    const uint8_t link_quality = get_link_quality();
 
     mavlink_msg_sys_status_send(
         chan,
@@ -5355,7 +5407,8 @@ void GCS_MAVLINK::send_sys_status()
         errors1,
         errors2,
         0,  // errors3
-        errors4); // errors4
+        errors4, // errors4
+        link_quality); // link quality
 }
 
 void GCS_MAVLINK::send_extended_sys_state() const
