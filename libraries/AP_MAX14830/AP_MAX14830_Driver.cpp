@@ -62,15 +62,11 @@ extern const AP_HAL::HAL& hal;
 #define MAX14830R_CLKSOURCE      (0x1E)
 #define MAX14830R_GLOBALIRQ      (0x1F)
 #define MAX14830R_GLOBALCOMND    (0x1F)
-#define MAX14830R_TXSYNCH        (0x20)
-#define MAX14830R_SYNCHDELAY1    (0x21)
-#define MAX14830R_SYNCHDELAY2    (0x22)
-#define MAX14830R_TIMER1         (0x23)
-#define MAX14830R_TIMER2         (0x24)
-#define MAX14830R_REVID          (0x25)
 
+#define MAX14830R_TRGT_ISR       (0x60)
 #define MAX14830_WRITE_FLAG      (0x80)
 #define MAX14830_READ_FLAG       (0x7F)
+
 /*=========================================================================*/
 
 extern const AP_HAL::HAL &hal;
@@ -100,29 +96,28 @@ bool AP_MAX14830_Driver::init()
 
     _dev->set_speed(AP_HAL::Device::SPEED_LOW);
 
-    /*=======================================================================*/
-
     // Command reset to MAX Chip
     _max_soft_reset();
     // delay to allow for reset
     hal.scheduler->delay(2);
 
+    /*=======================================================================*/
+
     // For loop to allow for startup attempts.
     for (unsigned i = 0; i < 6; i++) 
     {
         // Waiting for board reset.. read known Register REVID..
-        uint8_t rev_id = 0;
-        // FIXME: Update too MAX14830R_REVID
-        rev_id = _read_register(0x1F);
-        hal.scheduler->delay(1);
-        rev_id >>= 4;
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"REVID1: 0x%X", rev_id);
-        if (rev_id != 0xA) {
+        if(_read_ready()) {
+            signal_ready = true;
+        }
+        else {
             continue;
         }
 
-        // Setup UART 1 - IMET ----------------------------------------------------
-        set_uart_address(UART::ADDR_1);
+        // Setup UART 1 - Reserved  -----------------------------------------------
+
+        // Setup UART 2 - IMET ----------------------------------------------------
+        set_uart_address(UART::ADDR_2);
 
         // Read Interrupt Status Register to clear interrupts.
         _read_register(MAX14830R_ISR);
@@ -163,61 +158,61 @@ bool AP_MAX14830_Driver::init()
         // delay to allow for reset
         hal.scheduler->delay(1);
 
-        // Setup UART 2 - ADSB ----------------------------------------------------
-        // // set_uart_address(UART::ADDR_2);
+        // Setup UART 3 - ADSB ----------------------------------------------------
+        set_uart_address(UART::ADDR_3);
 
-        // // // Read Interrupt Status Register to clear interrupts.
-        // // _read_register(MAX14830R_ISR);
+        // Read Interrupt Status Register to clear interrupts.
+        _read_register(MAX14830R_ISR);
 
-        // // // Set baud rate
-        // // _set_baud(BAUD::RATE_57600);
-        // // // delay to allow for reset
-        // // hal.scheduler->delay(1);
-
-        // // // Enable Rx Interrupt
-        // // _set_rx_interrupt(true);
-        // // // delay to allow for reset
-        // // hal.scheduler->delay(1);
-        
-        // // // Set Rx Timeout Enable Register
-        // // _set_rx_timeout_interrupt(true);
-        // // // delay to allow for reset
-        // // hal.scheduler->delay(1);
-
-        // // // No parity, StopBit, 8 Data Bits
-        // // _set_line(false, false);
-        // // // delay to allow for reset
-        // // hal.scheduler->delay(1);
-
-        // // // Rx Timeout (default 2 byte timeout)
-        // // _set_rx_byte_timeout(true);
-        // // // delay to allow for reset
-        // // hal.scheduler->delay(1);
-
-        // // // Set FIFO Interrupt Trigger Level at 3/4 full?
-        // // // Actual FIFO trigger level is 8 times RxTrig[7:4], hence, selectable threshold granularity is eight.
-        // // _set_fifo_trg_lvl(FIFO_TRIG::LEVEL_12);
-        // // // delay to allow for reset
-        // // hal.scheduler->delay(1);
-
-        // // Set IRQ Interrupt Enable
-        // // delay to allow for reset
-        // hal.scheduler->delay(1);
-        // _set_irq_interrupt(true);
-
-
-        // Setup UART 3 - Modem Diagnostics ---------------------------------------
-        //set_uart_address(UART::ADDR_3);
-        // TODO: Update baud, etc. to match protocol
-
-        // Read known Register (REVID) - break out once we get known value
-        // FIXME: Update too MAX14830R_REVID
-        rev_id = _read_register(0x1F);
+        // Set baud rate
+        _set_baud(BAUD::RATE_57600);
+        // delay to allow for reset
         hal.scheduler->delay(1);
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"REVID2: 0x%02X", rev_id);
-        // as per datasheet: it is recommended to only check for most significant 4 bits: Ah.
-        rev_id >>= 4;
-        if (rev_id == 0xA) {
+
+        // Enable Rx Interrupt
+        _set_rx_interrupt(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+        
+        // Set Rx Timeout Enable Register
+        _set_rx_timeout_interrupt(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // No parity, StopBit, 8 Data Bits
+        _set_line(false, false);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // Rx Timeout (default 2 byte timeout)
+        _set_rx_byte_timeout(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // Set FIFO Interrupt Trigger Level at 3/4 full?
+        // Actual FIFO trigger level is 8 times RxTrig[7:4], hence, selectable threshold granularity is eight.
+        _set_fifo_trg_lvl(FIFO_TRIG::LEVEL_12);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // Set IRQ Interrupt Enable
+        _set_irq_interrupt(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+
+        // Setup UART 4 - Modem Diagnostics ---------------------------------------
+        
+
+        // FIXME: Enable CLK Source - ****** NOT NEEDED ON CHIP CHANGE ******
+        // ENABLE CRYSTAL ON MAX14830 - only accessed thru UART0)
+        set_uart_address(UART::ADDR_1);
+        hal.scheduler->delay(1);
+        _write_register(MAX14830R_CLKSOURCE, 0x0A);
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"CLKSOURCE: 0x%02X", _read_register(MAX14830R_CLKSOURCE));
+
+        // Read known Register break out once we get known value confirming reset.
+        if(signal_ready) {
             break;
         }
     }
@@ -246,11 +241,52 @@ void AP_MAX14830_Driver::set_uart_address(UART::value uart_addr)
 // Software reset of the MAX Chip.
 void AP_MAX14830_Driver::_max_soft_reset()
 {
-    _write_register(MAX14830R_MODE2, 0x01);
-    _write_register(MAX14830R_MODE2, 0x00);
+    uart_offset = 0;
+    // Iterate through UART addresses and Reset.
+    for (UART::value uart_address = static_cast<UART::value>(UART::ADDR_1);
+         uart_address <= static_cast<UART::value>(UART::ADDR_4);
+         uart_address = static_cast<UART::value>(uart_address + uart_offset))
+    {
+        set_uart_address(uart_address);
+        _write_register(MAX14830R_MODE2, 0x01);
+        _write_register(MAX14830R_MODE2, 0x00);
+        hal.scheduler->delay(1);
+
+        // Increment the offset to move to the next UART
+        uart_offset = static_cast<int>(UART::ADDR_2) - static_cast<int>(UART::ADDR_1);
+    }
+
     return;
 }
 
+/* ************************************************************************* */
+
+// Check if Chip has completed reset and ready to receive commands.
+bool AP_MAX14830_Driver::_read_ready()
+{
+    bool ready = false;
+    uart_offset = 0;
+    // Iterate through UART addresses and Reset.
+    for (UART::value uart_address = static_cast<UART::value>(UART::ADDR_1);
+         uart_address <= static_cast<UART::value>(UART::ADDR_4);
+         uart_address = static_cast<UART::value>(uart_address + uart_offset))
+    {
+        set_uart_address(uart_address);
+        uint8_t isr_id = _read_register(MAX14830R_ISR);
+        hal.scheduler->delay(1);
+
+        if (isr_id == MAX14830R_TRGT_ISR)
+        {
+            ready = true;
+            break;
+        }
+
+        // Increment the offset to move to the next UART
+        uart_offset = static_cast<int>(UART::ADDR_2) - static_cast<int>(UART::ADDR_1);
+    }
+
+    return ready;
+}
 /* ************************************************************************* */
 
 // Clear FIFOs, both TX and RX cleared/flushed
@@ -494,21 +530,6 @@ void AP_MAX14830_Driver::_set_baud(BAUD::value baud)
 
     // Set DIV MSB
     _write_register(MAX14830R_DIVMSB, div_msb);
-    
-    // FIXME: Enable CLK Source - ****** NOT NEEDED ON CHIP CHANGE ******
-    //  // 0x10 CLKENABLE on MAX3107...
-    _write_register(MAX14830R_CLKSOURCE, 0x18);
-
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"PLLCONFIG: 0x%02X", _read_register(MAX14830R_PLLCONFIG));
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"BRGConfig: 0x%02X", _read_register(MAX14830R_BRGCONFIG));
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"DIVLSB: 0x%02X", _read_register(MAX14830R_DIVLSB));
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"DIVMSB: 0x%02X", _read_register(MAX14830R_DIVMSB));
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"CLKSOURCE: 0x%02X", _read_register(MAX14830R_CLKSOURCE));
 
     return;
 }
@@ -551,6 +572,7 @@ void AP_MAX14830_Driver::_set_line(bool parity, bool stop)
 /*******************************************************************************
 * This function sets the discrete bit used for the RTS line.
 *  TODO: Set the UART ADDRESS FOR MODEM PRIOR!!! _max14830->set_uart_address(UART::ADDR_3);
+*  Will need to look at locking the bus?
 *******************************************************************************/
 void AP_MAX14830_Driver::set_RTS_state(bool set_bit)
 {
@@ -566,6 +588,9 @@ void AP_MAX14830_Driver::set_RTS_state(bool set_bit)
     else {
         lcr_state &= ~(LCR::RTSBIT);
     }
+
+    // Write back to LCR Register
+    _write_register(MAX14830R_LCR, lcr_state);
 
     return;
 }
@@ -780,31 +805,16 @@ enum MAX14830_bit_rate AP_MAX14830_Driver::_get_bit_rate_enum(BAUD::value bit_ra
 /* ************************************************************************* */
 
 // exposed polling function for ISR interrupt.
-uint8_t AP_MAX14830_Driver::poll_global_isr()
+uint8_t AP_MAX14830_Driver::global_interrupt_source()
 {
     // Retrieve and store state from Global IRQ Register
-    uint8_t isr_state;
-    isr_state = _read_register(MAX14830R_ISR);
+    uint8_t global_irq = _read_register(MAX14830R_GLOBALIRQ);
 
-    //GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"isr_state: 0x%02X", isr_state);
+    // Flip & Mask to keep only lower 4 bits of interest.
+    //  0x0F represents binary 00001111
+    uint8_t masked_irq = (~global_irq) & 0x0F;
 
-    // Interrupt trigger on Rx Fifo Fill OR Line Status Error (Rx Timeout)
-    if((isr_state & ISR::RFIFOTRIGINT) || (isr_state & ISR::LSRERRINT)) {
-        return 1;
-    }
-    else {
-        return 0;
-    }
-
-    // FIXME: Retrieve and store state from Global IRQ Register
-    // uint8_t global_irq = _read_register(MAX14830R_GLOBALIRQ);
-
-    // GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"global_irq: 0x%02X", global_irq);
-
-    // // Flip & Mask to keep only lower 4 bits of interest.
-    // uint8_t masked_isr = (~global_irq) & 0x0F; // 0x0F represents binary 00001111
-
-    // return masked_isr;
+    return masked_irq;
 }
 
 /* ************************************************************************* */

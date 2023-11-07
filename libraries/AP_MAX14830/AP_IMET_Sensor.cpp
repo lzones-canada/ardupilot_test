@@ -63,8 +63,10 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
 	} parse_state = WAIT_FOR_STOP_SYNC_1;
 
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    _max14830->set_uart_address(UART::ADDR_1);
+    _max14830->set_uart_address(UART::ADDR_2);
     rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
+    // Clear the interrupt.
+    _max14830->clear_interrupts();
 
     // Pointer to the start of FIFO buffer.
     const uint8_t *byte_ptr = &rx_fifo_buffer[0];
@@ -85,8 +87,7 @@ void AP_IMET_Sensor::handle_imet_uart1_interrupt()
 
         // Parse all data until the end of the fifo buffer.
         if(rxbuf_fifo_len == byte_count) {
-            // Finished converting all new data, Clear the interrupt and reset buffer.
-            _max14830->clear_interrupts();
+            // Finished converting all new data.
             break;
         }
 
