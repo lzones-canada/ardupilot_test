@@ -15,6 +15,8 @@
 
 extern const AP_HAL::HAL& hal;
 
+uint8_t volz_idle_cmd[] = {0x9A, 0x01, 0x80, 0x01, 0x00, 0x00};
+
 const AP_Param::GroupInfo AP_Volz_Protocol::var_info[] = {
     // @Param: MASK
     // @DisplayName: Channel Bitmask
@@ -38,6 +40,12 @@ void AP_Volz_Protocol::init(void)
     AP_SerialManager &serial_manager = AP::serialmanager();
     port = serial_manager.find_serial(AP_SerialManager::SerialProtocol_Volz,0);
     update_volz_bitmask(bitmask);
+
+    // wing limit servo pin
+    _wing_limit = hal.gpio->channel(HAL_GPIO_PIN_WING_LIMIT);
+    _wing_limit->mode(HAL_GPIO_INPUT);
+
+    //send_command(volz_idle_cmd);
 }
 
 void AP_Volz_Protocol::update()
@@ -53,6 +61,20 @@ void AP_Volz_Protocol::update()
 
     if (last_used_bitmask != uint32_t(bitmask.get())) {
         update_volz_bitmask(bitmask);
+    }
+
+    // Activate sweep wing until limit switch is active on init.
+    // Check if the limit switch is active and if it's not already latched
+    if (!_wing_limit_latch && _wing_limit->read()) {
+        // Send idle/brake command
+        send_command(volz_idle_cmd);
+
+        // Latch the limit switch
+        _wing_limit_latch = true;
+    } else if (!_wing_limit_latch) {
+        // Send command to activate wing
+        uint8_t volz_fd_cmd[] = {0x9A, 0x01, 0xFD, 0xFF, 0x00, 0x00};
+        send_command(volz_fd_cmd);
     }
 
     uint32_t now = AP_HAL::micros();
@@ -95,33 +117,11 @@ void AP_Volz_Protocol::update()
             // prepare Volz protocol data.
             uint8_t data[VOLZ_DATA_FRAME_SIZE];
 
-            data[0] = 0x9A;
-            data[1] = 1;		// send actuator id as 1 based index so ch1 will have id 1, ch2 will have id 2 ....
+            data[0] = VOLZ_SET_EXTENDED_POSITION_CMD;
+            data[1] = i + 1;		// send actuator id as 1 based index so ch1 will have id 1, ch2 will have id 2 ....
             data[2] = HIGHBYTE(value);
             data[3] = LOWBYTE(value);
 
-            static double counter = 0;
-            // Forward.
-            if (counter < 600) {
-                data[2] = 0xFD;
-                data[3] = 0xFF;
-            }
-            // Stop.
-            else if (counter > 600 && counter < 800) {
-                data[2] = 0xAB;
-                data[3] = 0x46;
-            }
-            // Backwards.
-            else if (counter > 800 && counter < 1400) {
-                data[2] = 0xBD;
-                data[3] = 0xFF;
-            }
-            // Stop.
-            else {
-                data[2] = 0xAB;
-                data[3] = 0x46;
-            }
-            counter++;
             send_command(data);
         }
     }
