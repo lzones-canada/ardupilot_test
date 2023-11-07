@@ -188,8 +188,14 @@ private:
 
     AP_Logger logger;
 
-    AP_HAL::DigitalSource *_hbeat;
-    AP_HAL::DigitalSource *_wing_limt;
+    // Parachute Release (Pin 103)
+    AP_HAL::DigitalSource *_chute_release;
+    // Ballon Release   (Pin 104) 
+    AP_HAL::DigitalSource *_ballon_release;
+    // Position Lights  (Pin 101)
+    AP_HAL::DigitalSource *_pos_lights;
+    // Beacon Lights    (Pin 102)
+    AP_HAL::DigitalSource *_beacon_lights;
 
     // IMET sensor
     AP_MAX14830 max14830;
@@ -1043,6 +1049,7 @@ private:
     void init_payload_control(void);
     void update_payload_control(void);
     void do_heartbeat(void);
+    void send_payload_status(mavlink_channel_t chan);
     void update_control_mode(void);
     void update_fly_forward(void);
     void update_flight_stage();

@@ -280,16 +280,31 @@ void Plane::update_logging25(void)
         AP::ins().Write_Vibration();
 }
 
+/*
+  init payload control
+ */
 void Plane::init_payload_control(void)
 {
-    // initialise payload control
-    // heartbeat pin
-    _hbeat = hal.gpio->channel(HAL_GPIO_PIN_HEARTBEAT);
-    _hbeat->mode(HAL_GPIO_OUTPUT);
-    _hbeat->write(HAL_GPIO_OFF);
-    // wing limit servo pin
-    _wing_limt = hal.gpio->channel(HAL_GPIO_PIN_WING_LIMIT);
-    _wing_limt->mode(HAL_GPIO_INPUT);
+    // Position lights
+    _pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
+    _pos_lights->mode(HAL_GPIO_OUTPUT);
+    _pos_lights->write(HAL_GPIO_OFF);
+
+    // Beacon Lights (Heartbeat Pattern)
+    _beacon_lights = hal.gpio->channel(HAL_GPIO_PIN_BCN_LIGHTS);
+    _beacon_lights->mode(HAL_GPIO_OUTPUT);
+    _beacon_lights->write(HAL_GPIO_OFF);
+
+    // Parachute Release
+    _chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
+    _chute_release->mode(HAL_GPIO_OUTPUT);
+    _chute_release->write(HAL_GPIO_OFF);
+
+    // Balloon Release
+    _ballon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
+    _ballon_release->mode(HAL_GPIO_OUTPUT);
+    _ballon_release->write(HAL_GPIO_OFF);
+    
     return;
 }
 
@@ -320,7 +335,7 @@ void Plane::update_payload_control()
 } 
 
 /*
-  Heartbeat Control at 50Hz
+  Beacon Lights Control (Heartbeat Pattern) @ 50Hz
  */
 void Plane::do_heartbeat()
 {
@@ -333,23 +348,23 @@ void Plane::do_heartbeat()
 
     if(FIRST_ON_TIME > heartbeat_count)
     {
-        _hbeat->write(HAL_GPIO_ON);
+        _beacon_lights->write(HAL_GPIO_ON);
     }
     else if((FIRST_ON_TIME + OFF_TIME) > heartbeat_count)
     {
-        _hbeat->write(HAL_GPIO_OFF);
+        _beacon_lights->write(HAL_GPIO_OFF);
     }
     else if((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > heartbeat_count)
     {
-        _hbeat->write(HAL_GPIO_ON);
+        _beacon_lights->write(HAL_GPIO_ON);
     }
     else if(((uint16_t)round(HEARTBEAT_PERIOD)) > heartbeat_count)
     {
-        _hbeat->write(HAL_GPIO_OFF);
+        _beacon_lights->write(HAL_GPIO_OFF);
     }
     else
     {
-        _hbeat->write(HAL_GPIO_OFF);
+        _beacon_lights->write(HAL_GPIO_OFF);
         heartbeat_count = 0;
     }
 
@@ -488,8 +503,6 @@ void Plane::update_GPS_50Hz(void)
     gps.update();
 
     update_current_loc();
-
-    //update_payload_control();
 }
 
 /*
