@@ -45,11 +45,12 @@ void Plane::parachute_release()
 bool Plane::parachute_manual_release()
 {
     // exit immediately if parachute is not enabled
-    if (!parachute.enabled() || parachute.released()) {
+    if (!parachute.enabled()) {
         return false;
     }
 
-    if (parachute.alt_min() > 0 && relative_ground_altitude(false) < parachute.alt_min() &&
+    // do not release if we are landed or below the minimum altitude above home
+    if (parachute.alt_min() != 0 && relative_ground_altitude(false) < parachute.alt_min() &&
             auto_state.last_flying_ms > 0) {
         // Allow manual ground tests by only checking if flying too low if we've taken off
         gcs().send_text(MAV_SEVERITY_WARNING, "Parachute: Too low");

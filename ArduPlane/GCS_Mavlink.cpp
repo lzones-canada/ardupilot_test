@@ -426,6 +426,11 @@ bool GCS_MAVLINK_Plane::try_send_message(enum ap_message id)
         send_hygrometer();
 #endif
         break;
+    
+    case MSG_PAYLOAD_STATUS:
+        CHECK_PAYLOAD_SIZE(PAYLOAD_STATUS);
+        plane.send_payload_status(chan);
+        break;
 
     default:
         return GCS_MAVLINK::try_send_message(id);
@@ -471,6 +476,46 @@ void GCS_MAVLINK_Plane::send_hygrometer()
 }
 #endif // AP_AIRSPEED_HYGROMETER_ENABLE
 
+// Payload Status Message.
+void Plane::send_payload_status(mavlink_channel_t chan)
+{
+    //mavlink_payload_status_t paylod_pkt;
+    uint8_t flags = 0;
+
+    // Parachute Deploy Status.
+    if (_chute_release->read()) {
+        flags |= PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
+    }
+
+    // Balloon Release Status.
+    if (_ballon_release->read()) {
+        flags |= PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
+    }
+
+    // Position Lights Status.
+    if (_pos_lights->read()) {
+        flags |= PAYLOAD_STATUS_FLAGS_POSITION_LIGHTS;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_POSITION_LIGHTS;
+    }
+    
+    // Beacon Lights Status.
+    if (_beacon_lights->read()) {
+        flags |= PAYLOAD_STATUS_FLAGS_BEACON_LIGHTS;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_BEACON_LIGHTS;
+    }
+
+    mavlink_msg_payload_status_send(
+            chan,
+            flags);
+
+    return;
+}
 
 /*
   default stream rates to 1Hz
@@ -648,12 +693,15 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_MAG_CAL_PROGRESS,
     MSG_EKF_STATUS_REPORT,
     MSG_VIBRATION,
+    MSG_PAYLOAD_STATUS,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
 };
 static const ap_message STREAM_ADSB_msgs[] = {
     MSG_ADSB_VEHICLE,
+    // TODO: EVALUATE IF NECESSARY
+    MSG_UAVIONIX_ADSB_OUT_STATUS,
     MSG_AIS_VESSEL,
 };
 
@@ -1055,20 +1103,8 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_l
             return MAV_RESULT_ACCEPTED;
         case PARACHUTE_RELEASE:
             // treat as a manual release which performs some additional check of altitude
-            if (plane.parachute.released()) {
-                gcs().send_text(MAV_SEVERITY_NOTICE, "Parachute already released");
-                return MAV_RESULT_FAILED;
-            }
-            if (!plane.parachute.enabled()) {
-                gcs().send_text(MAV_SEVERITY_NOTICE, "Parachute not enabled");
-                return MAV_RESULT_FAILED;
-            }
-            if (!plane.parachute_manual_release()) {
-                return MAV_RESULT_FAILED;
-            }
+            plane.parachute_manual_release();
             return MAV_RESULT_ACCEPTED;
-        default:
-            break;
         }
         return MAV_RESULT_FAILED;
 #endif
