@@ -24,14 +24,16 @@ extern const AP_HAL::HAL &hal;
 
 /* ************************************************************************* */
 
-// Singleton Pattern
-AP_MAX14830 *AP_MAX14830::_singleton;
-thread_t *AP_MAX14830::_irq_handler_ctx;
+AP_MAX14830 *AP_MAX14830::_singleton;       // Singleton Pattern
 
 
-#define TIMEOUT_PRIORITY 250      // Right above timer thread
-#define EVT_TIMEOUT EVENT_MASK(0) // Event in the irq handler thread triggered by a timeout interrupt
-#define EVT_IRQ     EVENT_MASK(1) // Event in the irq handler thread triggered by a radio IRQ (Tx finished, Rx finished, MaxRetries limit)
+// Assume these constants represent the individual interrupt flags
+#define UART1_INTERRUPT  (1 << 0)
+#define UART2_INTERRUPT  (1 << 1)
+#define UART3_INTERRUPT  (1 << 2)
+#define UART4_INTERRUPT  (1 << 3)
+
+/* ************************************************************************* */
 
 // Constructor
 AP_MAX14830::AP_MAX14830() :
@@ -50,70 +52,11 @@ AP_MAX14830::AP_MAX14830() :
 
 void AP_MAX14830::init()
 {
-    if (_irq_handler_ctx != nullptr) {
-        AP_HAL::panic("AP_MAX14830: double instantiation of irq_handler\n");
-    }
-
-    _irq_handler_ctx = chThdCreateFromHeap(NULL,
-                                           THD_WORKING_AREA_SIZE(2048),
-                                           "thread_max_14830",
-                                           TIMEOUT_PRIORITY,          /* Initial priority.    */
-                                           irq_handler_thd,           /* Thread function.     */
-                                           NULL);                     /* Thread parameter.    */
-
-    /* Request 5Hz update (200ms) */
-    //_driver.register_periodic_callback(200 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
-    
-    // Register ADSB update function with scheduler
-    hal.scheduler->register_timer_process(FUNCTOR_BIND(&adsb, &AP_ADSB_Sensor::update, void));
-
-    // Interrupt pin Setup for MAX14830
-    hal.gpio->pinMode(HAL_GPIO_DRDY1_EXT_IRQ, HAL_GPIO_INPUT);
-    hal.gpio->attach_interrupt(HAL_GPIO_DRDY1_EXT_IRQ, trigger_irq_event , AP_HAL::GPIO::INTERRUPT_FALLING);
-
     // Init UART-SPI Max Driver
     _driver.init();
 
-    return;
-}
-
-// ----------------------------------------------------------------------------
-/*
-    Trigger IRQ event
-*/
-void AP_MAX14830::trigger_irq_event()
-{
-    //we are called from ISR context
-    chSysLockFromISR();
-    if (_irq_handler_ctx) {
-        chEvtSignalI(_irq_handler_ctx, EVT_IRQ);
-    }
-    chSysUnlockFromISR();
-}
-
-
-// ----------------------------------------------------------------------------
-/*
-  IRQ handler thread
- */
-void AP_MAX14830::irq_handler_thd(void *arg)
-{
-    _irq_handler_ctx = chThdGetSelfX();
-
-    (void) arg;
-    while (true) {
-        eventmask_t evt = chEvtWaitAny(ALL_EVENTS);
-        switch (evt) {
-        case EVT_IRQ:
-            _singleton->irq_handler();
-            break;
-        // case EVT_TIMEOUT:
-        //     radio_singleton->irq_timeout(isr_timeout_time_us);
-        //     break;
-        default:
-            break;
-        }
-    }
+    /* Request 5Hz update (200ms) */
+    _driver.register_periodic_callback(200 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
 
     return;
 }
@@ -122,52 +65,36 @@ void AP_MAX14830::irq_handler_thd(void *arg)
 /*
   IRQ handler
  */
-void AP_MAX14830::irq_handler(void)
+void AP_MAX14830::_timer(void)
 {
-    // Lock the bus to prevent other threads from accessing the MAX14830.
-    _driver.lock_bus();
+    // Read GlobalIRQ register to determine which UART is source of interrupt.
+    uint8_t global_irq = _driver.global_interrupt_source();
 
-    // Poll MAX14830 for global interrupt.
-    uint8_t global_isr = _driver.poll_global_isr();
+    //DEV_PRINTF("IRQ: %d\n", global_irq);
 
-    // Switch on global interrupt per UART/Address basis.
-    // TODO: READ OUT THE INTERRUPT STATUS REGISTER TO DETERMINE WHICH UART TRIGGERED THE INTERRUPT.
-    //   CAN BOTH HAPPEN AT SAME TIME?? IE. HANDLE CASE WHERE BOTH UARTS HAVE DATA READY.
-
-    switch(global_isr)
-    {
-        case(GLOBALIRQ::IRQ1):
-        {
-            // Handle UART1 Interrupt - IMET data.
-            //imet.handle_imet_uart1_interrupt();
-            adsb.handle_adsb_uart2_interrupt();
-            break;
-        }
-        case(GLOBALIRQ::IRQ2):
-        {
-            // Handle UART2 Interrupt - ADSB data.
-            adsb.handle_adsb_uart2_interrupt();
-            break;
-        }
-        // Future Use
-        // case(GLOBALIRQ::IRQ3):
-        // {
-        //     break;
-        // }
-        // case(GLOBALIRQ::IRQ4):
-        // {
-        //     break;
-        // }
-        default:
-        {
-            // No interrupt, just break out to return.
-            break;
-        }
+    // Handle UART1 Interrupt - HSTM data.
+    if(global_irq &  UART1_INTERRUPT) {
+        DEV_PRINTF("HSTM-INTERUPT1\n");
+    }
+    
+    // Handle UART2 Interrupt - IMET data.
+    if(global_irq &  UART2_INTERRUPT) {
+        imet.handle_imet_uart1_interrupt();
+        DEV_PRINTF("IMET-INTERUPT2\n");
     }
 
+    // Handle UART3 Interrupt - ADSB data.
+    if(global_irq &  UART3_INTERRUPT) {
+        adsb.handle_adsb_uart2_interrupt();
+        DEV_PRINTF("ADSB-INTERUPT3\n");
+    }
 
-    // Unlock the bus to allow other threads to access the MAX14830.
-    _driver.unlock_bus();
+    // Handle UART4 Interrupt - Reserved.
+    if(global_irq &  UART4_INTERRUPT) {
+        DEV_PRINTF("RES-INTERUPT4\n");
+    }
+
+    adsb.update();
 
     return;
 }
@@ -203,9 +130,7 @@ void AP_MAX14830::set_uart_address(UART::value uart_addr)
 
 void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len)
 {
-    _driver.lock_bus();
     _driver.fifo_tx_write(buf, len);
-    _driver.unlock_bus();
     return;
 }
 
@@ -213,9 +138,7 @@ void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len)
 
 void AP_MAX14830::set_RTS_state(bool state)
 {
-    _driver.lock_bus();
     _driver.set_RTS_state(state);
-    _driver.unlock_bus();
     return;
 }
 

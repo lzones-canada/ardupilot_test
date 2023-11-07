@@ -31,9 +31,9 @@
 #define VEHICLE_OP_MODE                 1000      // 1sec Interval.
 #define VEHICLE_CS_MSG                  60 *1000  // 1min Interval.
 // GDL90 Heading Resolution
-#define GDL_RES_HEAD 256.0 / 360.0
+#define GDL_RES_HEAD                    (256.0 / 360.0)
 // GDL90 Vertical Velocity Resolution
-#define GDL_RES_VERTVEL 64.0
+#define GDL_RES_VERTVEL                 64.0
 
 
 //------------------------------------------------------------------------------
@@ -240,8 +240,10 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
     rx.status.state = GDL90_RX_IDLE;
 
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    _max14830->set_uart_address(UART::ADDR_2);
+    _max14830->set_uart_address(UART::ADDR_3);
     rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
+    // Clear the interrupt.
+    _max14830->clear_interrupts();
 
     // Pointer to the start of FIFO buffer.
     const uint8_t *byte_ptr = &rx_fifo_buffer[0];
@@ -253,8 +255,7 @@ void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
     {
         // Parse all data until the end of the fifo buffer.
         if(rxbuf_fifo_len == byte_count) {
-            // Finished converting all new data, Clear the interrupt and reset buffer.
-            _max14830->clear_interrupts();
+            // Finished converting all new data.
             break;
         }
 
@@ -457,6 +458,7 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             // Emergency Status
             tx_dynamic.emergencyStatus = rx.decoded.ownship_report.report.emergencyCode;
 
+            //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_OWNSHIP_REPORT");
             //gcs().send_message(MSG_UAVIONIX_ADSB_OUT_DYNAMIC);
             break;
         }
@@ -648,9 +650,9 @@ CharPair AP_ADSB_Sensor::calc_hex_to_ascii_crc(uint8_t *buf, uint8_t len)
 
 bool AP_ADSB_Sensor::_tx_write(uint8_t *buffer, uint16_t length)
 {
-    _max14830->set_uart_address(UART::ADDR_2);
+    _max14830->set_uart_address(UART::ADDR_3);
     _max14830->tx_write(buffer, length);
-    
+
     return true;
 }
 

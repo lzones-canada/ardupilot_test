@@ -85,14 +85,6 @@ private:
     // iterruption object for data logging management
     HAL_Semaphore _sem;
 
-    // Static functions, for interrupt support
-    static thread_t *_irq_handler_ctx;
-    static void trigger_irq_event(void);
-    static void irq_handler_thd(void* arg);
-
-    // IRQ Interrupt Handler 
-    void irq_handler();
-
     // update the temperature, called at 20Hz
     void _timer(void);
 

@@ -158,6 +158,9 @@ public:
     // Timer for last Ownship Message.
     uint32_t last_Ownship_ms;
 
+    // Timer for last call into the function.
+    uint32_t last_called;
+
     // Length of bytes to read - returned from Max14830 FIFO.
     uint8_t rxbuf_fifo_len;
 

@@ -188,8 +188,8 @@ public:
 	// Middle layer write function for Max Tx Buffer Write
     uint8_t fifo_tx_write(uint8_t *txdata, uint8_t len);
 
-    // Poll Global ISR for UART Specific Data Ready in the Rx Fifo
-    uint8_t poll_global_isr();
+    // Global IRQ to determine UART Channel Interrupt Source
+    uint8_t global_interrupt_source();
 
 	// Clear Interrupts for Max chip by reading the Interrupt Status Register
     void clear_interrupts(void);
@@ -250,6 +250,13 @@ private:
 
     // Set Fifo Trigger Level on the RX Fifo
     void _set_fifo_trg_lvl(FIFO_TRIG::value trg_level);
+
+    bool signal_ready = false;
+
+    // Read known software Register signalling the MAX14830 is ready for commands.
+    bool _read_ready(void);
+
+    uint8_t uart_offset;
 
     enum MAX14830_bit_rate _get_bit_rate_enum(BAUD::value bit_rate);
 
