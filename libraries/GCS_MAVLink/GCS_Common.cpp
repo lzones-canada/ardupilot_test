@@ -1890,11 +1890,11 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 void GCS_MAVLINK::update_link_quality(int received, int lost)
 {
     int link_data = 0;
-    // Handle the case where no packets were received to avoid "drop in links"
+    // Handle the case where no packets received to avoid divide by zero and "drop in links".
     if (received + lost > 0) {
         link_data = (received * LINK_SCALE) / (received + lost);
     } else {
-        // No packets recieved, but also no packets lost..
+        // No packets recieved, but also no packets lost... so 100%!
         link_data = LINK_SCALE;
     }
 
