@@ -1747,8 +1747,8 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         }
     }
 
-    // calculate uplink once per second.
-    if (tnow - last_uplink_calc > 1000) {
+    // calculate uplink once per second...ish, accounting for some Hysterisis.
+    if (tnow - last_uplink_calc > 1150) {
         // Track the difference of packets received and lost.
         pktReceived = (_channel_status.packet_rx_success_count - prevPktReceived);
         pktLost     = (_channel_status.packet_rx_drop_count    - prevPktLost);
@@ -1843,8 +1843,17 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 */
 void GCS_MAVLINK::update_link_quality(int received, int lost)
 {
+    int link_data = 0;
+    // Handle the case where no packets were received to avoid "drop in links"
+    if (received + lost > 0) {
+        link_data = (received * LINK_SCALE) / (received + lost);
+    } else {
+        // No packets recieved, but also no packets lost..
+        link_data = LINK_SCALE;
+    }
+
     // Add the new data to the circular buffer at the current index.
-    link_buffer[link_idx] = (received * 255) / (received + lost);
+    link_buffer[link_idx] = link_data;
 
     // Update the current index in a circular manner.
     link_idx = (link_idx + 1) % WINDOW_SIZE;
