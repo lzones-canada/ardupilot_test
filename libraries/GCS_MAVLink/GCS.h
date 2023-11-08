@@ -1098,6 +1098,8 @@ private:
     // Window Size of 3 Seconds / Elements
     //  Each calculation is done every second thus 3 elements = 3 seconds.
     static const uint8_t WINDOW_SIZE = 3;
+    // Link quality is scaled from 0 to 255.
+    static const uint8_t LINK_SCALE = 255;
     // timer to track when to calculate the link quality.
     uint32_t last_uplink_calc;
     // Circular buffer to store historical link quality data.
