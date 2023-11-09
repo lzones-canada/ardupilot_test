@@ -734,6 +734,8 @@ protected:
     bool location_from_command_t(const mavlink_command_long_t &in, MAV_FRAME in_frame, Location &out);
     bool location_from_command_t(const mavlink_command_int_t &in, Location &out);
 
+    uint8_t get_link_quality() const { return _link_quality; };
+
 private:
 
     // define the two objects used for parsing incoming messages:
@@ -1041,7 +1043,6 @@ private:
     // link quality helper functions.
     void update_link_quality(int pktReceived, int pktLost);
     void calc_link_quality();
-    uint8_t get_link_quality() const { return _link_quality; };
 
 #if HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED
     // structure containing default intervals read from files for this

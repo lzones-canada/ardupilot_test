@@ -287,24 +287,24 @@ void Plane::update_logging25(void)
 void Plane::init_payload_control(void)
 {
     // Position lights
-    _pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
-    _pos_lights->mode(HAL_GPIO_OUTPUT);
-    _pos_lights->write(HAL_GPIO_OFF);
+    pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
+    pos_lights->mode(HAL_GPIO_OUTPUT);
+    pos_lights->write(HAL_GPIO_OFF);
 
     // Beacon Lights (Heartbeat Pattern)
-    _beacon_lights = hal.gpio->channel(HAL_GPIO_PIN_BCN_LIGHTS);
-    _beacon_lights->mode(HAL_GPIO_OUTPUT);
-    _beacon_lights->write(HAL_GPIO_OFF);
+    beacon_lights = hal.gpio->channel(HAL_GPIO_PIN_BCN_LIGHTS);
+    beacon_lights->mode(HAL_GPIO_OUTPUT);
+    beacon_lights->write(HAL_GPIO_OFF);
 
     // Parachute Release
-    _chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
-    _chute_release->mode(HAL_GPIO_OUTPUT);
-    _chute_release->write(HAL_GPIO_OFF);
+    chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
+    chute_release->mode(HAL_GPIO_OUTPUT);
+    chute_release->write(HAL_GPIO_OFF);
 
     // Balloon Release
-    _ballon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
-    _ballon_release->mode(HAL_GPIO_OUTPUT);
-    _ballon_release->write(HAL_GPIO_OFF);
+    ballon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
+    ballon_release->mode(HAL_GPIO_OUTPUT);
+    ballon_release->write(HAL_GPIO_OFF);
     
     return;
 }
@@ -349,23 +349,23 @@ void Plane::do_heartbeat()
 
     if(FIRST_ON_TIME > heartbeat_count)
     {
-        _beacon_lights->write(HAL_GPIO_ON);
+        beacon_lights->write(HAL_GPIO_ON);
     }
     else if((FIRST_ON_TIME + OFF_TIME) > heartbeat_count)
     {
-        _beacon_lights->write(HAL_GPIO_OFF);
+        beacon_lights->write(HAL_GPIO_OFF);
     }
     else if((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > heartbeat_count)
     {
-        _beacon_lights->write(HAL_GPIO_ON);
+        beacon_lights->write(HAL_GPIO_ON);
     }
     else if(((uint16_t)round(HEARTBEAT_PERIOD)) > heartbeat_count)
     {
-        _beacon_lights->write(HAL_GPIO_OFF);
+        beacon_lights->write(HAL_GPIO_OFF);
     }
     else
     {
-        _beacon_lights->write(HAL_GPIO_OFF);
+        beacon_lights->write(HAL_GPIO_OFF);
         heartbeat_count = 0;
     }
 

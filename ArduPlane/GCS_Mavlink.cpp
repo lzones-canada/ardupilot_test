@@ -429,7 +429,7 @@ bool GCS_MAVLINK_Plane::try_send_message(enum ap_message id)
     
     case MSG_PAYLOAD_STATUS:
         CHECK_PAYLOAD_SIZE(PAYLOAD_STATUS);
-        plane.send_payload_status(chan);
+        send_payload_status();
         break;
 
     default:
@@ -477,34 +477,39 @@ void GCS_MAVLINK_Plane::send_hygrometer()
 #endif // AP_AIRSPEED_HYGROMETER_ENABLE
 
 // Payload Status Message.
-void Plane::send_payload_status(mavlink_channel_t chan)
+void GCS_MAVLINK_Plane::send_payload_status()
 {
     //mavlink_payload_status_t paylod_pkt;
     uint8_t flags = 0;
+    const uint8_t link_quality       = get_link_quality();
+    const uint8_t chute_status       = plane.get_chute_status();
+    const uint8_t ballon_status      = plane.get_ballon_status();
+    const uint8_t pos_lights_status  = plane.get_pos_lights_status();
+    const uint8_t beac_lights_status = plane.get_beac_lights_status();
 
     // Parachute Deploy Status.
-    if (_chute_release->read()) {
+    if (chute_status) {
         flags |= PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
     }
 
     // Balloon Release Status.
-    if (_ballon_release->read()) {
+    if (ballon_status) {
         flags |= PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
     }
 
     // Position Lights Status.
-    if (_pos_lights->read()) {
+    if (pos_lights_status) {
         flags |= PAYLOAD_STATUS_FLAGS_POSITION_LIGHTS;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_POSITION_LIGHTS;
     }
     
     // Beacon Lights Status.
-    if (_beacon_lights->read()) {
+    if (beac_lights_status) {
         flags |= PAYLOAD_STATUS_FLAGS_BEACON_LIGHTS;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_BEACON_LIGHTS;
@@ -512,7 +517,8 @@ void Plane::send_payload_status(mavlink_channel_t chan)
 
     mavlink_msg_payload_status_send(
             chan,
-            flags);
+            flags,
+            link_quality); // link quality
 
     return;
 }
@@ -643,6 +649,7 @@ static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
     MSG_NAV_CONTROLLER_OUTPUT,
     MSG_FENCE_STATUS,
     MSG_POSITION_TARGET_GLOBAL_INT,
+    MSG_PAYLOAD_STATUS,
 };
 static const ap_message STREAM_POSITION_msgs[] = {
     MSG_LOCATION,
@@ -693,7 +700,6 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_MAG_CAL_PROGRESS,
     MSG_EKF_STATUS_REPORT,
     MSG_VIBRATION,
-    MSG_PAYLOAD_STATUS,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
