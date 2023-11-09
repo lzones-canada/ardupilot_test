@@ -204,11 +204,11 @@ bool AP_MAX14830_Driver::init()
         // Setup UART 4 - Modem Diagnostics ---------------------------------------
         
 
-        // FIXME: Enable CLK Source - ****** NOT NEEDED ON CHIP CHANGE ******
-        // ENABLE CRYSTAL ON MAX14830 - only accessed thru UART0)
-        set_uart_address(UART::ADDR_1);
-        hal.scheduler->delay(1);
-        _write_register(MAX14830R_CLKSOURCE, 0x0A);
+        // Dev Setup --------------------------------------------------------------
+        // FIXME: Enable CLK Source DEV BOARD - ****** NOT NEEDED ON CHIP CHANGE ******
+        //set_uart_address(UART::ADDR_1);
+        //hal.scheduler->delay(1);
+        //_write_register(MAX14830R_CLKSOURCE, 0x0A);
         GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"CLKSOURCE: 0x%02X", _read_register(MAX14830R_CLKSOURCE));
 
         // Read known Register break out once we get known value confirming reset.

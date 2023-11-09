@@ -189,13 +189,18 @@ private:
     AP_Logger logger;
 
     // Parachute Release (Pin 103)
-    AP_HAL::DigitalSource *_chute_release;
-    // Ballon Release   (Pin 104) 
-    AP_HAL::DigitalSource *_ballon_release;
-    // Position Lights  (Pin 101)
-    AP_HAL::DigitalSource *_pos_lights;
-    // Beacon Lights    (Pin 102)
-    AP_HAL::DigitalSource *_beacon_lights;
+    AP_HAL::DigitalSource *chute_release;
+    // Ballon Release    (Pin 104) 
+    AP_HAL::DigitalSource *ballon_release;
+    // Position Lights   (Pin 101)
+    AP_HAL::DigitalSource *pos_lights;
+    // Beacon Lights     (Pin 102)
+    AP_HAL::DigitalSource *beacon_lights;
+
+    uint8_t get_chute_status()        const { return chute_release->read(); };
+    uint8_t get_ballon_status()       const { return ballon_release->read(); };
+    uint8_t get_pos_lights_status()   const { return pos_lights->read(); };
+    uint8_t get_beac_lights_status()  const { return beacon_lights->read(); };
 
     // IMET sensor
     AP_MAX14830 max14830;

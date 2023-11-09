@@ -1748,7 +1748,8 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
     }
 
     // calculate uplink once per second...ish, accounting for some Hysterisis.
-    if (tnow - last_uplink_calc > 1150) {
+    if (tnow - last_uplink_calc > 1000) {
+        //mavlink_status_t *chan_status = mavlink_get_channel_status(MAVLINK_COMM_1);
         // Track the difference of packets received and lost.
         pktReceived = (_channel_status.packet_rx_success_count - prevPktReceived);
         pktLost     = (_channel_status.packet_rx_drop_count    - prevPktLost);
@@ -5336,7 +5337,6 @@ void GCS_MAVLINK::send_sys_status()
     const uint16_t errors1 = errors & 0xffff;
     const uint16_t errors2 = (errors>>16) & 0xffff;
     const uint16_t errors4 = AP::internalerror().count() & 0xffff;
-    const uint8_t link_quality = get_link_quality();
 
     mavlink_msg_sys_status_send(
         chan,
@@ -5358,8 +5358,7 @@ void GCS_MAVLINK::send_sys_status()
         errors1,
         errors2,
         0,  // errors3
-        errors4, // errors4
-        link_quality); // link quality
+        errors4); // errors4
 }
 
 void GCS_MAVLINK::send_extended_sys_state() const

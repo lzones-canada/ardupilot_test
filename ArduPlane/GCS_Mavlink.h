@@ -30,6 +30,7 @@ protected:
     void send_aoa_ssa();
     void send_attitude() const override;
     void send_wind() const;
+    void send_payload_status();
 
     bool persist_streamrates() const override { return true; }
 
