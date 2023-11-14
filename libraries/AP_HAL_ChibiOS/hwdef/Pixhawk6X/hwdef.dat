@@ -387,11 +387,15 @@ define HAL_GPIO_PIN_POS_LIGHTS      101
 define HAL_GPIO_PIN_BCN_LIGHTS      102
 define HAL_GPIO_PIN_CHUTE_RELEASE   103
 define HAL_GPIO_PIN_BLN_RELEASE     104
-
-# SPI6 IRQ is on GPIO(100)
-define HAL_GPIO_DRDY1_EXT_IRQ       100
-
+define HAL_GPIO_PIN_HSTM_POWER      105
 
 # define GPIO states
 define HAL_GPIO_OFF 0
-define HAL_GPIO_ON 1
+define HAL_GPIO_ON  1
+
+# Analog Input Pins
+define HAL_ANALOG_PIN_SERV0          12
+define HAL_ANALOG_PIN_BOARD_TEMP     13
+
+# SPI6 IRQ is on GPIO(100)
+define HAL_GPIO_DRDY1_EXT_IRQ       100

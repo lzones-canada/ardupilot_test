@@ -481,11 +481,14 @@ void GCS_MAVLINK_Plane::send_payload_status()
 {
     //mavlink_payload_status_t paylod_pkt;
     uint8_t flags = 0;
-    const uint8_t link_quality       = get_link_quality();
-    const uint8_t chute_status       = plane.get_chute_status();
-    const uint8_t ballon_status      = plane.get_ballon_status();
-    const uint8_t pos_lights_status  = plane.get_pos_lights_status();
-    const uint8_t beac_lights_status = plane.get_beac_lights_status();
+    const uint8_t  link_quality       = get_link_quality();
+    const uint8_t  chute_status       = plane.get_chute_status();
+    const uint8_t  ballon_status      = plane.get_ballon_status();
+    const uint8_t  pos_lights_status  = plane.get_pos_lights_status();
+    const uint8_t  beac_lights_status = plane.get_beac_lights_status();
+    const uint8_t  hstm_status        = plane.get_hstm_status();
+    const uint16_t servo_vcc          = plane.get_servo_volt() * 1000.0;
+    const int16_t  board_temp         = plane.get_support_board_temp() * 100.0;
 
     // Parachute Deploy Status.
     if (chute_status) {
@@ -515,10 +518,19 @@ void GCS_MAVLINK_Plane::send_payload_status()
         flags &= ~PAYLOAD_STATUS_FLAGS_BEACON_LIGHTS;
     }
 
+    // HSTM Power Status.
+    if (hstm_status) {
+        flags |= PAYLOAD_STATUS_FLAGS_HSTM_POWER;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_HSTM_POWER;
+    }
+
     mavlink_msg_payload_status_send(
             chan,
             flags,
-            link_quality); // link quality
+            link_quality,   // link quality
+            servo_vcc,      // Servo Voltage Rail - millivolts
+            (board_temp));  // Support Board Temperature.
 
     return;
 }

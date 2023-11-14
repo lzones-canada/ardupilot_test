@@ -26,7 +26,6 @@
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <GCS_MAVLink/GCS_config.h>
 #include <GCS_MAVLink/GCS.h>
-#include <hal.h>
 #include <utility>
 #include <stdio.h>
 #include "AP_IMET_Sensor.h"
