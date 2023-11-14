@@ -27,7 +27,6 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <AP_HAL/utility/OwnPtr.h>
 #include <AP_HAL/GPIO.h>
-#include <hal.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS.h>
 #include <utility>

@@ -196,11 +196,27 @@ private:
     AP_HAL::DigitalSource *pos_lights;
     // Beacon Lights     (Pin 102)
     AP_HAL::DigitalSource *beacon_lights;
+    // HSTM Power        (Pin 105) 
+    AP_HAL::DigitalSource *hstm_pwr;
 
+    // Helper functions for reading the status of the digital pins
     uint8_t get_chute_status()        const { return chute_release->read(); };
     uint8_t get_ballon_status()       const { return ballon_release->read(); };
     uint8_t get_pos_lights_status()   const { return pos_lights->read(); };
     uint8_t get_beac_lights_status()  const { return beacon_lights->read(); };
+    uint8_t get_hstm_status()         const { return hstm_pwr->read(); };
+
+    // Analog Input Source for monitoring.
+    AP_HAL::AnalogSource *servo_analog_input;
+    AP_HAL::AnalogSource *board_temp_analog_input;
+
+    // Support Board Temperature
+    float board_temp = 0;
+    float servo_vcc = 0;
+    // Helper functions for getting analog pins.
+    float get_servo_volt()          const { return servo_vcc; }; 
+    float get_support_board_temp()  const { return board_temp; };
+
 
     // IMET sensor
     AP_MAX14830 max14830;
@@ -1053,7 +1069,8 @@ private:
     void update_logging25(void);
     void init_payload_control(void);
     void update_payload_control(void);
-    void do_heartbeat(void);
+    void pos_lights_heartbeat(void);
+    void analog_input_calcs(void);
     void send_payload_status(mavlink_channel_t chan);
     void update_control_mode(void);
     void update_fly_forward(void);

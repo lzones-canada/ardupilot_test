@@ -74,24 +74,24 @@ void AP_MAX14830::_timer(void)
 
     // Handle UART1 Interrupt - HSTM data.
     if(global_irq &  UART1_INTERRUPT) {
-        DEV_PRINTF("HSTM-INTERUPT1\n");
+        //DEV_PRINTF("HSTM-INTERUPT1\n");
     }
     
     // Handle UART2 Interrupt - IMET data.
     if(global_irq &  UART2_INTERRUPT) {
         imet.handle_imet_uart1_interrupt();
-        DEV_PRINTF("IMET-INTERUPT2\n");
+        //DEV_PRINTF("IMET-INTERUPT2\n");
     }
 
     // Handle UART3 Interrupt - ADSB data.
     if(global_irq &  UART3_INTERRUPT) {
         adsb.handle_adsb_uart2_interrupt();
-        DEV_PRINTF("ADSB-INTERUPT3\n");
+        //DEV_PRINTF("ADSB-INTERUPT3\n");
     }
 
     // Handle UART4 Interrupt - Reserved.
     if(global_irq &  UART4_INTERRUPT) {
-        DEV_PRINTF("RES-INTERUPT4\n");
+        //DEV_PRINTF("RES-INTERUPT4\n");
     }
 
     adsb.update();
