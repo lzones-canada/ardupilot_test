@@ -302,9 +302,9 @@ void Plane::init_payload_control(void)
     chute_release->write(HAL_GPIO_ON);
 
     // Balloon Release
-    ballon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
-    ballon_release->mode(HAL_GPIO_OUTPUT);
-    ballon_release->write(HAL_GPIO_OFF);
+    balloon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
+    balloon_release->mode(HAL_GPIO_OUTPUT);
+    balloon_release->write(HAL_GPIO_OFF);
 
     // HSTM Power
     hstm_pwr = hal.gpio->channel(HAL_GPIO_PIN_HSTM_POWER);

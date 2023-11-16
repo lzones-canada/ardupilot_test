@@ -483,7 +483,7 @@ void GCS_MAVLINK_Plane::send_payload_status()
     uint8_t flags = 0;
     const uint8_t  link_quality       = get_link_quality();
     const uint8_t  chute_status       = plane.get_chute_status();
-    const uint8_t  ballon_status      = plane.get_ballon_status();
+    const uint8_t  balloon_status     = plane.get_balloon_status();
     const uint8_t  pos_lights_status  = plane.get_pos_lights_status();
     const uint8_t  beac_lights_status = plane.get_beac_lights_status();
     const uint8_t  hstm_status        = plane.get_hstm_status();
@@ -498,7 +498,7 @@ void GCS_MAVLINK_Plane::send_payload_status()
     }
 
     // Balloon Release Status.
-    if (ballon_status) {
+    if (balloon_status) {
         flags |= PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
