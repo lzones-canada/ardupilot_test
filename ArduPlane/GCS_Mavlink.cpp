@@ -491,7 +491,7 @@ void GCS_MAVLINK_Plane::send_payload_status()
     const int16_t  board_temp         = plane.get_support_board_temp() * 100.0;
 
     // Parachute Deploy Status.
-    if (chute_status) {
+    if (!chute_status) {
         flags |= PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
@@ -1120,9 +1120,18 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_l
             plane.parachute.enabled(true);
             return MAV_RESULT_ACCEPTED;
         case PARACHUTE_RELEASE:
+            // confirm the parachute has been enabled
+            if (!plane.parachute.enabled()) {
+                gcs().send_text(MAV_SEVERITY_NOTICE, "Parachute not enabled");
+                return MAV_RESULT_FAILED;
+            }
             // treat as a manual release which performs some additional check of altitude
-            plane.parachute_manual_release();
+            if (!plane.parachute_manual_release()) {
+                return MAV_RESULT_FAILED;
+            }
             return MAV_RESULT_ACCEPTED;
+        default:
+            break;
         }
         return MAV_RESULT_FAILED;
 #endif

@@ -296,10 +296,10 @@ void Plane::init_payload_control(void)
     beacon_lights->mode(HAL_GPIO_OUTPUT);
     beacon_lights->write(HAL_GPIO_OFF);
 
-    // Parachute Release
+    // Parachute Release - Logic Reversed.
     chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
     chute_release->mode(HAL_GPIO_OUTPUT);
-    chute_release->write(HAL_GPIO_OFF);
+    chute_release->write(HAL_GPIO_ON);
 
     // Balloon Release
     ballon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);

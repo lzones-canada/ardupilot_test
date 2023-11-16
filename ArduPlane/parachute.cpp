@@ -20,6 +20,7 @@ void Plane::parachute_check()
 void Plane::parachute_release()
 {
     if (parachute.release_in_progress()) {
+        gcs().send_text(MAV_SEVERITY_NOTICE, "Parachute already released");
         return;
     }
     if (parachute.released()) {

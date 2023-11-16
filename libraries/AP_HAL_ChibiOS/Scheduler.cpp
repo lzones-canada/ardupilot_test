@@ -801,7 +801,7 @@ void Scheduler::watchdog_pat(void)
 void Scheduler::ext_watchdog_pat(void)
 {
     // Reset the external watchdog timer.
-    static uint16_t _watchdog_reset_timer = 500;
+    static uint16_t _watchdog_reset_timer = 250;
 
     // Watchdog reset timer.
     if(0 == _watchdog_reset_timer)

@@ -142,7 +142,7 @@ void AP_Parachute::update()
                 // set relay
                 AP_Relay*_relay = AP::relay();
                 if (_relay != nullptr) {
-                    _relay->on(_release_type);
+                    _relay->off(_release_type);
                 }
 #endif
             }
@@ -159,7 +159,7 @@ void AP_Parachute::update()
             // set relay back to zero volts
             AP_Relay*_relay = AP::relay();
             if (_relay != nullptr) {
-                _relay->off(_release_type);
+                _relay->on(_release_type);
             }
 #endif
         }

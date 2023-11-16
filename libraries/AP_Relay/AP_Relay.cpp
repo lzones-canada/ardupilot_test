@@ -32,7 +32,7 @@
 #endif
 
 #ifndef RELAY1_PIN_DEFAULT
-  #define RELAY1_PIN_DEFAULT -1
+  #define RELAY1_PIN_DEFAULT 101
 #endif
 
 #ifndef RELAY2_PIN_DEFAULT
