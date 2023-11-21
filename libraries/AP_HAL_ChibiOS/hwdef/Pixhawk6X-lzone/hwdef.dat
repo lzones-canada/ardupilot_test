@@ -1,0 +1,30 @@
+include ../Pixhawk6X/hwdef.dat
+
+# Custom Firmware String
+define AP_CUSTOM_FIRMWARE_STRING "LZC-Gitpo"
+
+# Max14830 SPI6
+SPIDEV max14830  SPI6 DEVID1  EXT1_CS     MODE3  2*MHZ  8*MHZ
+
+# FMU GPIO (50-57)
+define HAL_GPIO_PIN_WING_LIMIT      54
+define HAL_GPIO_PIN_EXT_WDOG        56
+define HAL_GPIO_PIN_EXT_WDOG_RESET  57
+
+# IOMCU GPIO (101-108)
+define HAL_GPIO_PIN_POS_LIGHTS      101
+define HAL_GPIO_PIN_BCN_LIGHTS      102
+define HAL_GPIO_PIN_CHUTE_RELEASE   103
+define HAL_GPIO_PIN_BLN_RELEASE     104
+define HAL_GPIO_PIN_HSTM_POWER      105
+
+# define GPIO states
+define HAL_GPIO_OFF 0
+define HAL_GPIO_ON  1
+
+# Analog Input Pins
+define HAL_ANALOG_PIN_SERV0          12
+define HAL_ANALOG_PIN_BOARD_TEMP     13
+
+# SPI6 IRQ is on GPIO(100)
+define HAL_GPIO_DRDY1_EXT_IRQ       100
