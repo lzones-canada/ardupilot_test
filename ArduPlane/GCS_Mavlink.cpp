@@ -487,18 +487,19 @@ void GCS_MAVLINK_Plane::send_payload_status()
     const uint8_t  pos_lights_status  = plane.get_pos_lights_status();
     const uint8_t  beac_lights_status = plane.get_beac_lights_status();
     const uint8_t  hstm_status        = plane.get_hstm_status();
+    const uint8_t  wing_limit         = plane.get_wing_limit_status();
     const uint16_t servo_vcc          = plane.get_servo_volt() * 1000.0;
     const int16_t  board_temp         = plane.get_support_board_temp() * 100.0;
 
-    // Parachute Deploy Status.
+    // Parachute Deploy Status - Logic Reversed.
     if (!chute_status) {
         flags |= PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
     }
 
-    // Balloon Release Status.
-    if (balloon_status) {
+    // Balloon Release Status - Logic Reversed.
+    if (!balloon_status) {
         flags |= PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
@@ -523,6 +524,13 @@ void GCS_MAVLINK_Plane::send_payload_status()
         flags |= PAYLOAD_STATUS_FLAGS_HSTM_POWER;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_HSTM_POWER;
+    }
+
+    // Wing Limit Input Status
+    if (wing_limit) {
+        flags |= PAYLOAD_STATUS_FLAGS_WING_LIMIT;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_WING_LIMIT;
     }
 
     mavlink_msg_payload_status_send(

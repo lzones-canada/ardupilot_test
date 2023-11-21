@@ -301,10 +301,10 @@ void Plane::init_payload_control(void)
     chute_release->mode(HAL_GPIO_OUTPUT);
     chute_release->write(HAL_GPIO_ON);
 
-    // Balloon Release
+    // Balloon Release - Logic Reversed.
     balloon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
     balloon_release->mode(HAL_GPIO_OUTPUT);
-    balloon_release->write(HAL_GPIO_OFF);
+    balloon_release->write(HAL_GPIO_ON);
 
     // HSTM Power
     hstm_pwr = hal.gpio->channel(HAL_GPIO_PIN_HSTM_POWER);
@@ -328,9 +328,6 @@ void Plane::update_payload_control()
 
     analog_input_calcs();
 
-    return;
-
-
     // wing_sensor.update();
 
     // static uint16_t counter = 0;
@@ -343,11 +340,11 @@ void Plane::update_payload_control()
 
     // static uint8_t counter = 0;
     // counter++;
-    // if (counter > 100) {
+    // if (counter > 25) {
     //     counter = 0;
-    //     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"Wing Limit Pin: %s", _wing_limt->read() ? "true" : "false");
+    //     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"Wing Limit Pin: %s", get_wing_limit_status() ? "true" : "false");
     // }
-    // return;
+    return;
 } 
 
 /*

@@ -203,8 +203,9 @@ private:
     uint8_t get_chute_status()        const { return chute_release->read(); };
     uint8_t get_balloon_status()      const { return balloon_release->read(); };
     uint8_t get_pos_lights_status()   const { return pos_lights->read(); };
-    uint8_t get_beac_lights_status()  const { return beacon_lights->read(); };
+    uint8_t get_beac_lights_status()  const { return nav_lights; };
     uint8_t get_hstm_status()         const { return hstm_pwr->read(); };
+    uint8_t get_wing_limit_status()   const { return hal.gpio->read(HAL_GPIO_PIN_WING_LIMIT); };
 
     // Analog Input Source for monitoring.
     AP_HAL::AnalogSource *servo_analog_input;
