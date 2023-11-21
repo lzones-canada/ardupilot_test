@@ -362,26 +362,34 @@ void Plane::pos_lights_heartbeat()
     static const uint16_t OFF_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.1); // 10% off
     static const uint16_t SECOND_ON_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.2); // 20% on
 
-    if(FIRST_ON_TIME > heartbeat_count)
+    // Only turn on Nav Lights when commanded from GCS
+    if(nav_lights) 
     {
-        beacon_lights->write(HAL_GPIO_ON);
+        if(FIRST_ON_TIME > heartbeat_count)
+        {
+            beacon_lights->write(HAL_GPIO_ON);
+        }
+        else if((FIRST_ON_TIME + OFF_TIME) > heartbeat_count)
+        {
+            beacon_lights->write(HAL_GPIO_OFF);
+        }
+        else if((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > heartbeat_count)
+        {
+            beacon_lights->write(HAL_GPIO_ON);
+        }
+        else if(((uint16_t)round(HEARTBEAT_PERIOD)) > heartbeat_count)
+        {
+            beacon_lights->write(HAL_GPIO_OFF);
+        }
+        else
+        {
+            beacon_lights->write(HAL_GPIO_OFF);
+            heartbeat_count = 0;
+        }
     }
-    else if((FIRST_ON_TIME + OFF_TIME) > heartbeat_count)
-    {
+    // off otherwise
+    else {
         beacon_lights->write(HAL_GPIO_OFF);
-    }
-    else if((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > heartbeat_count)
-    {
-        beacon_lights->write(HAL_GPIO_ON);
-    }
-    else if(((uint16_t)round(HEARTBEAT_PERIOD)) > heartbeat_count)
-    {
-        beacon_lights->write(HAL_GPIO_OFF);
-    }
-    else
-    {
-        beacon_lights->write(HAL_GPIO_OFF);
-        heartbeat_count = 0;
     }
 
     ++heartbeat_count;

@@ -1174,6 +1174,17 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_l
         }
         return MAV_RESULT_FAILED;
 #endif
+    // Special handle of custom aux function for nav lights
+    case MAV_CMD_DO_AUX_FUNCTION:
+        if (is_equal(packet.param3, 1.0f)) {
+            plane.nav_lights = true;
+        }
+        else {
+            plane.nav_lights = false;
+        }
+        // Still need to handle previous packets commands..
+        return GCS_MAVLINK::handle_command_do_aux_function(packet);
+        break;
         
     default:
         return GCS_MAVLINK::handle_command_long_packet(packet);

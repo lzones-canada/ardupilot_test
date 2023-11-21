@@ -210,6 +210,9 @@ private:
     AP_HAL::AnalogSource *servo_analog_input;
     AP_HAL::AnalogSource *board_temp_analog_input;
 
+    // Global command for Navigation Lights
+    bool nav_lights = false;
+
     // Support Board Temperature
     float board_temp = 0;
     float servo_vcc = 0;
