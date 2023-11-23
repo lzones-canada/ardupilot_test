@@ -1914,7 +1914,7 @@ void GCS_MAVLINK::calc_link_quality()
 {
     // Calculate the average link quality over the last 3 seconds.
     uint16_t sum = 0;
-    for (const uint16_t& value : link_buffer) {
+    for (const uint16_t value : link_buffer) {
         sum += value;
     }
 
