@@ -34,6 +34,8 @@
 #define GDL_RES_HEAD                    (256.0 / 360.0)
 // GDL90 Vertical Velocity Resolution
 #define GDL_RES_VERTVEL                 64.0
+// GDL90 GNNS Altitude Resolution
+#define GDL_RES_ALT                     5.0
 
 
 //------------------------------------------------------------------------------
@@ -395,7 +397,7 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             if (rx.decoded.heartbeat.status.one.gpsPositionValid) {
                 tx_dynamic.gpsFix = GPS_FIX_TYPE_3D_FIX;
             } else {
-                tx_dynamic.gpsFix = GPS_FIX_TYPE_NO_FIX;
+                tx_dynamic.gpsFix = GPS_FIX_TYPE_NO_GPS;
             }
             
             // UTC Time
@@ -420,32 +422,33 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             // there is no message in the vocabulary of the 200x that has board temperature
             //  tx_status.temperature = rx.decoded.ownship_report.report.temperature;
 
-            // Repurpose boardTemp for EmergencyStatus
-            tx_status.boardTemp = rx.decoded.ownship_report.report.emergencyCode;
-
             // Latitude
             double latitude = toLatLon(rx.decoded.ownship_report.report.latitude);
-            tx_dynamic.gpsLat = (latitude * 1e7);
+            tx_dynamic.gpsLat = static_cast<int32_t>(latitude * 1e7);
+
             // Longitude
             double longitude = toLatLon(rx.decoded.ownship_report.report.longitude);
-            tx_dynamic.gpsLon = (longitude * 1e7);
+            tx_dynamic.gpsLon = static_cast<int32_t>(longitude * 1e7);
 
             // Extract the altitudeMisc field
             uint16_t altitudeMiscValue = rx.decoded.ownship_report.report.altitudeMisc;
             // Flip byte order as per the GDL90 Message Struct
             rx.decoded.ownship_report.report.altitudeMisc = htobe16(altitudeMiscValue);
 
-            // GNSS Altitude
-            tx_dynamic.gpsAlt = toAlt2(rx.decoded.ownship_report.report.altitude);
-            // Baro ALtitude
-            tx_dynamic.baroAltMSL = (tx_dynamic.gpsAlt / 3.281);
+            // GPS/GNNS Altitude False (INT32_MAX) when invalid GPS Fix
+            //  Ownship Geometric Alt message fills in data when GPS Fix is valid
+            if(!tx_dynamic.gpsFix)
+                tx_dynamic.gpsAlt = INT32_MAX;
+
+            // Barometric ALtitude (referenced to 29.92 inches Hg)
+            tx_dynamic.baroAltMSL = toAlt2(rx.decoded.ownship_report.report.altitude);
 
             // Extract the velocities field
             uint32_t velocitiesValue = rx.decoded.ownship_report.report.velocities;
             // Flip byte order as per the GDL90 Message Struct
             rx.decoded.ownship_report.report.velocities = htobe32(velocitiesValue);
 
-            // Heading Repurposed in Vertical Accuracy
+            // Heading (Repurposed in Vertical Accuracy)
             tx_dynamic.accuracyVert = rx.decoded.ownship_report.report.heading * GDL_RES_HEAD;
             //double tmp = rx.decoded.ownship_report.report.heading * GDL_RES_HEAD;
 
@@ -458,8 +461,16 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             // Emergency Status
             tx_dynamic.emergencyStatus = rx.decoded.ownship_report.report.emergencyCode;
 
+            // Unused Fields ***
+            tx_dynamic.accuracyVel = UINT16_MAX;
+            tx_dynamic.velNS = INT16_MAX;
+            tx_dynamic.VelEW = INT16_MAX;
+            tx_dynamic.numSats = UINT8_MAX;
+
+            // Send out Message to GCS
+            gcs().send_message(MSG_UAVIONIX_ADSB_OUT_DYNAMIC);
+
             //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_OWNSHIP_REPORT");
-            //gcs().send_message(MSG_UAVIONIX_ADSB_OUT_DYNAMIC);
             break;
         }
         case(GDL90_ID_OWNSHIP_GEOMETRIC_ALTITUDE):
@@ -468,8 +479,9 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             // the GNSS fix is valid for the UCP protocol. All fields in the Geometric Ownship Altitude
             // message are transmitted MSB first.
             memcpy(&rx.decoded.ownship_geometric_altitude, rx.msg.raw, sizeof(rx.decoded.ownship_geometric_altitude));
+            // GNSS Altitude
+            tx_dynamic.gpsAlt = htobe16(rx.decoded.ownship_geometric_altitude.geometricAltitude) * GDL_RES_ALT;
 
-            //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_OWNSHIP_GEOMETRIC_ALTITUDE");
             break;
     
         }

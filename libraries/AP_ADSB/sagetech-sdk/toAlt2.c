@@ -12,6 +12,8 @@
 
 /*
  * Documented in the header file.
+    Altitude: 12-bit offset integer. Resolution = 25 feet.
+    Altitude (ft) = ("ddd" * 25) - 1,000
  */
 double toAlt2(const double alt)
 {
