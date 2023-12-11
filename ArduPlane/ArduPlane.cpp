@@ -360,7 +360,7 @@ void Plane::pos_lights_heartbeat()
     static const uint16_t SECOND_ON_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.2); // 20% on
 
     // Only turn on Nav Lights when commanded from GCS
-    if(nav_lights) 
+    if(beacon_light) 
     {
         if(FIRST_ON_TIME > heartbeat_count)
         {

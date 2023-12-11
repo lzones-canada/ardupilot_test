@@ -356,7 +356,8 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             last_Heartbeat_ms = AP_HAL::millis();
 
             // this is always true. The "ground/air bit place" is set meaning we're always in the air
-            tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_ON_GROUND;
+            tx_status.state  |= UAVIONIX_ADSB_OUT_STATUS_STATE_ON_GROUND;
+            tx_dynamic.state |= UAVIONIX_ADSB_OUT_DYNAMIC_STATE_ON_GROUND;
             // Faults
             if (rx.decoded.heartbeat.status.one.maintenanceRequired) {
                 tx_status.fault |= UAVIONIX_ADSB_OUT_STATUS_FAULT_MAINT_REQ;
@@ -467,8 +468,9 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             tx_dynamic.VelEW = INT16_MAX;
             tx_dynamic.numSats = UINT8_MAX;
 
-            // Send out Message to GCS
-            gcs().send_message(MSG_UAVIONIX_ADSB_OUT_DYNAMIC);
+
+            // Send out Mavlink Message
+            gcs().send_to_active_channels(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_DYNAMIC, (const char *)&tx_dynamic);
 
             //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_OWNSHIP_REPORT");
             break;
@@ -499,42 +501,32 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
     // Operating Mode        
     if (ctrl.modeAEnabled) {
         tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_A_ENABLED;
-        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_A_ENABLED;
     } else {
         tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_A_ENABLED;
-        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_A_ENABLED;
     }
 
     if (ctrl.modeCEnabled) {
         tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_C_ENABLED;
-        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_C_ENABLED;
     } else {
         tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_C_ENABLED;
-        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_C_ENABLED;
     }
 
     if (ctrl.modeSEnabled) {
         tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_S_ENABLED;
-        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_S_ENABLED;
     } else {
         tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_S_ENABLED;
-        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_MODE_S_ENABLED;
     }
 
     if (ctrl.es1090TxEnabled) {
         tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_1090ES_TX_ENABLED;
-        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_1090ES_TX_ENABLED;
     } else {
         tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_1090ES_TX_ENABLED;
-        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_1090ES_TX_ENABLED;
     }
 
     if (ctrl.x_bit) {
         tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
-        tx_dynamic.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
     } else {
         tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
-        tx_dynamic.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
     }
 
     return;

@@ -39,6 +39,7 @@
 #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 #include <AP_AHRS/AP_AHRS.h>         // ArduPilot Mega DCM Library
 #include <SRV_Channel/SRV_Channel.h>
+#include <AP_Volz_Protocol/AP_Volz_State.h> // Volz Protocol Library
 #include <AP_RangeFinder/AP_RangeFinder.h>     // Range finder library
 #include <Filter/Filter.h>                     // Filter library
 #include <AP_Camera/AP_Camera.h>          // Photo or video camera
@@ -203,7 +204,7 @@ private:
     uint8_t get_chute_status()        const { return chute_release->read(); };
     uint8_t get_balloon_status()      const { return balloon_release->read(); };
     uint8_t get_pos_lights_status()   const { return pos_lights->read(); };
-    uint8_t get_beac_lights_status()  const { return nav_lights; };
+    uint8_t get_beac_lights_status()  const { return beacon_light; };
     uint8_t get_hstm_status()         const { return hstm_pwr->read(); };
     uint8_t get_wing_limit_status()   const { return hal.gpio->read(HAL_GPIO_PIN_WING_LIMIT); };
 
@@ -211,8 +212,8 @@ private:
     AP_HAL::AnalogSource *servo_analog_input;
     AP_HAL::AnalogSource *board_temp_analog_input;
 
-    // Global command for Navigation Lights
-    bool nav_lights = false;
+    // Global command for Beacon Light
+    bool beacon_light = false;
 
     // Support Board Temperature
     float board_temp = 0;
@@ -221,6 +222,13 @@ private:
     float get_servo_volt()          const { return servo_vcc; }; 
     float get_support_board_temp()  const { return board_temp; };
 
+    // Volz Protocol support for sharing values
+    // Set the target percent command for Volz Loop from GCS
+    void volz_wing_pct_value (uint8_t value) { volz_state.set_target_percent(value); }
+    // Calibrate flag for Volz Loop from GCS
+    void volz_wing_calibrate (bool calibr) { calibr? volz_state.wing_calibrate = true : volz_state.wing_calibrate = false; }
+    // Get the sweet angle to send GCS.
+    float get_volz_sweep_wing ()  const { return volz_state.get_sweep_angle(); };
 
     // IMET sensor
     AP_MAX14830 max14830;

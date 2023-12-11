@@ -480,16 +480,15 @@ void GCS_MAVLINK_Plane::send_hygrometer()
 void GCS_MAVLINK_Plane::send_payload_status()
 {
     //mavlink_payload_status_t paylod_pkt;
+
+    // Payload Enums
     uint8_t flags = 0;
-    const uint8_t  link_quality       = get_link_quality();
     const uint8_t  chute_status       = plane.get_chute_status();
     const uint8_t  balloon_status     = plane.get_balloon_status();
     const uint8_t  pos_lights_status  = plane.get_pos_lights_status();
     const uint8_t  beac_lights_status = plane.get_beac_lights_status();
     const uint8_t  hstm_status        = plane.get_hstm_status();
     const uint8_t  wing_limit         = plane.get_wing_limit_status();
-    const uint16_t servo_vcc          = plane.get_servo_volt() * 1000.0;
-    const int16_t  board_temp         = plane.get_support_board_temp() * 100.0;
 
     // Parachute Deploy Status - Logic Reversed.
     if (!chute_status) {
@@ -528,17 +527,24 @@ void GCS_MAVLINK_Plane::send_payload_status()
 
     // Wing Limit Input Status
     if (wing_limit) {
-        flags |= PAYLOAD_STATUS_FLAGS_WING_LIMIT;
+        flags |= PAYLOAD_STATUS_FLAGS_SWEEP_WING_LIMIT;
     } else {
-        flags &= ~PAYLOAD_STATUS_FLAGS_WING_LIMIT;
+        flags &= ~PAYLOAD_STATUS_FLAGS_SWEEP_WING_LIMIT;
     }
+
+    // Message Body.
+    const uint8_t  link_quality = get_link_quality();
+    const uint16_t servo_vcc    = plane.get_servo_volt() * 1000.0;
+    const int16_t  board_temp   = plane.get_support_board_temp() * 100.0;
+    const uint16_t sweep_wing   = plane.get_volz_sweep_wing() * 100.0;
 
     mavlink_msg_payload_status_send(
             chan,
             flags,
             link_quality,   // link quality
             servo_vcc,      // Servo Voltage Rail - millivolts
-            (board_temp));  // Support Board Temperature.
+            board_temp,     // Support Board Temperature.
+            sweep_wing);    // Sweep wing angle - centi-degrees.
 
     return;
 }
@@ -743,6 +749,22 @@ const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
     MAV_STREAM_ENTRY(STREAM_PARAMS),
     MAV_STREAM_ENTRY(STREAM_ADSB),
     MAV_STREAM_TERMINATOR // must have this at end of stream_entries
+};
+
+// Payload Control Flags for which value is valid.
+struct PAYLOAD_CTRL_FLAGS
+{
+    enum
+    {
+        BEACON_LIGHT    = (0x01 << 7),
+        MODEM_BOOST     = (0x01 << 6),
+        SWEEP_WING_INIT = (0x01 << 5),
+        SWEEP_WING_PCT  = (0x01 << 4),
+        RESERVED4       = (0x01 << 3),
+        RESERVED3       = (0x01 << 2),
+        RESERVED2       = (0x01 << 1),
+        RESERVED1       = (0x01 << 0)
+    };
 };
 
 /*
@@ -1046,21 +1068,6 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_in
         }
 #endif
         return MAV_RESULT_FAILED;
-    
-    // Special handle of custom payload control command
-    case MAV_CMD_PAYLOAD_CTRL:
-        // Boundary Check - Invalid entry.
-        if (packet.param1 > 2) {
-            return MAV_RESULT_DENIED;
-        }
-        // Payload Control - Beacon Lights.
-        if (is_equal(packet.param1, 1.0f)) {
-            plane.nav_lights = true;
-        }
-        else {
-            plane.nav_lights = false;
-        }
-        return MAV_RESULT_ACCEPTED;
         
     default:
         return GCS_MAVLINK::handle_command_int_packet(packet);
@@ -1379,6 +1386,37 @@ void GCS_MAVLINK_Plane::handleMessage(const mavlink_message_t &msg)
 
         break;
     }
+
+
+    // Special handle of custom payload control command
+    case MAVLINK_MSG_ID_PAYLOAD_CTRL:
+        // decode packet
+        mavlink_payload_ctrl_t payload_ctrl;
+        mavlink_msg_payload_ctrl_decode(&msg, &payload_ctrl);
+
+        // Check which Flag is set signalling which payload is valid for this message.
+        // Payload Control - Beacon Lights.
+        if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::BEACON_LIGHT)
+        {
+            plane.beacon_light = payload_ctrl.beacon_lights;
+        }
+        // Payload Control - Modem Boost
+        if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::MODEM_BOOST)
+        {
+            // Do Nothing for now - not implemented.
+            //plane.modem_boost = payload_ctrl.modem_boost;
+        }
+        // Payload Control - Sweep Wing Calibration
+        if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::SWEEP_WING_INIT)
+        {
+            plane.volz_wing_calibrate(payload_ctrl.sweep_wing_calibrate);
+        }
+        // Payload Control - Sweep Wing Control Percentage
+        if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::SWEEP_WING_PCT)
+        {
+            plane.volz_wing_pct_value(payload_ctrl.sweep_wing_percentage);
+        }
+        break;
 
     default:
         handle_common_message(msg);
