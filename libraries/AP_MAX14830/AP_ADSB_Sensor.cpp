@@ -233,7 +233,7 @@ void AP_ADSB_Sensor::send_vfr_msg()
 
 /* ************************************************************************* */
 
-void AP_ADSB_Sensor::handle_adsb_uart2_interrupt()
+void AP_ADSB_Sensor::handle_adsb_uart3_interrupt()
 {
     rx.status.prev_data = GDL90_FLAG_BYTE;
     //---------------------------------------------------------------------------

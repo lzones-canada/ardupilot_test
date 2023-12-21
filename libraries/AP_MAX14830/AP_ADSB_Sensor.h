@@ -109,7 +109,7 @@ public:
     void send_vfr_msg(void);
 
     // Handle ADSB-UART2 Interrupt
-    void handle_adsb_uart2_interrupt(void);
+    void handle_adsb_uart3_interrupt(void);
 
     // Handle complete ABSB message.
     void handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg);

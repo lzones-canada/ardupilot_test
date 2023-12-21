@@ -52,7 +52,7 @@ public:
     void update(void);
 
     // Handle UART1 Interrupt
-    void handle_imet_uart1_interrupt(void);
+    void handle_imet_uart2_interrupt(void);
 
     // Handle complete IMET message.
     void handle_complete_imet_msg(const uint8_t len);

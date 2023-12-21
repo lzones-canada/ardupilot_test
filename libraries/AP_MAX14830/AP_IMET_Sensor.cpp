@@ -51,7 +51,7 @@ AP_IMET_Sensor::AP_IMET_Sensor(AP_MAX14830* max14830)
 
 /* ************************************************************************* */
 
-void AP_IMET_Sensor::handle_imet_uart1_interrupt()
+void AP_IMET_Sensor::handle_imet_uart2_interrupt()
 {
     //---------------------------------------------------------------------------
 	// Enumerated data type to define the states of parsing buffer and copying message
