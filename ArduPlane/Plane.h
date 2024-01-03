@@ -39,7 +39,7 @@
 #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 #include <AP_AHRS/AP_AHRS.h>         // ArduPilot Mega DCM Library
 #include <SRV_Channel/SRV_Channel.h>
-#include <AP_Volz_Protocol/AP_Volz_State.h> // Volz Protocol Library
+#include <AP_MAX14830/AP_VOLZ_State.h>  // Volz Protocol Library
 #include <AP_RangeFinder/AP_RangeFinder.h>     // Range finder library
 #include <Filter/Filter.h>                     // Filter library
 #include <AP_Camera/AP_Camera.h>          // Photo or video camera
@@ -224,9 +224,9 @@ private:
 
     // Volz Protocol support for sharing values
     // Set the target percent command for Volz Loop from GCS
-    void volz_wing_pct_value (uint8_t value) { volz_state.set_target_percent(value); }
+    void volz_wing_deg_cmd (uint8_t value) { volz_state.set_target_command(value); }
     // Calibrate flag for Volz Loop from GCS
-    void volz_wing_calibrate (bool calibr) { calibr? volz_state.wing_calibrate = true : volz_state.wing_calibrate = false; }
+    void volz_wing_calibrate (bool calibr) { volz_state.set_calibrate(calibr); }
     // Get the sweet angle to send GCS.
     float get_volz_sweep_wing ()  const { return volz_state.get_sweep_angle(); };
 

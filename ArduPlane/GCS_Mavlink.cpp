@@ -759,7 +759,7 @@ struct PAYLOAD_CTRL_FLAGS
         BEACON_LIGHT    = (0x01 << 7),
         MODEM_BOOST     = (0x01 << 6),
         SWEEP_WING_INIT = (0x01 << 5),
-        SWEEP_WING_PCT  = (0x01 << 4),
+        SWEEP_WING_VAL  = (0x01 << 4),
         RESERVED4       = (0x01 << 3),
         RESERVED3       = (0x01 << 2),
         RESERVED2       = (0x01 << 1),
@@ -1412,9 +1412,9 @@ void GCS_MAVLINK_Plane::handleMessage(const mavlink_message_t &msg)
             plane.volz_wing_calibrate(payload_ctrl.sweep_wing_calibrate);
         }
         // Payload Control - Sweep Wing Control Percentage
-        if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::SWEEP_WING_PCT)
+        if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::SWEEP_WING_VAL)
         {
-            plane.volz_wing_pct_value(payload_ctrl.sweep_wing_percentage);
+            plane.volz_wing_deg_cmd(payload_ctrl.sweep_wing_value);
         }
         break;
 
