@@ -56,14 +56,6 @@
 #define VOLZ_PWM_POSITION_MIN				1000
 #define VOLZ_PWM_POSITION_MAX				2000
 
-#define VOLZ_MOTOR_POWER_CTRL_CMD       	0x9A
-#define VOLZ_MOTOR_POWER_FD_CMD           	0xFD
-#define VOLZ_MOTOR_POWER_BD_CMD           	0xBD
-#define VOLZ_MOTOR_POWER_BRKE_CMD         	0xAB
-#define VOLZ_MOTOR_BRKE_PWR_CMD         	0x46
-#define VOLZ_MAX_POWER_LMT_CMD           	0xFF
-#define VOLZ_MOTOR_POWER_ADDR_CMD       	0x01
-
 class AP_Volz_Protocol {
 public:
     AP_Volz_Protocol();
@@ -75,23 +67,12 @@ public:
     
     void update();
 
-    uint8_t volz_data[VOLZ_DATA_FRAME_SIZE];
-
 private:
     AP_HAL::UARTDriver *port;
     
     void init(void);
     void send_command(uint8_t data[VOLZ_DATA_FRAME_SIZE]);
     void update_volz_bitmask(uint32_t new_bitmask);
-
-    // Access and setup for Wing Limit Switch.
-    AP_HAL::DigitalSource *_wing_limit;
-
-    // wing limit switch pin latch
-    bool _wing_limit_latch;
-
-    // wing limit switch pin latch
-    bool _wing_forward_sent;
 
     uint32_t last_volz_update_time;
     uint32_t volz_time_frame_micros;

@@ -238,8 +238,11 @@ private:
     // Configure rx byte timeout register (default to 2 byte timeout)
     void _set_rx_byte_timeout(bool enable);
 
-    // Set Hardware IRQ Interrupt to outside world.
-    void _set_irq_interrupt(bool enable);
+    // Set Hardware IRQ Interrupt to outside world, Auto Transceiver Direction Control (Auto RTS)
+    void _set_irq_trans_ctrl(bool enable, bool auto_enable);
+
+    // Set a delay for RTS pin on the setup and hold time to be safe
+    void _set_rts_delay(bool delay);
 
     // Set baud rate
     void _set_baud(BAUD::value baud);
@@ -388,6 +391,21 @@ private:
 			TXTRIG2 = (0x01 << 2),
 			TXTRIG1 = (0x01 << 1),
 			TXTRIG0 = (0x01 << 0)
+		};
+	};
+
+    struct HDPLXDELAY
+	{
+		enum
+		{
+			SETUP3 = (0x01 << 7),
+			SETUP2 = (0x01 << 6),
+			SETUP1 = (0x01 << 5),
+			SETUP0 = (0x01 << 4),
+			HOLD3  = (0x01 << 3),
+			HOLD2  = (0x01 << 2),
+			HOLD1  = (0x01 << 1),
+			HOLD0  = (0x01 << 0)
 		};
 	};
 

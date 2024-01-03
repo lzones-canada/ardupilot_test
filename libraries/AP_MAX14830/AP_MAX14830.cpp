@@ -38,7 +38,8 @@ AP_MAX14830 *AP_MAX14830::_singleton;       // Singleton Pattern
 // Constructor
 AP_MAX14830::AP_MAX14830() :
     adsb(this),
-    imet(this)
+    imet(this),
+    volz(this)
 {
     // Singleton Pattern
     if (_singleton != nullptr) {
@@ -55,8 +56,8 @@ void AP_MAX14830::init()
     // Init UART-SPI Max Driver
     _driver.init();
 
-    /* Request 5Hz update (200ms) */
-    _driver.register_periodic_callback(200 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
+    /* Request 50Hz update (20ms) */
+    _driver.register_periodic_callback(20 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
 
     return;
 }
@@ -69,23 +70,23 @@ void AP_MAX14830::_timer(void)
 {
     // Read GlobalIRQ register to determine which UART is source of interrupt.
     uint8_t global_irq = _driver.global_interrupt_source();
-
     //DEV_PRINTF("IRQ: %d\n", global_irq);
 
     // Handle UART1 Interrupt - HSTM data.
     if(global_irq &  UART1_INTERRUPT) {
-        //DEV_PRINTF("HSTM-INTERUPT1\n");
+        volz.handle_volz_uart1_interrupt();
+        //DEV_PRINTF("VOLZ-WING-INTERUPT1\n");
     }
     
     // Handle UART2 Interrupt - IMET data.
     if(global_irq &  UART2_INTERRUPT) {
-        imet.handle_imet_uart1_interrupt();
+        imet.handle_imet_uart2_interrupt();
         //DEV_PRINTF("IMET-INTERUPT2\n");
     }
 
     // Handle UART3 Interrupt - ADSB data.
     if(global_irq &  UART3_INTERRUPT) {
-        adsb.handle_adsb_uart2_interrupt();
+        adsb.handle_adsb_uart3_interrupt();
         //DEV_PRINTF("ADSB-INTERUPT3\n");
     }
 
@@ -94,6 +95,10 @@ void AP_MAX14830::_timer(void)
         //DEV_PRINTF("RES-INTERUPT4\n");
     }
 
+    // Handle Volz Update Loop.
+    volz.update();
+
+    // Handle ADSB Update Loop.
     adsb.update();
 
     return;

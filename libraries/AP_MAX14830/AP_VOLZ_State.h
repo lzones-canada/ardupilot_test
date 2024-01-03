@@ -13,7 +13,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /*
- * AP_Volz_State.h
+ * AP_VOLZ_State.h
  *
  *      Author: Kyle Fruson
  */
@@ -29,13 +29,16 @@ struct Volz_State {
 
 public:
     // Setter for target percent command.
-    void set_target_percent(uint8_t value) { _target_percent = value;}
+    void set_target_command(uint8_t value) { _target_command = value;}
 
     // Getter for target percent command.
-    uint8_t get_target_percent() { return _target_percent;}
+    uint8_t get_target_command() { return _target_command;}
 
-    // Flag to calibrate wing.
-    bool  wing_calibrate;
+    // Setter for wing calibrate flag.
+    void set_calibrate(bool value) { _wing_calibrate = value; }
+
+    // Getter for wing calibrate flag.
+    bool get_calibrate() { return _wing_calibrate; }
 
     // Setter for sweep wing angle.
     void set_sweep_angle(float value) { _sweep_angle = value;}
@@ -45,10 +48,13 @@ public:
 
 private:
     // Target percent command.
-    uint8_t _target_percent;
+    uint8_t _target_command;
 
     // Sweep wing angle in Degrees.
     float _sweep_angle;
+
+    // Flag to calibrate wing.
+    bool  _wing_calibrate;
 };
 
 // Define the global instance of Volz_State

@@ -9,13 +9,11 @@
 #if AP_VOLZ_ENABLED
 
 #include <AP_HAL/AP_HAL.h>
-#include <GCS_MAVLink/GCS.h>
+
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <SRV_Channel/SRV_Channel.h>
 
 extern const AP_HAL::HAL& hal;
-
-uint8_t volz_idle_cmd[] = {0x9A, 0x01, 0x80, 0x01, 0x00, 0x00};
 
 const AP_Param::GroupInfo AP_Volz_Protocol::var_info[] = {
     // @Param: MASK
@@ -40,12 +38,6 @@ void AP_Volz_Protocol::init(void)
     AP_SerialManager &serial_manager = AP::serialmanager();
     port = serial_manager.find_serial(AP_SerialManager::SerialProtocol_Volz,0);
     update_volz_bitmask(bitmask);
-
-    // wing limit servo pin
-    _wing_limit = hal.gpio->channel(HAL_GPIO_PIN_WING_LIMIT);
-    _wing_limit->mode(HAL_GPIO_INPUT);
-
-    //send_command(volz_idle_cmd);
 }
 
 void AP_Volz_Protocol::update()
@@ -61,20 +53,6 @@ void AP_Volz_Protocol::update()
 
     if (last_used_bitmask != uint32_t(bitmask.get())) {
         update_volz_bitmask(bitmask);
-    }
-
-    // Activate sweep wing until limit switch is active on init.
-    // Check if the limit switch is active and if it's not already latched
-    if (!_wing_limit_latch && _wing_limit->read()) {
-        // Send idle/brake command
-        send_command(volz_idle_cmd);
-
-        // Latch the limit switch
-        _wing_limit_latch = true;
-    } else if (!_wing_limit_latch) {
-        // Send command to activate wing
-        uint8_t volz_fd_cmd[] = {0x9A, 0x01, 0xFD, 0xFF, 0x00, 0x00};
-        send_command(volz_fd_cmd);
     }
 
     uint32_t now = AP_HAL::micros();
@@ -151,7 +129,6 @@ void AP_Volz_Protocol::send_command(uint8_t data[VOLZ_DATA_FRAME_SIZE])
     // add CRC result to the message
     data[4] = HIGHBYTE(crc);
     data[5] = LOWBYTE(crc);
-    //GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Data sent: 0x%02X, 0x%02X, \033[1;91m0x%02X, 0x%02X\033[0m, 0x%02X, 0x%02X\n", data[0], data[1], data[2], data[3], data[4], data[5]);
     port->write(data, VOLZ_DATA_FRAME_SIZE);
 }
 

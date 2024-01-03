@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include "AP_IMET_Sensor.h"
 #include "AP_ADSB_Sensor.h"
+#include "AP_VOLZ_Wing.h"
 #include "AP_MAX14830_Driver.h"
 
 
@@ -64,6 +65,9 @@ public:
 
     // Structure for Sensor data
     AP_IMET_Sensor imet;
+
+    // Structure for Volz data
+    AP_VOLZ_Wing volz;
 
     // get singleton instance
     static AP_MAX14830 *get_singleton(void) {
