@@ -78,9 +78,8 @@ const char* AP_VOLZ_Wing::stateToString(State state) {
         case CALIBRATE_COMPLETE: return "CALIBRATE_COMPLETE";
         case ACTIVE: return "ACTIVE";
         case ACTIVE_REQUEST: return "ACTIVE_REQUEST";
-        case INIT_IDLE: return "INIT_IDLE";
         case INIT_REQUEST: return "INIT_REQUEST";
-        case IDLE: return "IDLE";
+        case DEADBAND: return "DEADBAND";
         default: return "UNKNOWN_STATE";
     }
 }
@@ -94,7 +93,6 @@ void AP_VOLZ_Wing::init(void)
     // init states
     _wing_limit_state = false;
     _prev_wing_limit_state = false;
-    trap_state = false;
     // init decoded pos
     raw_position = 0;
     prev_raw_position = 0;
@@ -112,7 +110,7 @@ void AP_VOLZ_Wing::init(void)
     target_command = 0;
 
     // Init state machine.
-    machine_state = INIT_IDLE;
+    machine_state = INIT_REQUEST;
 
     return;
 }
@@ -172,20 +170,36 @@ void AP_VOLZ_Wing::update()
         printf("target_command: %d\n", target_command);
         // Calculate the target position in ticks
         target_position = calc_target_ticks(target_command);
-        // Transition to the ACTIVE state
-        machine_state = ACTIVE;
+        // Scale the target with threshold which increases our accuracy
+        if(target_position - total_position >= 460 && target_command < WING_MAX_DEGREES) {
+            target_position += 150;
+        }
+        else if(target_position - total_position < -460 && target_command > WING_MIN_DEGREES) {
+            target_position -= 150;
+        }
+        // Transition to the ACTIVE_REQUEST state
+        machine_state = ACTIVE_REQUEST;
+
+        // // Fully open commanded, lets go slightly past to ensure wing limit contact.
+        // if(target_command == static_cast<uint8_t>(WING_MAX_DEGREES)){
+        //     machine_state = CALIBRATE;
+        // }
+        // else {
+        //     // Transition to the ACTIVE_REQUEST state
+        //     machine_state = ACTIVE_REQUEST;
+        // }
     }
     // Update the previous commanded target
     prev_target_command = target_command;
 
-    static uint8_t counter = 0;
-    static State prev_state = machine_state;
-    counter++;
-    if (counter >= 25 || prev_state != machine_state) {
-        counter = 0;
-        DEV_PRINTF("%s\n", stateToString(machine_state));
-    }
-    prev_state = machine_state;
+    // static uint8_t counter = 0;
+    // static State prev_state = machine_state;
+    // counter++;
+    // if (counter >= 25 || prev_state != machine_state) {
+    //     counter = 0;
+    //     DEV_PRINTF("%s\n", stateToString(machine_state));
+    // }
+    // prev_state = machine_state;
 
     // -----------------------------------------------
 
@@ -194,7 +208,7 @@ void AP_VOLZ_Wing::update()
     {
         case CALIBRATE:
             // Begin rotation of our Servo
-            send_fwd(MAX_POWER);
+            set_servo_command(MAX_POWER);
             break;
 
         case REQUEST_POSITION:
@@ -214,39 +228,10 @@ void AP_VOLZ_Wing::update()
             break;
 
         case ACTIVE:
-            // Edge cases to handle extreme positions
-            curr_percent = wing_status_percent(total_position);
-            target_percent = wing_status_percent(target_position);
-            // Fully open, lets go slightly past to ensure wing limit contact.
-            if(total_position >= TOTAL_TICKS && target_percent >= 99.0) {
-                // We are at the wing limit, send idle command
-                send_idle();
-                // Reset our position
-                total_position = TOTAL_TICKS;
-                // Reset our previous position
-                prev_raw_position = TICKS_PER_REV;
-                // Signal trapping of the state machine
-                DEV_PRINTF("curr_percent: %f\n", curr_percent);
-                //trap_state = true;
-            }
-            // Fully closed, lets go slightly past to ensure wings fully tucked in.
-            else if(total_position <= 0 && target_percent <= 1.0) {
-                // Force Idle once fully closed and little bit past
-                send_idle();
-                // Reset our position.
-                total_position = 0;
-                // Reset our previous position
-                prev_raw_position = (TICKS_PER_REV / 2);
-                DEV_PRINTF("curr_percent: %f\n", curr_percent);
-                // Signal trapping of the state machine
-                //trap_state = true;
-            }
-            else {
-                // This calculates our servo direction command based on the current and target positions
-                servo_cmd = calc_servo_command(total_position, target_position, curr_percent);
-                // Send out the servo command
-                set_servo_command(servo_cmd);
-            }
+            // This calculates our servo direction command based on the current and target positions
+            servo_cmd = calc_servo_command(total_position, target_position);
+            // Send out the servo command
+            set_servo_command(servo_cmd);
             break;
 
         case ACTIVE_REQUEST:
@@ -254,17 +239,12 @@ void AP_VOLZ_Wing::update()
             request_position();
             break;
 
-        case INIT_IDLE:
-            // Request our current position while we are doing nothing to init an offset..
-            send_idle();
-            break;
-
         case INIT_REQUEST:
             // Request our current position while we are doing nothing to init an offset..
             request_position();
             break;
 
-        case IDLE:
+        case DEADBAND:
             // Do nothing..
             break;
 
@@ -335,10 +315,8 @@ void AP_VOLZ_Wing::handle_volz_message(uint8_t* rx_work_buffer)
             switch (msgid) 
             {
                 case VOLZ_POS_RAW_STAT:
-                    // Don't update our position as we have signalled a trap.
-                    //  Use Case of percent over 100 or under 0.
-                    if(!trap_state)
-                        handle_pos_msg(rx_work_buffer);
+                    // Handle position message
+                    handle_pos_msg(rx_work_buffer);
                     // Flip flop between the command and request state.
                     if(machine_state == ACTIVE_REQUEST) {
                         // Transition to the next state after the wing limit state transitions back to false
@@ -348,16 +326,16 @@ void AP_VOLZ_Wing::handle_volz_message(uint8_t* rx_work_buffer)
                         // Finished Calibrating and acknowledge, set our position and transition state.
                         // Set our position to max value as we are at the wing limit
                         total_position = TOTAL_TICKS;
+                        // Set prev to current.
+                        prev_raw_position = raw_position;
                         // Transition to the next state after the wing limit state transitions back to false
-                        machine_state = IDLE;
+                        machine_state = DEADBAND;
                     }
                     if(machine_state == INIT_REQUEST) {
                         // capture our offset
                         offset = total_position;
-                        // Reset position to 0
-                        total_position = 0;
                         // Transition out
-                        machine_state = IDLE;
+                        machine_state = DEADBAND;
                     }
                     break;
                 
@@ -368,16 +346,28 @@ void AP_VOLZ_Wing::handle_volz_message(uint8_t* rx_work_buffer)
                             // Acknowledgement for power control command, move ahead state machine
                             machine_state = REQUEST_POSITION;
                         }
-                        if(machine_state == ACTIVE) {
+                        // Power control with valid motor power
+                        if(machine_state == ACTIVE && rx_work_buffer[3] != 0) {
                             // Acknowledgement for power control command, move ahead state machine
                             machine_state = ACTIVE_REQUEST;
+                        }
+                        // Power control with no motor power being sent
+                        if(machine_state == ACTIVE && rx_work_buffer[3] == 0) {
+                            // Transition into deadband state with no motor power being sent
+                            machine_state = DEADBAND;
                         }
                     }
                     // BD Acknowledgement
                     if(rx_work_buffer[2] == VOLZ_PWR_BD_CMD) {
-                        if(machine_state == ACTIVE) {
+                        // Power control with valid motor power
+                        if(machine_state == ACTIVE && rx_work_buffer[3] != 0) {
                             // Acknowledgement for power control command, move ahead state machine
                             machine_state = ACTIVE_REQUEST;
+                        }
+                        // Power control with no motor power being sent
+                        if(machine_state == ACTIVE && rx_work_buffer[3] == 0) {
+                            // Transition into deadband state with no motor power being sent
+                            machine_state = DEADBAND;
                         }
                     }
                     // Idle Acknowledgement
@@ -385,17 +375,6 @@ void AP_VOLZ_Wing::handle_volz_message(uint8_t* rx_work_buffer)
                         if(machine_state == WING_LIMIT_HIT) {
                             // Acknowledgement for power control command, move ahead state machine
                             machine_state = CALIBRATE_COMPLETE;
-                        }
-                        // Idle Acknowledged, request our position to zero.
-                        if(machine_state == INIT_IDLE) {
-                            // Acknowledgement for power control command, move ahead state machine
-                            machine_state = INIT_REQUEST;
-                        }
-                        if(machine_state == ACTIVE) {
-                            // Acknowledgement for power control command, move ahead state machine
-                            machine_state = IDLE;
-                            // Release the trap
-                            trap_state = false;
                         }
                     }
 
@@ -458,19 +437,23 @@ uint16_t AP_VOLZ_Wing::decode_position(uint8_t arg1, uint8_t arg2)
 
 /* ************************************************************************* */
 
-int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_pos, float current_percent)
+int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_pos)
 {
     // calculate the error between the current and target position    
     int error = target_pos - current_pos;
     float command = KP * error;
 
-    // 1% = 370 ticks
-    // 2% = 738 ticks
-    const float THRESHOLD_POSITION = 20.0;
+    // Current Position in a Percentage
+    curr_percent = wing_status_percent(current_pos);
+    // Target Position in a Percentage
+    target_percent = wing_status_percent(target_pos);
 
-    DEV_PRINTF("current_pos: %ld  deg:%f\n", current_pos, wing_status_degree(current_pos));
-    DEV_PRINTF("target_pos:  %u   deg:%f\n", target_pos, wing_status_degree(target_pos));
-    DEV_PRINTF("commandPRE: %f\n", command);
+    DEV_PRINTF("curr_percent: %f\n", curr_percent);
+    DEV_PRINTF("target_percent: %f\n", target_percent);
+
+    // 0.5 Degree Threshold (460 Ticks / Degree)
+    //  460 / 2 = 230 Ticks * 0.1 = 23 Ticks
+    const float THRESHOLD_POSITION = 230.0 * KP;
 
     // apply saturation filter to clamp the max command speed
     if (command > MAX_POWER)
@@ -482,45 +465,122 @@ int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_po
         command = -MAX_POWER;
     }
 
-    // If we are within 2%? of target and not handling edge cases.
-    //  We want a higher threshold to account for the hysterisis / delay of status message.
-    if (fabs(command) <= THRESHOLD_POSITION && target_percent > 1.0 && target_percent < 99.0)
+     // Check if the current position is within the tolerance range of the target position
+    // if (fabs(current_pos - target_pos) <= THRESHOLD_POSITION)
+    // {
+    //     command = 0;
+    // }
+
+    // // Max power in reverse direction until we achieve the target position.
+    // command = (curr_percent > (target_percent + 3)) ? -MAX_POWER : 0;
+
+    // Edge case - fully closed
+    if (target_command == static_cast<uint8_t>(WING_MIN_DEGREES))
+    {
+        // Move at full power in reverse direction until we are still 5% out.
+        if(curr_percent > (target_percent + 5)) {
+            command = -MAX_POWER;
+        }
+        // Slow down when within 5% to 1.5% of target.
+        else if(curr_percent <= (target_percent + 5) && curr_percent > 1.5) {
+            command = (-MAX_POWER / 2);
+        }
+        // Slow down further within 1.5% to 0.5% of target.
+        else if(curr_percent <= (target_percent + 1.5) && curr_percent >= 0.5) {
+            command = (-MAX_POWER / 4);
+        }
+        // Stop when within 0.5% to 0% of the target.
+        else {
+            command = 0;
+        }
+    }
+    // Edge case - fully open
+    else if (target_command == static_cast<uint8_t>(WING_MAX_DEGREES))
+    {
+        // Move at full power in reverse direction until we are still 5% out.
+        if(curr_percent < (target_percent - 5)) {
+            command = MAX_POWER;
+        }
+        // Slow down when within 95% to 98.5% of target.
+        else if(curr_percent >= (target_percent - 5) && curr_percent < 98.5) {
+            command = (MAX_POWER / 2);
+        }
+        // Slow down further within 98.5% to 99.5% of target.
+        else if(curr_percent >= (target_percent - 1.5) && curr_percent <= 99.5) {
+            command = (MAX_POWER / 4);
+        }
+        // Stop when within 99.5% to 100% of the target.
+        else {
+            command = 0;
+        }
+    }
+    // Check if the current position is within the tolerance range of the target position
+    else if (fabs(command) <= THRESHOLD_POSITION)
     {
         command = 0;
     }
-    // If the target is very close to 99, command MAX_POWER until we are close to the target
-    else if (target_percent >= 99 && current_percent < target_percent)
-    {
-        command = MAX_POWER;
-    }
-    // If the target is very close to 1, command -MAX_POWER until we are close to the target
-    else if (target_percent <= 1 && current_percent > target_percent)
-    {
-        command = -MAX_POWER;
-    }
 
-    DEV_PRINTF("commandPOST: %f\n", command);
-    DEV_PRINTF("\n");
+    // Handle abnormality Edge Case of minor movement where the servo appears to move but not register position..
+    // Counter and threshold for repeated low positive commands
+    static int repeated_low_positive_counter = 0;
+    const int REPEAT_THRESHOLD = 25;
+    const float REPEAT_COMMAND_THRESHOLD = 35.0;
+
+    // Check if the command is repeatedly low and positive
+    if (fabs(command) > 0 && fabs(command) <= REPEAT_COMMAND_THRESHOLD)
+    {
+        repeated_low_positive_counter++;
+        // Check if we have reached our threshold and force stopping of commands.
+        if (repeated_low_positive_counter > REPEAT_THRESHOLD)
+        {
+            command = 0;
+            repeated_low_positive_counter = 0;  // Reset the counter
+        }
+    }
+    else
+    {
+        repeated_low_positive_counter = 0;  // Reset the counter
+    }
 
     return command;
 }
 
 /* ************************************************************************* */
 
-float AP_VOLZ_Wing::wing_status_percent(int32_t total_pos)
+void AP_VOLZ_Wing::set_servo_command(int16_t command)
 {
-    float percent = (total_pos / static_cast<float>(TOTAL_TICKS)) * 100.0f;
+
+    DEV_PRINTF("command: %d\n", command);
+    DEV_PRINTF("\n");
+
+    // Command Forward when positive
+    if (command >= 0) {
+        send_fwd(command);
+    }
+    // Command Reverse when negative
+    else {
+        // Remove our negation by taking absolute value.
+        send_rev(abs(command));
+    }
+    return;
+}
+
+/* ************************************************************************* */
+
+float AP_VOLZ_Wing::wing_status_percent(int32_t position)
+{
+    float percent = (position / static_cast<float>(TOTAL_TICKS)) * 100.0f;
     return percent;
 }
 
 /* ************************************************************************* */
 
-float AP_VOLZ_Wing::wing_status_degree(int32_t total_pos)
+float AP_VOLZ_Wing::wing_status_degree(int32_t position)
 {
     const float MIN_DEGREES = sweep_angle_limit.get_lower_limit();
     const float MAX_DEGREES = sweep_angle_limit.get_upper_limit();
     // Convert position to degrees in respect to our specified range
-    float degrees = (total_pos / static_cast<float>(TOTAL_TICKS)) * (MAX_DEGREES - MIN_DEGREES) + MIN_DEGREES;
+    float degrees = (position / static_cast<float>(TOTAL_TICKS)) * (MAX_DEGREES - MIN_DEGREES) + MIN_DEGREES;
 
     return degrees;
 }
@@ -539,29 +599,11 @@ uint16_t AP_VOLZ_Wing::calc_target_ticks(uint8_t value)
 
 /* ************************************************************************* */
 
-void AP_VOLZ_Wing::set_servo_command(int16_t command)
-{
-    if (command == 0)
-    {
-        send_idle();
-    }
-    else if (command > 0)
-    {
-        send_fwd(command);
-    }
-    else
-    {
-        // Remove our negation.
-        command = abs(command);
-        send_rev(command);
-    }
-}
-
-/* ************************************************************************* */
-
 void AP_VOLZ_Wing::send_idle()
 {
-    uint8_t idle[VOLZ_DATA_FRAME_SIZE] = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, 0x80, 0x01, 0x00, 0x00};
+    // Idle command message
+    uint8_t idle[VOLZ_DATA_FRAME_SIZE] = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, 0x00, 0x00, 0x00, 0x00};
+    // Send out the idle command
     send_command(idle);
     return;
 }
@@ -570,7 +612,11 @@ void AP_VOLZ_Wing::send_idle()
 
 void AP_VOLZ_Wing::send_fwd(uint8_t command)
 {
-    uint8_t fwd[VOLZ_DATA_FRAME_SIZE]  = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, 0xFD, command, 0x00, 0x00};
+    // Forward command message
+    uint8_t fwd[VOLZ_DATA_FRAME_SIZE]  = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, VOLZ_PWR_FD_CMD, 0x00, 0x00, 0x00};
+    // Set the command value
+    fwd[3] = command;
+    // Send out the forward command
     send_command(fwd);
     return;
 }
@@ -580,7 +626,11 @@ void AP_VOLZ_Wing::send_fwd(uint8_t command)
 
 void AP_VOLZ_Wing::send_rev(uint8_t command)
 {
-    uint8_t rev[VOLZ_DATA_FRAME_SIZE]  = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, 0xBD, command, 0x00, 0x00};
+    // Reverse command message
+    uint8_t rev[VOLZ_DATA_FRAME_SIZE]  = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, VOLZ_PWR_BD_CMD, 0x00, 0x00, 0x00};
+    // Set the command value
+    rev[3] = command;
+    // Send out the reverse command
     send_command(rev);
     return;
 }
@@ -589,7 +639,9 @@ void AP_VOLZ_Wing::send_rev(uint8_t command)
 
 void AP_VOLZ_Wing::request_position()
 {
+    // Request position message
     uint8_t pos_req[VOLZ_DATA_FRAME_SIZE]  = { VOLZ_POS_RAW_CMD, VOLZ_ADDR, 0x00, 0x00, 0x00, 0x00};
+    // Send out the position request
     send_command(pos_req);
     return;
 }

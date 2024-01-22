@@ -39,7 +39,7 @@
 #define VOLZ_PWR_CTRL_STAT               	0x4A
 #define VOLZ_PWR_FD_CMD                 	0xFD
 #define VOLZ_PWR_BD_CMD                 	0xBD
-#define VOLZ_PWR_ID_CMD                 	0x80
+#define VOLZ_PWR_ID_CMD                 	0x00
 #define VOLZ_MAX_PWR_CMD                 	0xFF
 #define VOLZ_POS_RAW_CMD             	    0xE5
 #define VOLZ_POS_RAW_STAT             	    0x45
@@ -52,9 +52,8 @@ enum State {
     CALIBRATE_COMPLETE,
     ACTIVE,
     ACTIVE_REQUEST,
-    INIT_IDLE,
     INIT_REQUEST,
-    IDLE,
+    DEADBAND,
 };
 
 
@@ -80,13 +79,6 @@ public:
     // Handle VOLZ-UART1 Interrupt
     void handle_volz_uart1_interrupt(void);
 
-    // Getter for Total Position
-    int32_t get_position(void) const { return total_position; }
-
-    // Setter for Total Position
-    void set_position(int32_t pos) { total_position = pos; }
-
-
 private:
     // Pointer to MAX14830 object
     AP_MAX14830* _max14830;
@@ -102,9 +94,9 @@ private:
     void send_rev(uint8_t command);
     void request_position(void);
     void update_position(void);
-    float wing_status_percent(int32_t total_pos);
-    float wing_status_degree(int32_t total_pos);
-    int16_t calc_servo_command(int32_t current_pos, uint16_t target_pos, float curr_percent);
+    float wing_status_percent(int32_t position);
+    float wing_status_degree(int32_t position);
+    int16_t calc_servo_command(int32_t current_pos, uint16_t target_pos);
     uint16_t calc_target_ticks(uint8_t value);
     uint16_t decode_position(uint8_t arg1, uint8_t arg2);
     uint16_t calc_volz_crc(uint8_t data[VOLZ_DATA_FRAME_SIZE]);
@@ -151,8 +143,6 @@ private:
     float curr_percent;
     // flag to indicate we have initialised
     bool initialised;
-    // Flag to "trap" the state machine as we could have possible position updates pending.
-    bool trap_state;
 };
 
 #endif // AP_VOLZ_Wing
