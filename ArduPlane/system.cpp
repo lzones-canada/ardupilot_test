@@ -154,9 +154,9 @@ void Plane::init_ardupilot()
     g2.gripper.init();
 #endif
 
-#if AP_WINGSENSOR_ENABLED
-    wing_sensor.init();
-#endif
+// #if AP_WINGSENSOR_ENABLED
+//     wing_sensor.init();
+// #endif
 
     // Init MAX14830 SPI-UART
     max14830.init();

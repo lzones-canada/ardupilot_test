@@ -299,9 +299,9 @@ private:
     AP_Rally rally;
 #endif
 
-#if AP_WINGSENSOR_ENABLED
-    AP_WingSensor wing_sensor;
-#endif
+// #if AP_WINGSENSOR_ENABLED
+//     AP_WingSensor wing_sensor;
+// #endif
 
     // returns a Location for a rally point or home; if
     // HAL_RALLY_ENABLED is false, just home.

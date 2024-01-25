@@ -29,7 +29,6 @@ def build(bld):
             'AP_OSD',
             'AC_AutoTune',
             'AP_Follow',
-            'AP_WingSensor',
             'AP_MAX14830',
         ],
     )

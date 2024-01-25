@@ -1727,6 +1727,8 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 
     status.packet_rx_drop_count = 0;
 
+    bool parsed_packet = false;
+
     const uint16_t nbytes = _port->available();
     for (uint16_t i=0; i<nbytes; i++)
     {
@@ -1754,7 +1756,7 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
             }
         }
 
-        bool parsed_packet = false;
+        //bool parsed_packet = false;
 
         // Try to get a new message
         if (mavlink_parse_char(chan, c, &msg, &status)) {
@@ -1793,19 +1795,41 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         }
     }
 
-    // calculate uplink once per second...ish, accounting for some Hysterisis.
-    if (tnow - last_uplink_calc > 1000) {
-        //mavlink_status_t *chan_status = mavlink_get_channel_status(MAVLINK_COMM_1);
+    static uint16_t pkt_count = 0;
+    static uint16_t pkt_loss = 0;
+    static uint8_t  prev_seq = 0;
+
+    // If we have received a packet and from our VCSI GCS
+    if (parsed_packet && msg.sysid == sysid_my_gcs()) {
+        //DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
+        // Initial condition: If no packet has been received so far, drop count is undefined
+        if (pkt_count == 0) {
+            pkt_loss = 0;
+            prev_seq = msg.seq-1;  // Initialize prev_seq to the current sequence number
+            first_packet = true;
+        }
+        // Detect pkt loss
+        if (msg.seq != ++prev_seq) {
+            pkt_loss += (msg.seq - prev_seq + LINK_SCALE + 1) % (LINK_SCALE + 1);
+        }
+
+        // Save state for next calculation.
+        ++pkt_count;
+        prev_seq = msg.seq;
+    }
+
+    // calculate uplink once every 200ms (200ms with 15 entries in vector = 3 second Window).
+    if (tnow - last_uplink_calc > 200) {
         // Track the difference of packets received and lost.
-        pktReceived = (_channel_status.packet_rx_success_count - prevPktReceived);
-        pktLost     = (_channel_status.packet_rx_drop_count    - prevPktLost);
+        pkt_received = (pkt_count - prev_pkt_received);
+        pkt_lost     = (pkt_loss  - prev_pkt_lost);
         // Update link quality buffer
-        update_link_quality(pktReceived, pktLost);
-        // Calculate the link quality.
+        update_link_quality(pkt_received, pkt_lost);
+        // Calculate the link quality.0
         calc_link_quality();
         // Store the current values for the next calculation.
-        prevPktReceived  = _channel_status.packet_rx_success_count;
-        prevPktLost      = _channel_status.packet_rx_drop_count;
+        prev_pkt_received = pkt_count;
+        prev_pkt_lost      = pkt_loss;
         // Reset the timer.
         last_uplink_calc = tnow;
     }
@@ -1890,13 +1914,39 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 */
 void GCS_MAVLINK::update_link_quality(int received, int lost)
 {
-    int link_data = 0;
-    // Handle the case where no packets received to avoid divide by zero and "drop in links".
-    if (received + lost > 0) {
-        link_data = (received * LINK_SCALE) / (received + lost);
+    // Current time in milliseconds
+    const uint32_t tnow = AP_HAL::millis();
+    // Link quality data
+    uint8_t link_data = 0;
+    // Combined counter of received and lost packets
+    uint8_t pkt_total = received + lost;
+
+    // Check if there are received packets
+    if (pkt_total > 0) {
+        // Reset consec_no_packets counter
+        consec_no_packets = 0;
+        // Calculate link quality based on received and lost packets
+        link_data = (received * LINK_SCALE) / (pkt_total);
+    // No received packets - Handle cases.
     } else {
-        // No packets recieved, but also no packets lost... so 100%!
-        link_data = LINK_SCALE;
+        // Check if we have received any packets yet, return if not.
+        if(!first_packet)
+            return;
+
+        // No packets received
+        consec_no_packets++;
+
+        // if(chan == MAVLINK_COMM_1)
+        //     DEV_PRINTF("chan=%u consec_no_packets: %u\n", chan, consec_no_packets);
+        
+        // Check if no packets counter exceeds our threshold or if there is a gap in time of received packets
+        if (consec_no_packets > MAX_CONSEC_NO_PACKETS || (tnow - last_received_time) > MAX_PACKET_GAP) {
+            // Set link quality to zero
+            link_data = 0;
+         } else {
+            // Keep it at 100%
+            link_data = LINK_SCALE;
+        }
     }
 
     // Add the new data to the circular buffer at the current index.
@@ -1904,6 +1954,11 @@ void GCS_MAVLINK::update_link_quality(int received, int lost)
 
     // Update the current index in a circular manner.
     link_idx = (link_idx + 1) % WINDOW_SIZE;
+
+    // Update the last received time
+    if (pkt_total > 0) {
+        last_received_time = tnow;
+    }
     return;
 }
 
@@ -1919,6 +1974,7 @@ void GCS_MAVLINK::calc_link_quality()
     }
 
     _link_quality = (sum / WINDOW_SIZE);
+    return;
 }
 
 /*
@@ -1956,6 +2012,17 @@ void GCS_MAVLINK::log_mavlink_stats()
     };
 
     AP::logger().WriteBlock(&pkt, sizeof(pkt));
+
+
+    // if(chan == MAVLINK_COMM_1 && is_active()) {
+    //     mavlink_message_t *chan_buff = mavlink_get_channel_buffer(MAVLINK_COMM_1);
+    //     if(chan_buff->compid == MAV_COMP_ID_USER1) {
+    //         DEV_PRINTF("chan=%u  msgid=%u  seq=%u  sysid=%u  compid=%u  rx=%u  drop=%u  link=%.2f\n", 
+    //             chan, chan_buff->msgid, chan_buff->seq, chan_buff->sysid, chan_buff->compid, _channel_status.packet_rx_success_count, 
+    //             _channel_status.packet_rx_drop_count, ((_link_quality / 255.0 ) * 100.0));
+    //     }
+    // }
+
 }
 
 /*
@@ -3869,6 +3936,10 @@ void GCS_MAVLINK::handle_osd_param_config(const mavlink_message_t &msg) const
 
 void GCS_MAVLINK::handle_heartbeat(const mavlink_message_t &msg) const
 {
+    mavlink_heartbeat_t packet;
+    mavlink_msg_heartbeat_decode(&msg, &packet);
+    //DEV_PRINTF("HEARTBEAT: msgid:%u seq:%u sysid:%u compid:%u\n", msg.msgid, msg.seq, msg.sysid, msg.compid);
+    //DEV_PRINTF("HB: %u %u %u %lu %u\n", packet.type, packet.autopilot, packet.base_mode, packet.custom_mode, packet.system_status);
     // if the heartbeat is from our GCS then we don't failsafe for
     // now...
     if (msg.sysid == sysid_my_gcs()) {
