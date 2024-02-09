@@ -74,8 +74,7 @@ void AP_MAX14830::_timer(void)
 
     // Handle UART1 Interrupt - HSTM data.
     if(global_irq &  UART1_INTERRUPT) {
-        volz.handle_volz_uart1_interrupt();
-        //DEV_PRINTF("VOLZ-WING-INTERUPT1\n");
+        //DEV_PRINTF("RES-INTERUPT1\n");
     }
     
     // Handle UART2 Interrupt - IMET data.
@@ -92,7 +91,8 @@ void AP_MAX14830::_timer(void)
 
     // Handle UART4 Interrupt - Reserved.
     if(global_irq &  UART4_INTERRUPT) {
-        //DEV_PRINTF("RES-INTERUPT4\n");
+        volz.handle_volz_uart1_interrupt();
+        //DEV_PRINTF("VOLZ-WING-INTERUPT1\n");
     }
 
     // Handle Volz Update Loop.

@@ -114,54 +114,7 @@ bool AP_MAX14830_Driver::init()
             continue;
         }
 
-        // Setup UART 1 - Sweep Wing Servo  ---------------------------------------
-        // TODO: CHANGE CHNNELTO 4 on NEW BOARD
-        set_uart_address(UART::ADDR_1);
-
-        // Read Interrupt Status Register to clear interrupts.
-        _read_register(MAX14830R_ISR);
-
-        // Set baud rate
-        _set_baud(BAUD::RATE_115200);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-
-        // Enable Rx Interrupt
-        _set_rx_interrupt(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-        
-        // Set Rx Timeout Enable Register
-        _set_rx_timeout_interrupt(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-
-        // No parity, StopBit, 8 Data Bits
-        // TODO: TWO STOP BTIS?!
-        _set_line(false, false);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-
-        // Rx Timeout (default 2 byte timeout)
-        _set_rx_byte_timeout(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-
-        // Set FIFO Interrupt Trigger Level at 3/4 full?
-        // Actual FIFO trigger level is 8 times RxTrig[7:4], hence, selectable threshold granularity is eight.
-        _set_fifo_trg_lvl(FIFO_TRIG::LEVEL_12);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-
-        // Set IRQ Interrupt Enable, Auto Transceiver Direction Control Disabled
-        _set_irq_trans_ctrl(true, true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-
-        // Set Half duplex delay register for RTS line buffer
-        _set_rts_delay(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
+        // Setup UART 1 - Reserved (HSTM)------------------------------------------
 
         // Setup UART 2 - IMET ----------------------------------------------------
         set_uart_address(UART::ADDR_2);
@@ -247,9 +200,53 @@ bool AP_MAX14830_Driver::init()
         // delay to allow for reset
         hal.scheduler->delay(1);
 
+        // Setup UART 4 - Sweep Wing Servo  ---------------------------------------
+        set_uart_address(UART::ADDR_4);
 
-        // Setup UART 4 - Modem Diagnostics ---------------------------------------
-        // set_uart_address(UART::ADDR_4);
+        // Read Interrupt Status Register to clear interrupts.
+        _read_register(MAX14830R_ISR);
+
+        // Set baud rate
+        _set_baud(BAUD::RATE_115200);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // Enable Rx Interrupt
+        _set_rx_interrupt(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+        
+        // Set Rx Timeout Enable Register
+        _set_rx_timeout_interrupt(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // No parity, StopBit, 8 Data Bits
+        // TODO: TWO STOP BTIS?!
+        _set_line(false, false);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // Rx Timeout (default 2 byte timeout)
+        _set_rx_byte_timeout(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // Set FIFO Interrupt Trigger Level at 3/4 full?
+        // Actual FIFO trigger level is 8 times RxTrig[7:4], hence, selectable threshold granularity is eight.
+        _set_fifo_trg_lvl(FIFO_TRIG::LEVEL_12);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // Set IRQ Interrupt Enable, Auto Transceiver Direction Control Disabled
+        _set_irq_trans_ctrl(true, true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
+
+        // Set Half duplex delay register for RTS line buffer
+        _set_rts_delay(true);
+        // delay to allow for reset
+        hal.scheduler->delay(1);
 
         // Dev Setup --------------------------------------------------------------
         // FIXME: Enable CLK Source DEV BOARD - ****** NOT NEEDED ON CHIP CHANGE ******
