@@ -1084,7 +1084,7 @@ private:
     void update_logging25(void);
     void init_payload_control(void);
     void update_payload_control(void);
-    void pos_lights_heartbeat(void);
+    void beacon_lights_heartbeat(void);
     void analog_input_calcs(void);
     void send_payload_status(mavlink_channel_t chan);
     void update_control_mode(void);

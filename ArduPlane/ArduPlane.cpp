@@ -289,7 +289,7 @@ void Plane::init_payload_control(void)
     // Position lights
     pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
     pos_lights->mode(HAL_GPIO_OUTPUT);
-    pos_lights->write(HAL_GPIO_OFF);
+    //pos_lights->write(HAL_GPIO_OFF);
 
     // Beacon Lights (Heartbeat Pattern)
     beacon_lights = hal.gpio->channel(HAL_GPIO_PIN_BCN_LIGHTS);
@@ -324,7 +324,7 @@ void Plane::init_payload_control(void)
  */
 void Plane::update_payload_control()
 {
-    pos_lights_heartbeat();
+    beacon_lights_heartbeat();
 
     analog_input_calcs();
 
@@ -350,7 +350,7 @@ void Plane::update_payload_control()
 /*
   Beacon Lights Control (Heartbeat Pattern) @ 50Hz
  */
-void Plane::pos_lights_heartbeat()
+void Plane::beacon_lights_heartbeat()
 {
     // 50hz Counter.
     static uint16_t heartbeat_count = 0;
