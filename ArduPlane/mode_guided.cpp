@@ -52,7 +52,7 @@ void ModeGuided::update()
 
         float error = 0.0f;
         if (plane.guided_state.target_heading_type == GUIDED_HEADING_HEADING) {
-            error = wrap_PI(plane.guided_state.target_heading - AP::ahrs().yaw);
+            error = wrap_PI(plane.guided_state.target_heading - AP::ahrs().get_yaw());
         } else {
             Vector2f groundspeed = AP::ahrs().groundspeed_vector();
             error = wrap_PI(plane.guided_state.target_heading - atan2f(-groundspeed.y, -groundspeed.x) + M_PI);
@@ -61,16 +61,11 @@ void ModeGuided::update()
         float bank_limit = degrees(atanf(plane.guided_state.target_heading_accel_limit/GRAVITY_MSS)) * 1e2f;
         bank_limit = MIN(bank_limit, plane.roll_limit_cd);
 
-        plane.g2.guidedHeading.update_error(error, delta); // push error into AC_PID , possible improvement is to use update_all instead.?
+        // push error into AC_PID
+        const float desired = plane.g2.guidedHeading.update_error(error, delta, plane.guided_state.target_heading_limit);
 
-        float i = plane.g2.guidedHeading.get_i(); // get integrator TODO
-        if (((is_negative(error) && !plane.guided_state.target_heading_limit_low) || (is_positive(error) && !plane.guided_state.target_heading_limit_high))) {
-            i = plane.g2.guidedHeading.get_i();
-        }
-
-        float desired = plane.g2.guidedHeading.get_p() + i + plane.g2.guidedHeading.get_d();
-        plane.guided_state.target_heading_limit_low = (desired <= -bank_limit);
-        plane.guided_state.target_heading_limit_high = (desired >= bank_limit);
+        // Check for output saturation
+        plane.guided_state.target_heading_limit = fabsf(desired) >= bank_limit;
 
         plane.nav_roll_cd = constrain_int32(desired, -bank_limit, bank_limit);
         plane.update_load_factor();
@@ -82,7 +77,7 @@ void ModeGuided::update()
 
     if (plane.guided_state.last_forced_rpy_ms.y > 0 &&
             millis() - plane.guided_state.last_forced_rpy_ms.y < 3000) {
-        plane.nav_pitch_cd = constrain_int32(plane.guided_state.forced_rpy_cd.y, plane.pitch_limit_min_cd, plane.aparm.pitch_limit_max_cd.get());
+        plane.nav_pitch_cd = constrain_int32(plane.guided_state.forced_rpy_cd.y, plane.pitch_limit_min*100, plane.aparm.pitch_limit_max.get()*100);
     } else {
         plane.calc_nav_pitch();
     }

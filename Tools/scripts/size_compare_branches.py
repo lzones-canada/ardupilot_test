@@ -30,6 +30,11 @@ import threading
 import time
 import board_list
 
+try:
+    import queue as Queue
+except ImportError:
+    import Queue
+
 if sys.version_info[0] < 3:
     running_python3 = False
 else:
@@ -147,7 +152,9 @@ class SizeCompareBranches(object):
             'fmuv2',
             'fmuv3-bdshot',
             'iomcu',
-            'iomcu',
+            'iomcu-dshot',
+            'iomcu-f103',
+            'iomcu-f103-dshot',
             'iomcu_f103_8MHz',
             'luminousbee4',
             'skyviper-v2450',
@@ -156,6 +163,8 @@ class SizeCompareBranches(object):
             'Pixhawk1-1M-bdshot',
             'Pixhawk1-bdshot',
             'SITL_arm_linux_gnueabihf',
+            'RADIX2HD',
+            'canzero',
         ])
 
         # blacklist all linux boards for bootloader build:
@@ -189,6 +198,7 @@ class SizeCompareBranches(object):
             'rst_zynq',
             'obal',
             'SITL_x86_64_linux_gnu',
+            'canzero',
         ]
 
     def esp32_board_names(self):
@@ -198,6 +208,7 @@ class SizeCompareBranches(object):
             'esp32tomte76',
             'esp32nick',
             'esp32s3devkit',
+            'esp32s3empty',
             'esp32icarous',
             'esp32diy',
         ]
@@ -256,6 +267,12 @@ class SizeCompareBranches(object):
                 print(output)
             self.progress("Process failed (%s)" %
                           str(returncode))
+            try:
+                path = pathlib.Path(self.tmpdir, f"process-failure-{int(time.time())}")
+                path.write_text(output)
+                self.progress("Wrote process failure file (%s)" % path)
+            except Exception:
+                self.progress("Writing process failure file failed")
             raise subprocess.CalledProcessError(
                 returncode, cmd_list)
         return output
@@ -405,38 +422,61 @@ class SizeCompareBranches(object):
                 break
             jobs = None
             if self.jobs is not None:
-                jobs = int(self.jobs / self.num_threads_remaining)
+                jobs = int(self.jobs / self.n_threads)
                 if jobs <= 0:
                     jobs = 1
-            self.run_build_task(task, source_dir=my_source_dir, jobs=jobs)
+            try:
+                self.run_build_task(task, source_dir=my_source_dir, jobs=jobs)
+            except Exception as ex:
+                self.thread_exit_result_queue.put(f"{task}")
+                raise ex
+
+    def check_result_queue(self):
+        while True:
+            try:
+                result = self.thread_exit_result_queue.get_nowait()
+            except Queue.Empty:
+                break
+            if result is None:
+                continue
+            self.failure_exceptions.append(result)
 
     def run_build_tasks_in_parallel(self, tasks):
-        n_threads = self.parallel_copies
-        if len(tasks) < n_threads:
-            n_threads = len(tasks)
-        self.num_threads_remaining = n_threads
+        self.n_threads = self.parallel_copies
 
         # shared list for the threads:
         self.parallel_tasks = copy.copy(tasks)  # make this an argument instead?!
         threads = []
-        for i in range(0, n_threads):
-            t = threading.Thread(
-                target=self.parallel_thread_main,
-                name=f'task-builder-{i}',
-                args=[i],
-            )
-            t.start()
-            threads.append(t)
+        self.thread_exit_result_queue = Queue.Queue()
         tstart = time.time()
-        while len(threads):
+        self.failure_exceptions = []
+
+        thread_number = 0
+        while len(self.parallel_tasks) or len(threads):
+            if len(tasks) < self.n_threads:
+                self.n_threads = len(tasks)
+            while len(threads) < self.n_threads:
+                self.progress(f"Starting thread {thread_number}")
+                t = threading.Thread(
+                    target=self.parallel_thread_main,
+                    name=f'task-builder-{thread_number}',
+                    args=[thread_number],
+                )
+                t.start()
+                threads.append(t)
+                thread_number += 1
+
+            self.check_result_queue()
+
             new_threads = []
             for thread in threads:
                 thread.join(0)
                 if thread.is_alive():
                     new_threads.append(thread)
             threads = new_threads
-            self.num_threads_remaining = len(threads)
-            self.progress(f"remaining-tasks={len(self.parallel_tasks)} remaining-threads={len(threads)} elapsed={int(time.time() - tstart)}s")  # noqa
+            self.progress(
+                f"remaining-tasks={len(self.parallel_tasks)} " +
+                f"failed-threads={len(self.failure_exceptions)} elapsed={int(time.time() - tstart)}s")  # noqa
 
             # write out a progress CSV:
             task_results = []
@@ -448,6 +488,13 @@ class SizeCompareBranches(object):
 
             time.sleep(1)
         self.progress("All threads returned")
+
+        self.check_result_queue()
+
+        if len(self.failure_exceptions):
+            self.progress("Some threads failed:")
+        for ex in self.failure_exceptions:
+            print("Thread failure: %s" % str(ex))
 
     def run_all(self):
         '''run tests for boards and vehicles passed in constructor'''

@@ -276,7 +276,7 @@ end
 
 ACRO_ROLL_RATE = Parameter("ACRO_ROLL_RATE")
 ACRO_YAW_RATE = Parameter('ACRO_YAW_RATE')
-ARSPD_FBW_MIN = Parameter("ARSPD_FBW_MIN")
+AIRSPEED_MIN = Parameter("AIRSPEED_MIN")
 SCALING_SPEED = Parameter("SCALING_SPEED")
 SYSID_THISMAV = Parameter("SYSID_THISMAV")
 
@@ -334,6 +334,7 @@ local function sq(x)
    return x*x
 end
 
+local last_trick_action_state = nil
 if TRIK_ENABLE:get() > 0 then
 --[[
     // @Param: TRIK_SEL_FN
@@ -357,6 +358,8 @@ if TRIK_ENABLE:get() > 0 then
 --]]
    TRIK_COUNT  = bind_add_param2("_COUNT",  4, 3)
    TRICKS = {}
+
+   last_trick_action_state = rc:get_aux_cached(TRIK_ACT_FN:get())
 
    -- setup parameters for tricks
    local count = math.floor(constrain(TRIK_COUNT:get(),1,11))
@@ -382,7 +385,7 @@ local DO_JUMP = 177
 local k_throttle = 70
 local NAME_FLOAT_RATE = 2
 
-local TRIM_ARSPD_CM = Parameter("TRIM_ARSPD_CM")
+local AIRSPEED_CRUISE = Parameter("AIRSPEED_CRUISE")
 
 local last_id = 0
 local current_task = nil
@@ -2007,7 +2010,7 @@ end
    velocity at the start of the maneuver
 --]]
 function target_groundspeed()
-   return math.max(ahrs:get_EAS2TAS()*TRIM_ARSPD_CM:get()*0.01, ahrs:get_velocity_NED():length())
+   return math.max(ahrs:get_EAS2TAS()*AIRSPEED_CRUISE:get(), ahrs:get_velocity_NED():length())
 end
 
 --[[
@@ -2431,6 +2434,8 @@ function do_path()
       path_var.ss_angle_filt = 0.0
       path_var.last_rate_override = 0
 
+      path.highest_i = 0
+
       -- get initial tangent
       local p1, _ = rotate_path(path, path_var.path_t + 0.1/(path_var.total_time*LOOP_RATE),
                                  path_var.initial_ori, path_var.initial_ef_pos)
@@ -2460,7 +2465,7 @@ function do_path()
    end
 
    -- airspeed, assume we don't go below min
-   local airspeed_constrained = math.max(ARSPD_FBW_MIN:get(), ahrs_airspeed)
+   local airspeed_constrained = math.max(AIRSPEED_MIN:get(), ahrs_airspeed)
 
    --[[
       calculate positions and angles at previous, current and next time steps
@@ -3110,7 +3115,6 @@ function check_auto_mission()
    end
 end
 
-local last_trick_action_state = rc:get_aux_cached(TRIK_ACT_FN:get())
 local trick_sel_chan = nil
 local last_trick_selection = nil
 

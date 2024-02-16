@@ -20,10 +20,10 @@ void ModeTraining::update()
 
     // if the pitch is past the set pitch limits, then
     // we set target pitch to the limit
-    if (ahrs.pitch_sensor >= plane.aparm.pitch_limit_max_cd) {
-        plane.nav_pitch_cd = plane.aparm.pitch_limit_max_cd;
-    } else if (ahrs.pitch_sensor <= plane.pitch_limit_min_cd) {
-        plane.nav_pitch_cd = plane.pitch_limit_min_cd;
+    if (ahrs.pitch_sensor >= plane.aparm.pitch_limit_max*100) {
+        plane.nav_pitch_cd = plane.aparm.pitch_limit_max*100;
+    } else if (ahrs.pitch_sensor <= plane.pitch_limit_min*100) {
+        plane.nav_pitch_cd = plane.pitch_limit_min*100;
     } else {
         plane.training_manual_pitch = true;
         plane.nav_pitch_cd = 0;
@@ -64,9 +64,6 @@ void ModeTraining::run()
     }
 
     // Always manual rudder control
-    const float pilot_rudder = plane.rudder_in_expo(false);
-    plane.steering_control.rudder = pilot_rudder;
-    plane.steering_control.steering = pilot_rudder;
-    SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, pilot_rudder);
+    output_rudder_and_steering(plane.rudder_in_expo(false));
 
 }

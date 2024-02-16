@@ -30,10 +30,6 @@ class ExpandingString;
 #define HAL_ENABLE_SAVE_PERSISTENT_PARAMS (defined(STM32F7) || defined(STM32H7))
 #endif
 
-#ifndef AP_BOOTLOADER_FLASHING_ENABLED
-#define AP_BOOTLOADER_FLASHING_ENABLED 0
-#endif
-
 class ChibiOS::Util : public AP_HAL::Util {
 public:
     static Util *from(AP_HAL::Util *util) {
@@ -42,6 +38,11 @@ public:
 
     bool run_debug_shell(AP_HAL::BetterStream *stream) override { return false; }
     uint32_t available_memory() override;
+
+    // get path to custom defaults file for AP_Param
+    const char* get_custom_defaults_file() const override {
+        return "@ROMFS/defaults.parm";
+    }
 
     // Special Allocation Routines
     void *malloc_type(size_t size, AP_HAL::Util::Memory_Type mem_type) override;

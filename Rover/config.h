@@ -32,13 +32,6 @@
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
-// RALLY POINTS
-//
-#ifndef AP_RALLY
- #define AP_RALLY ENABLED
-#endif
-
-//////////////////////////////////////////////////////////////////////////////
 // NAVL1
 //
 #ifndef NAVL1
@@ -52,19 +45,18 @@
   #define CRUISE_SPEED    2  // in m/s
 #endif
 
-//////////////////////////////////////////////////////////////////////////////
-// Logging control
-//
-#ifndef LOGGING_ENABLED
-  #define LOGGING_ENABLED ENABLED
-#endif
-
 #define DEFAULT_LOG_BITMASK    0xffff
 
 //////////////////////////////////////////////////////////////////////////////
 // Dock mode - allows vehicle to dock to a docking target
 #ifndef MODE_DOCK_ENABLED
 # define MODE_DOCK_ENABLED AC_PRECLAND_ENABLED
+#endif
+
+//////////////////////////////////////////////////////////////////////////////
+// Follow mode - allows vehicle to follow target
+#ifndef MODE_FOLLOW_ENABLED
+# define MODE_FOLLOW_ENABLED AP_FOLLOW_ENABLED
 #endif
 
 

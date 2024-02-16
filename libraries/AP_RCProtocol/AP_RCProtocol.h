@@ -67,6 +67,12 @@ public:
 #if AP_RCPROTOCOL_FASTSBUS_ENABLED
         FASTSBUS   = 12,
 #endif
+#if AP_RCPROTOCOL_DRONECAN_ENABLED
+        DRONECAN   = 13,
+#endif
+#if AP_RCPROTOCOL_GHST_ENABLED
+        GHST       = 14,
+#endif
         NONE    //last enum always is None
     };
 
@@ -127,6 +133,9 @@ public:
 #if AP_RCPROTOCOL_CRSF_ENABLED
         case CRSF:
 #endif
+#if AP_RCPROTOCOL_GHST_ENABLED
+        case GHST:
+#endif
             return true;
 #if AP_RCPROTOCOL_IBUS_ENABLED
         case IBUS:
@@ -142,6 +151,9 @@ public:
 #endif
 #if AP_RCPROTOCOL_ST24_ENABLED
         case ST24:
+#endif
+#if AP_RCPROTOCOL_DRONECAN_ENABLED
+        case DRONECAN:
 #endif
         case NONE:
             return false;

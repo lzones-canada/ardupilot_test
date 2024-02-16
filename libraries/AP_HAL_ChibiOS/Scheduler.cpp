@@ -79,6 +79,13 @@ THD_WORKING_AREA(_storage_thread_wa, STORAGE_THD_WA_SIZE);
 THD_WORKING_AREA(_monitor_thread_wa, MONITOR_THD_WA_SIZE);
 #endif
 
+// while the vehicle is being initialised we expect there to be random
+// delays which may exceed the watchdog timeout.  By default, We pat
+// the watchdog in the timer thread during setup to avoid the watchdog:
+#ifndef AP_HAL_CHIBIOS_IN_EXPECTED_DELAY_WHEN_NOT_INITIALISED
+#define AP_HAL_CHIBIOS_IN_EXPECTED_DELAY_WHEN_NOT_INITIALISED 1
+#endif
+
 Scheduler::Scheduler()
 {
 }
@@ -382,10 +389,12 @@ void Scheduler::_rcout_thread(void *arg)
 */
 bool Scheduler::in_expected_delay(void) const
 {
+#if AP_HAL_CHIBIOS_IN_EXPECTED_DELAY_WHEN_NOT_INITIALISED
     if (!_initialized) {
         // until setup() is complete we expect delays
         return true;
     }
+#endif
     if (expect_delay_start != 0) {
         uint32_t now = AP_HAL::millis();
         if (now - expect_delay_start <= expect_delay_length) {
@@ -698,6 +707,7 @@ uint8_t Scheduler::calculate_thread_priority(priority_base base, int8_t priority
         { PRIORITY_UART, APM_UART_PRIORITY},
         { PRIORITY_STORAGE, APM_STORAGE_PRIORITY},
         { PRIORITY_SCRIPTING, APM_SCRIPTING_PRIORITY},
+        { PRIORITY_NET, APM_NET_PRIORITY},
     };
     for (uint8_t i=0; i<ARRAY_SIZE(priority_map); i++) {
         if (priority_map[i].base == base) {
@@ -880,14 +890,18 @@ void Scheduler::check_stack_free(void)
 
     if (stack_free(&__main_stack_base__) < min_stack) {
         // use "line number" of 0xFFFF for ISR stack low
+#if AP_INTERNALERROR_ENABLED
         AP::internalerror().error(AP_InternalError::error_t::stack_overflow, 0xFFFF);
+#endif
     }
 
     for (thread_t *tp = chRegFirstThread(); tp; tp = chRegNextThread(tp)) {
         if (stack_free(tp->wabase) < min_stack) {
             // use task priority for line number. This allows us to
             // identify the task fairly reliably
+#if AP_INTERNALERROR_ENABLED
             AP::internalerror().error(AP_InternalError::error_t::stack_overflow, tp->realprio);
+#endif
         }
     }
 }

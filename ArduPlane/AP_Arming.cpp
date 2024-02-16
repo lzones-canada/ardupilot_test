@@ -66,31 +66,33 @@ bool AP_Arming_Plane::pre_arm_checks(bool display_failure)
     // call parent class checks
     bool ret = AP_Arming::pre_arm_checks(display_failure);
 
+#if AP_AIRSPEED_ENABLED
     // Check airspeed sensor
     ret &= AP_Arming::airspeed_checks(display_failure);
+#endif
 
     if (plane.g.fs_timeout_long < plane.g.fs_timeout_short && plane.g.fs_action_short != FS_ACTION_SHORT_DISABLED) {
         check_failed(display_failure, "FS_LONG_TIMEOUT < FS_SHORT_TIMEOUT");
         ret = false;
     }
 
-    if (plane.aparm.roll_limit_cd < 300) {
-        check_failed(display_failure, "LIM_ROLL_CD too small (%u)", (unsigned)plane.aparm.roll_limit_cd);
+    if (plane.aparm.roll_limit < 3) {
+        check_failed(display_failure, "ROLL_LIMIT_DEG too small (%.1f)", plane.aparm.roll_limit.get());
         ret = false;
     }
 
-    if (plane.aparm.pitch_limit_max_cd < 300) {
-        check_failed(display_failure, "LIM_PITCH_MAX too small (%u)", (unsigned)plane.aparm.pitch_limit_max_cd);
+    if (plane.aparm.pitch_limit_max < 3) {
+        check_failed(display_failure, "PTCH_LIM_MAX_DEG too small (%.1f)", plane.aparm.pitch_limit_max.get());
         ret = false;
     }
 
-    if (plane.aparm.pitch_limit_min_cd > -300) {
-        check_failed(display_failure, "LIM_PITCH_MIN too large (%u)", (unsigned)plane.aparm.pitch_limit_min_cd);
+    if (plane.aparm.pitch_limit_min > -3) {
+        check_failed(display_failure, "PTCH_LIM_MIN_DEG too large (%.1f)", plane.aparm.pitch_limit_min.get());
         ret = false;
     }
 
     if (plane.aparm.airspeed_min < MIN_AIRSPEED_MIN) {
-        check_failed(display_failure, "ARSPD_FBW_MIN too low (%i < %i)", plane.aparm.airspeed_min.get(), MIN_AIRSPEED_MIN);
+        check_failed(display_failure, "AIRSPEED_MIN too low (%i < %i)", plane.aparm.airspeed_min.get(), MIN_AIRSPEED_MIN);
         ret = false;
     }
 
@@ -218,6 +220,11 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
         ret = false;
     }
 
+    if ((plane.quadplane.tailsitter.enable > 0) && (plane.quadplane.q_fwd_thr_use != QuadPlane::FwdThrUse::OFF)) {
+        check_failed(ARMING_CHECK_PARAMETERS, display_failure, "set Q_FWD_THR_USE to 0");
+        ret = false;
+    }
+
     return ret;
 }
 #endif // HAL_QUADPLANE_ENABLED
@@ -314,7 +321,7 @@ bool AP_Arming_Plane::arm(const AP_Arming::Method method, const bool do_arming_c
     // rising edge of delay_arming oneshot
     delay_arming = true;
 
-    gcs().send_text(MAV_SEVERITY_INFO, "Throttle armed");
+    send_arm_disarm_statustext("Throttle armed");
 
     return true;
 }
@@ -325,7 +332,7 @@ bool AP_Arming_Plane::arm(const AP_Arming::Method method, const bool do_arming_c
 bool AP_Arming_Plane::disarm(const AP_Arming::Method method, bool do_disarm_checks)
 {
     if (do_disarm_checks &&
-        (method == AP_Arming::Method::MAVLINK ||
+        (AP_Arming::method_is_GCS(method) ||
          method == AP_Arming::Method::RUDDER)) {
         if (plane.is_flying()) {
             // don't allow mavlink or rudder disarm while flying
@@ -374,8 +381,8 @@ bool AP_Arming_Plane::disarm(const AP_Arming::Method method, bool do_disarm_chec
     // re-initialize speed variable used in AUTO and GUIDED for
     // DO_CHANGE_SPEED commands
     plane.new_airspeed_cm = -1;
-    
-    gcs().send_text(MAV_SEVERITY_INFO, "Throttle disarmed");
+
+    send_arm_disarm_statustext("Throttle disarmed");
 
     return true;
 }
@@ -390,7 +397,9 @@ void AP_Arming_Plane::update_soft_armed()
 #endif
 
     hal.util->set_soft_armed(_armed);
+#if HAL_LOGGING_ENABLED
     AP::logger().set_vehicle_armed(hal.util->get_soft_armed());
+#endif
 
     // update delay_arming oneshot
     if (delay_arming &&
@@ -445,7 +454,7 @@ bool AP_Arming_Plane::mission_checks(bool report)
                 prev_cmd.id == MAV_CMD_NAV_WAYPOINT) {
                 const float dist = cmd.content.location.get_distance(prev_cmd.content.location);
                 const float tecs_land_speed = plane.TECS_controller.get_land_airspeed();
-                const float landing_speed = is_positive(tecs_land_speed)?tecs_land_speed:plane.aparm.airspeed_cruise_cm*0.01;
+                const float landing_speed = is_positive(tecs_land_speed)?tecs_land_speed:plane.aparm.airspeed_cruise;
                 const float min_dist = 0.75 * plane.quadplane.stopping_distance(sq(landing_speed));
                 if (dist < min_dist) {
                     ret = false;

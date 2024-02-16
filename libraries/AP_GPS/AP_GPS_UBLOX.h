@@ -20,10 +20,12 @@
 //  UBlox Lea6H protocol: http://www.u-blox.com/images/downloads/Product_Docs/u-blox6_ReceiverDescriptionProtocolSpec_%28GPS.G6-SW-10018%29.pdf
 #pragma once
 
-#include "AP_GPS.h"
-#include "GPS_Backend.h"
+#include "AP_GPS_config.h"
 
 #if AP_GPS_UBLOX_ENABLED
+
+#include "AP_GPS.h"
+#include "GPS_Backend.h"
 
 #include <AP_HAL/AP_HAL.h>
 
@@ -98,7 +100,8 @@
 #define CONFIG_RTK_MOVBASE   (1<<17)
 #define CONFIG_TIM_TM2       (1<<18)
 #define CONFIG_M10           (1<<19)
-#define CONFIG_LAST          (1<<20) // this must always be the last bit
+#define CONFIG_L5            (1<<20)
+#define CONFIG_LAST          (1<<21) // this must always be the last bit
 
 #define CONFIG_REQUIRED_INITIAL (CONFIG_RATE_NAV | CONFIG_RATE_POSLLH | CONFIG_RATE_STATUS | CONFIG_RATE_VELNED)
 
@@ -315,6 +318,8 @@ private:
         CFG_SIGNAL_NAVIC_ENA            = 0x10310026,
         CFG_SIGNAL_NAVIC_L5_ENA         = 0x1031001d,
 
+        CFG_SIGNAL_L5_HEALTH_OVRD       = 0x10320001,
+
         // other keys
         CFG_NAVSPG_DYNMODEL             = 0x20110021,
 
@@ -511,7 +516,7 @@ private:
     struct PACKED ubx_mon_ver {
         char swVersion[30];
         char hwVersion[10];
-        char extension; // extensions are not enabled
+        char extension[50]; // extensions are not enabled
     };
     struct PACKED ubx_nav_svinfo_header {
         uint32_t itow;
@@ -736,6 +741,7 @@ private:
         STEP_RTK_MOVBASE, // setup moving baseline
         STEP_TIM_TM2,
         STEP_M10,
+        STEP_L5,
         STEP_LAST
     };
 
@@ -870,7 +876,10 @@ private:
     RTCM3_Parser *rtcm3_parser;
 #endif // GPS_MOVING_BASELINE
 
+    bool supports_l5;
     static const config_list config_M10[];
+    static const config_list config_L5_ovrd_ena[];
+    static const config_list config_L5_ovrd_dis[];
 };
 
 #endif

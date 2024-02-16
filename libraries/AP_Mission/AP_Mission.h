@@ -203,6 +203,7 @@ public:
         bool start_control; // start or stop engine
         bool cold_start; // use cold start procedure
         uint16_t height_delay_cm; // height delay for start
+        bool allow_disarmed_start; // allow starting the engine while disarmed
     };
 
     // NAV_SET_YAW_SPEED support
@@ -269,6 +270,7 @@ public:
 
     // MAV_CMD_IMAGE_START_CAPTURE support
     struct PACKED image_start_capture_Command {
+        uint8_t instance;
         float interval_s;
         uint16_t total_num_images;
         uint16_t start_seq_number;
@@ -413,6 +415,19 @@ public:
         // comparison operator (relies on all bytes in the structure even if they may not be used)
         bool operator ==(const Mission_Command &b) const { return (memcmp(this, &b, sizeof(Mission_Command)) == 0); }
         bool operator !=(const Mission_Command &b) const { return !operator==(b); }
+
+        /*
+          return the number of turns for a LOITER_TURNS command
+          this has special handling for loiter turns from cmd.p1 and type_specific_bits
+         */
+        float get_loiter_turns(void) const {
+            float turns = LOWBYTE(p1);
+            if (type_specific_bits & (1U<<1)) {
+                // special storage handling allows for fractional turns
+                turns *= (1.0/256.0);
+            }
+            return turns;
+        }
     };
 
 
@@ -599,7 +614,7 @@ public:
     }
 
     // set_current_cmd - jumps to command specified by index
-    bool set_current_cmd(uint16_t index, bool rewind = false);
+    bool set_current_cmd(uint16_t index);
 
     // restart current navigation command.  Used to handle external changes to mission
     // returns true on success, false if current nav command has been deleted
@@ -626,10 +641,6 @@ public:
     // mavlink_int_to_mission_cmd - converts mavlink message to an AP_Mission::Mission_Command object which can be stored to eeprom
     //  return MAV_MISSION_ACCEPTED on success, MAV_MISSION_RESULT error on failure
     static MAV_MISSION_RESULT mavlink_int_to_mission_cmd(const mavlink_mission_item_int_t& packet, AP_Mission::Mission_Command& cmd);
-
-    // mavlink_cmd_long_to_mission_cmd - converts a mavlink cmd long to an AP_Mission::Mission_Command object which can be stored to eeprom
-    // return MAV_MISSION_ACCEPTED on success, MAV_MISSION_RESULT error on failure
-    static MAV_MISSION_RESULT mavlink_cmd_long_to_mission_cmd(const mavlink_command_long_t& packet, AP_Mission::Mission_Command& cmd);
 
     // mission_cmd_to_mavlink_int - converts an AP_Mission::Mission_Command object to a mavlink message which can be sent to the GCS
     //  return true on success, false on failure
@@ -725,6 +736,8 @@ public:
     // find the first JUMP_TAG with this tag and return its index.
     // Returns 0 if no appropriate JUMP_TAG match can be found.
     uint16_t get_index_of_jump_tag(const uint16_t tag) const;
+
+    bool is_valid_index(const uint16_t index) const { return index < _cmd_total; }
 
 #if AP_SDCARD_STORAGE_ENABLED
     bool failed_sdcard_storage(void) const {

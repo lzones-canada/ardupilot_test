@@ -27,8 +27,8 @@
 
 extern const AP_HAL::HAL& hal;
 
-// consume vision position estimate data and send to EKF. distances in meters
-void AP_VisualOdom_IntelT265::handle_vision_position_estimate(uint64_t remote_time_us, uint32_t time_ms, float x, float y, float z, const Quaternion &attitude, float posErr, float angErr, uint8_t reset_counter)
+// consume vision pose estimate data and send to EKF. distances in meters
+void AP_VisualOdom_IntelT265::handle_pose_estimate(uint64_t remote_time_us, uint32_t time_ms, float x, float y, float z, const Quaternion &attitude, float posErr, float angErr, uint8_t reset_counter)
 {
     const float scale_factor = _frontend.get_pos_scale();
     Vector3f pos{x * scale_factor, y * scale_factor, z * scale_factor};
@@ -72,8 +72,10 @@ void AP_VisualOdom_IntelT265::handle_vision_position_estimate(uint64_t remote_ti
     float yaw;
     att.to_euler(roll, pitch, yaw);
 
+#if HAL_LOGGING_ENABLED
     // log sensor data
     Write_VisualPosition(remote_time_us, time_ms, pos.x, pos.y, pos.z, degrees(roll), degrees(pitch), wrap_360(degrees(yaw)), posErr, angErr, reset_counter, !consume);
+#endif
 
     // store corrected attitude for use in pre-arm checks
     _attitude_last = att;
@@ -99,7 +101,9 @@ void AP_VisualOdom_IntelT265::handle_vision_speed_estimate(uint64_t remote_time_
     // record time for health monitoring
     _last_update_ms = AP_HAL::millis();
 
+#if HAL_LOGGING_ENABLED
     Write_VisualVelocity(remote_time_us, time_ms, vel_corrected, reset_counter, !consume);
+#endif
 }
 
 // apply rotation and correction to position
@@ -143,7 +147,11 @@ bool AP_VisualOdom_IntelT265::align_yaw_to_ahrs(const Vector3f &position, const 
     }
 
     // do not align until ahrs yaw initialised
-    if (!AP::ahrs().initialised() || !AP::ahrs().dcm_yaw_initialised()) {
+    if (!AP::ahrs().initialised()
+#if AP_AHRS_DCM_ENABLED
+        || !AP::ahrs().dcm_yaw_initialised()
+#endif
+        ) {
         return false;
     }
 

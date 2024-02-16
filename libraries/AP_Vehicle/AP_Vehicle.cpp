@@ -1,3 +1,7 @@
+#include "AP_Vehicle_config.h"
+
+#if AP_VEHICLE_ENABLED
+
 #include "AP_Vehicle.h"
 
 #include <AP_BLHeli/AP_BLHeli.h>
@@ -18,6 +22,11 @@
 #include <AP_HAL_ChibiOS/hwdef/common/stm32_util.h>
 #endif
 #include <AP_DDS/AP_DDS_Client.h>
+#if HAL_WITH_IO_MCU
+#include <AP_IOMCU/AP_IOMCU.h>
+extern AP_IOMCU iomcu;
+#endif
+#include <AP_Scripting/AP_Scripting.h>
 
 #define SCHED_TASK(func, rate_hz, max_time_micros, prio) SCHED_TASK_CLASS(AP_Vehicle, &vehicle, func, rate_hz, max_time_micros, prio)
 
@@ -202,6 +211,46 @@ const AP_Param::GroupInfo AP_Vehicle::var_info[] = {
 #endif // APM_BUILD_COPTER_OR_HELI || APM_BUILD_TYPE(APM_BUILD_ArduPlane) || APM_BUILD_TYPE(APM_BUILD_Rover)
 
 
+#if AP_NETWORKING_ENABLED
+    // @Group: NET_
+    // @Path: ../AP_Networking/AP_Networking.cpp
+    AP_SUBGROUPINFO(networking, "NET_", 21, AP_Vehicle, AP_Networking),
+
+    /*
+      the NET_Pn_ parameters need to be in AP_Vehicle as otherwise we
+      are too deep in the parameter tree
+     */
+
+#if AP_NETWORKING_NUM_PORTS > 0
+    // @Group: NET_P1_
+    // @Path: ../AP_Networking/AP_Networking_port.cpp
+    AP_SUBGROUPINFO(networking.ports[0], "NET_P1_", 22, AP_Vehicle, AP_Networking::Port),
+#endif
+
+#if AP_NETWORKING_NUM_PORTS > 1
+    // @Group: NET_P2_
+    // @Path: ../AP_Networking/AP_Networking_port.cpp
+    AP_SUBGROUPINFO(networking.ports[1], "NET_P2_", 23, AP_Vehicle, AP_Networking::Port),
+#endif
+
+#if AP_NETWORKING_NUM_PORTS > 2
+    // @Group: NET_P3_
+    // @Path: ../AP_Networking/AP_Networking_port.cpp
+    AP_SUBGROUPINFO(networking.ports[2], "NET_P3_", 24, AP_Vehicle, AP_Networking::Port),
+#endif
+
+#if AP_NETWORKING_NUM_PORTS > 3
+    // @Group: NET_P4_
+    // @Path: ../AP_Networking/AP_Networking_port.cpp
+    AP_SUBGROUPINFO(networking.ports[3], "NET_P4_", 25, AP_Vehicle, AP_Networking::Port),
+#endif
+#endif // AP_NETWORKING_ENABLED
+
+#if AP_FILTER_ENABLED
+    // @Group: FILT
+    // @Path: ../Filter/AP_Filter.cpp
+    AP_SUBGROUPINFO(filters, "FILT", 26, AP_Vehicle, AP_Filters),
+#endif
     AP_GROUPEND
 };
 
@@ -261,15 +310,23 @@ void AP_Vehicle::setup()
     // survivability.
     set_control_channels();
 
+#if HAL_GCS_ENABLED
     // initialise serial manager as early as sensible to get
     // diagnostic output during boot process.  We have to initialise
     // the GCS singleton first as it sets the global mavlink system ID
     // which may get used very early on.
     gcs().init();
+#endif
 
     // initialise serial ports
     serial_manager.init();
+#if HAL_GCS_ENABLED
     gcs().setup_console();
+#endif
+
+#if AP_NETWORKING_ENABLED
+    networking.init();
+#endif
 
     // Register scheduler_delay_cb, which will run anytime you have
     // more than 5ms remaining in your call to hal.scheduler->delay
@@ -372,6 +429,10 @@ void AP_Vehicle::setup()
 
     custom_rotations.init();
 
+#if AP_FILTER_ENABLED
+    filters.init();
+#endif
+
 #if HAL_WITH_ESC_TELEM && HAL_GYROFFT_ENABLED
     for (uint8_t i = 0; i<ESC_TELEM_MAX_ESCS; i++) {
         esc_noise[i].set_cutoff_frequency(2);
@@ -382,11 +443,11 @@ void AP_Vehicle::setup()
     // initialisation
     AP_Param::invalidate_count();
 
-    gcs().send_text(MAV_SEVERITY_INFO, "ArduPilot Ready");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "ArduPilot Ready");
 
 #if AP_DDS_ENABLED
     if (!init_dds_client()) {
-        gcs().send_text(MAV_SEVERITY_ERROR, "DDS Client: Failed to Initialize");
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "%s Failed to Initialize", AP_DDS_Client::msg_prefix);
     }
 #endif
 }
@@ -415,8 +476,8 @@ void AP_Vehicle::loop()
     }
     const uint32_t new_internal_errors = AP::internalerror().errors();
     if(_last_internal_errors != new_internal_errors) {
-        AP::logger().Write_Error(LogErrorSubsystem::INTERNAL_ERROR, LogErrorCode::INTERNAL_ERRORS_DETECTED);
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "Internal Errors 0x%x", (unsigned)new_internal_errors);
+        LOGGER_WRITE_ERROR(LogErrorSubsystem::INTERNAL_ERROR, LogErrorCode::INTERNAL_ERRORS_DETECTED);
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Internal Errors 0x%x", (unsigned)new_internal_errors);
         _last_internal_errors = new_internal_errors;
     }
 }
@@ -485,6 +546,9 @@ const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
 #if AP_OPENDRONEID_ENABLED
     SCHED_TASK_CLASS(AP_OpenDroneID, &vehicle.opendroneid,  update,                   10,  50, 236),
 #endif
+#if AP_NETWORKING_ENABLED
+    SCHED_TASK_CLASS(AP_Networking, &vehicle.networking,    update,                   10,  50, 238),
+#endif
 #if OSD_ENABLED
     SCHED_TASK(publish_osd_info, 1, 10, 240),
 #endif
@@ -503,11 +567,12 @@ const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
 #if HAL_EFI_ENABLED
     SCHED_TASK_CLASS(AP_EFI,       &vehicle.efi,            update,                   50, 200, 250),
 #endif
-#if HAL_INS_ACCELCAL_ENABLED
     SCHED_TASK(one_Hz_update,                                                         1, 100, 252),
-#endif
 #if HAL_WITH_ESC_TELEM && HAL_GYROFFT_ENABLED
     SCHED_TASK(check_motor_noise,      5,     50, 252),
+#endif
+#if AP_FILTER_ENABLED
+    SCHED_TASK_CLASS(AP_Filters,   &vehicle.filters,        update,                   1, 100, 252),
 #endif
     SCHED_TASK(update_arming,          1,     50, 253),
 };
@@ -533,33 +598,39 @@ void AP_Vehicle::scheduler_delay_callback()
 
     static uint32_t last_1hz, last_50hz, last_5s;
 
+#if HAL_LOGGING_ENABLED
     AP_Logger &logger = AP::logger();
 
     // don't allow potentially expensive logging calls:
     logger.EnableWrites(false);
+#endif
 
     const uint32_t tnow = AP_HAL::millis();
     if (tnow - last_1hz > 1000) {
         last_1hz = tnow;
-        gcs().send_message(MSG_HEARTBEAT);
-        gcs().send_message(MSG_SYS_STATUS);
+        GCS_SEND_MESSAGE(MSG_HEARTBEAT);
+        GCS_SEND_MESSAGE(MSG_SYS_STATUS);
     }
     if (tnow - last_50hz > 20) {
         last_50hz = tnow;
+#if HAL_GCS_ENABLED
         gcs().update_receive();
         gcs().update_send();
+#endif
         _singleton->notify.update();
     }
     if (tnow - last_5s > 5000) {
         last_5s = tnow;
         if (AP_BoardConfig::in_config_error()) {
-            gcs().send_text(MAV_SEVERITY_CRITICAL, "Config Error: fix problem then reboot");
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Config Error: fix problem then reboot");
         } else {
-            gcs().send_text(MAV_SEVERITY_INFO, "Initialising ArduPilot");
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Initialising ArduPilot");
         }
     }
 
+#if HAL_LOGGING_ENABLED
     logger.EnableWrites(true);
+#endif
 }
 
 // if there's been a watchdog reset, notify the world via a statustext:
@@ -569,7 +640,8 @@ void AP_Vehicle::send_watchdog_reset_statustext()
         return;
     }
     const AP_HAL::Util::PersistentData &pd = hal.util->last_persistent_data;
-    gcs().send_text(MAV_SEVERITY_CRITICAL,
+    (void)pd;  // in case !HAL_GCS_ENABLED
+    GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,
                     "WDG: T%d SL%u FL%u FT%u FA%x FTP%u FLR%x FICSR%u MM%u MC%u IE%u IEC%u TN:%.4s",
                     pd.scheduler_task,
                     pd.semaphore_line,
@@ -656,7 +728,7 @@ void AP_Vehicle::update_dynamic_notch(AP_InertialSensor::HarmonicNotch &notch)
             float rpm;
             if (rpm_sensor != nullptr && rpm_sensor->get_rpm(sensor, rpm)) {
                 // set the harmonic notch filter frequency from the main rotor rpm
-                notch.update_freq_hz(MAX(ref_freq, rpm * ref * (1.0/60)));
+                notch.update_freq_hz(MAX(ref_freq * notch.params.freq_min_ratio(), rpm * ref * (1.0/60)));
             } else {
                 notch.update_freq_hz(ref_freq);
             }
@@ -739,7 +811,7 @@ void AP_Vehicle::update_dynamic_notch_at_specified_rate()
 void AP_Vehicle::notify_no_such_mode(uint8_t mode_number)
 {
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING,"No such mode %u", mode_number);
-    AP::logger().Write_Error(LogErrorSubsystem::FLIGHT_MODE, LogErrorCode(mode_number));
+    LOGGER_WRITE_ERROR(LogErrorSubsystem::FLIGHT_MODE, LogErrorCode(mode_number));
 }
 
 // reboot the vehicle in an orderly manner, doing various cleanups and
@@ -772,12 +844,17 @@ void AP_Vehicle::reboot(bool hold_in_bootloader)
     // the IO board safety to be forced on, the parameters to flush, ...
     hal.scheduler->delay(200);
 
+#if HAL_WITH_IO_MCU
+    iomcu.soft_reboot();
+#endif
+
     hal.scheduler->reboot(hold_in_bootloader);
 }
 
 #if OSD_ENABLED
 void AP_Vehicle::publish_osd_info()
 {
+#if AP_MISSION_ENABLED
     AP_Mission *mission = AP::mission();
     if (mission == nullptr) {
         return;
@@ -800,13 +877,14 @@ void AP_Vehicle::publish_osd_info()
     }
     nav_info.wp_number = mission->get_current_nav_index();
     osd->set_nav_info(nav_info);
+#endif
 }
 #endif
 
 void AP_Vehicle::get_osd_roll_pitch_rad(float &roll, float &pitch) const
 {
-    roll = ahrs.roll;
-    pitch = ahrs.pitch;
+    roll = ahrs.get_roll();
+    pitch = ahrs.get_pitch();
 }
 
 #if HAL_INS_ACCELCAL_ENABLED
@@ -875,6 +953,14 @@ void AP_Vehicle::one_Hz_update(void)
         }
 #endif
     }
+
+#if AP_SCRIPTING_ENABLED
+    AP_Scripting *scripting = AP_Scripting::get_singleton();
+    if (scripting != nullptr) {
+        scripting->update();
+    }
+#endif
+
 }
 
 void AP_Vehicle::check_motor_noise()
@@ -895,7 +981,7 @@ void AP_Vehicle::check_motor_noise()
         float energy = gyro_fft.has_noise_at_frequency_hz(esc_data[i]);
         energy = esc_noise[i].apply(energy, 0.2f);
         if (energy > 40.0f && AP_HAL::millis() - last_motor_noise_ms > 5000) {
-            gcs().send_text(MAV_SEVERITY_WARNING, "Noise %.fdB on motor %u at %.fHz", energy, i+1, esc_data[i]);
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Noise %.fdB on motor %u at %.fHz", energy, i+1, esc_data[i]);
             output_error = true;
         }
     }
@@ -953,3 +1039,4 @@ AP_Vehicle *vehicle()
 
 };
 
+#endif  // AP_VEHICLE_ENABLED

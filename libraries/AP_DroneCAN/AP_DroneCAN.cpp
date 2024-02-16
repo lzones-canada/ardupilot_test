@@ -34,6 +34,7 @@
 #include <AP_Airspeed/AP_Airspeed_DroneCAN.h>
 #include <AP_OpticalFlow/AP_OpticalFlow_HereFlow.h>
 #include <AP_RangeFinder/AP_RangeFinder_DroneCAN.h>
+#include <AP_RCProtocol/AP_RCProtocol_DroneCAN.h>
 #include <AP_EFI/AP_EFI_DroneCAN.h>
 #include <AP_GPS/AP_GPS_DroneCAN.h>
 #include <AP_GPS/AP_GPS.h>
@@ -49,6 +50,14 @@
 #include <AP_OpenDroneID/AP_OpenDroneID.h>
 #include <AP_Mount/AP_Mount_Xacti.h>
 #include <string.h>
+
+#if AP_DRONECAN_SERIAL_ENABLED
+#include "AP_DroneCAN_serial.h"
+#endif
+
+#if AP_RELAY_DRONECAN_ENABLED
+#include <AP_Relay/AP_Relay.h>
+#endif
 
 extern const AP_HAL::HAL& hal;
 
@@ -70,6 +79,8 @@ extern const AP_HAL::HAL& hal;
 #ifndef AP_DRONECAN_VOLZ_FEEDBACK_ENABLED
 #define AP_DRONECAN_VOLZ_FEEDBACK_ENABLED 0
 #endif
+
+#define AP_DRONECAN_GETSET_TIMEOUT_MS 100       // timeout waiting for response from node after 0.1 sec
 
 #define debug_dronecan(level_debug, fmt, args...) do { AP::can().log_text(level_debug, "DroneCAN", fmt, ##args); } while (0)
 
@@ -127,7 +138,7 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
 
     // @Param: ESC_OF
     // @DisplayName: ESC Output channels offset
-    // @Description: Offset for ESC numbering in DroneCAN ESC RawCommand messages. This allows for more efficient packing of ESC command messages. If your ESCs are on servo functions 5 to 8 and you set this parameter to 4 then the ESC RawCommand will be sent with the first 4 slots filled. This can be used for more efficint usage of CAN bandwidth
+    // @Description: Offset for ESC numbering in DroneCAN ESC RawCommand messages. This allows for more efficient packing of ESC command messages. If your ESCs are on servo functions 5 to 8 and you set this parameter to 4 then the ESC RawCommand will be sent with the first 4 slots filled. This can be used for more efficient usage of CAN bandwidth
     // @Range: 0 18
     // @User: Advanced
     AP_GROUPINFO("ESC_OF", 7, AP_DroneCAN, _esc_offset, 0),
@@ -138,7 +149,125 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
     // @Range: 1024 16384
     // @User: Advanced
     AP_GROUPINFO("POOL", 8, AP_DroneCAN, _pool_size, DRONECAN_NODE_POOL_SIZE),
-    
+
+    // @Param: ESC_RV
+    // @DisplayName: Bitmask for output channels for reversible ESCs over DroneCAN.
+    // @Description: Bitmask with one set for each output channel that uses a reversible ESC over DroneCAN. Reversible ESCs use both positive and negative values in RawCommands, with positive commanding the forward direction and negative commanding the reverse direction.
+    // @Bitmask: 0: ESC 1, 1: ESC 2, 2: ESC 3, 3: ESC 4, 4: ESC 5, 5: ESC 6, 6: ESC 7, 7: ESC 8, 8: ESC 9, 9: ESC 10, 10: ESC 11, 11: ESC 12, 12: ESC 13, 13: ESC 14, 14: ESC 15, 15: ESC 16, 16: ESC 17, 17: ESC 18, 18: ESC 19, 19: ESC 20, 20: ESC 21, 21: ESC 22, 22: ESC 23, 23: ESC 24, 24: ESC 25, 25: ESC 26, 26: ESC 27, 27: ESC 28, 28: ESC 29, 29: ESC 30, 30: ESC 31, 31: ESC 32
+    // @User: Advanced
+    AP_GROUPINFO("ESC_RV", 9, AP_DroneCAN, _esc_rv, 0),
+
+#if AP_RELAY_DRONECAN_ENABLED
+    // @Param: RLY_RT
+    // @DisplayName: DroneCAN relay output rate
+    // @Description: Maximum transmit rate for relay outputs, note that this rate is per message each message does 1 relay, so if with more relays will take longer to update at the same rate, a extra message will be sent when a relay changes state
+    // @Range: 0 200
+    // @Units: Hz
+    // @User: Advanced
+    AP_GROUPINFO("RLY_RT", 23, AP_DroneCAN, _relay.rate_hz, 0),
+#endif
+
+#if AP_DRONECAN_SERIAL_ENABLED
+    /*
+      due to the parameter tree depth limitation we can't use a sub-table for the serial parameters
+     */
+
+    // @Param: SER_EN
+    // @DisplayName: DroneCAN Serial enable
+    // @Description: Enable DroneCAN virtual serial ports
+    // @Values: 0:Disabled, 1:Enabled
+    // @RebootRequired: True
+    // @User: Advanced
+    AP_GROUPINFO_FLAGS("SER_EN", 10,  AP_DroneCAN, serial.enable, 0, AP_PARAM_FLAG_ENABLE),
+
+    // @Param: S1_NOD
+    // @DisplayName: Serial CAN remote node number
+    // @Description: CAN remote node number for serial port
+    // @Range: 0 127
+    // @RebootRequired: True
+    // @User: Advanced
+    AP_GROUPINFO("S1_NOD", 11,  AP_DroneCAN, serial.ports[0].node, 0),
+
+    // @Param: S1_IDX
+    // @DisplayName: DroneCAN Serial1 index
+    // @Description: Serial port number on remote CAN node
+    // @Range: 0 100
+    // @Values: -1:Disabled,0:Serial0,1:Serial1,2:Serial2,3:Serial3,4:Serial4,5:Serial5,6:Serial6
+    // @RebootRequired: True
+    // @User: Advanced
+    AP_GROUPINFO("S1_IDX", 12,  AP_DroneCAN, serial.ports[0].idx, -1),
+
+    // @Param: S1_BD
+    // @DisplayName: DroneCAN Serial default baud rate
+    // @Description: Serial baud rate on remote CAN node
+    // @CopyFieldsFrom: SERIAL1_BAUD
+    // @RebootRequired: True
+    // @User: Advanced
+    AP_GROUPINFO("S1_BD", 13,  AP_DroneCAN, serial.ports[0].state.baud, 57600),
+
+    // @Param: S1_PRO
+    // @DisplayName: Serial protocol of DroneCAN serial port
+    // @Description: Serial protocol of DroneCAN serial port
+    // @CopyFieldsFrom: SERIAL1_PROTOCOL
+    // @RebootRequired: True
+    // @User: Advanced
+    AP_GROUPINFO("S1_PRO", 14,  AP_DroneCAN, serial.ports[0].state.protocol, -1),
+
+#if AP_DRONECAN_SERIAL_NUM_PORTS > 1
+    // @Param: S2_NOD
+    // @DisplayName: Serial CAN remote node number
+    // @Description: CAN remote node number for serial port
+    // @CopyFieldsFrom: CAN_D1_UC_S1_NOD
+    AP_GROUPINFO("S2_NOD", 15,  AP_DroneCAN, serial.ports[1].node, 0),
+
+    // @Param: S2_IDX
+    // @DisplayName: Serial port number on remote CAN node
+    // @Description: Serial port number on remote CAN node
+    // @CopyFieldsFrom: CAN_D1_UC_S1_IDX
+    AP_GROUPINFO("S2_IDX", 16,  AP_DroneCAN, serial.ports[1].idx, -1),
+
+    // @Param: S2_BD
+    // @DisplayName: DroneCAN Serial default baud rate
+    // @Description: Serial baud rate on remote CAN node
+    // @CopyFieldsFrom: CAN_D1_UC_S1_BD
+    AP_GROUPINFO("S2_BD", 17,  AP_DroneCAN, serial.ports[1].state.baud, 57600),
+
+    // @Param: S2_PRO
+    // @DisplayName: Serial protocol of DroneCAN serial port
+    // @Description: Serial protocol of DroneCAN serial port
+    // @CopyFieldsFrom: CAN_D1_UC_S1_PRO
+    AP_GROUPINFO("S2_PRO", 18,  AP_DroneCAN, serial.ports[1].state.protocol, -1),
+#endif
+
+#if AP_DRONECAN_SERIAL_NUM_PORTS > 2
+    // @Param: S3_NOD
+    // @DisplayName: Serial CAN remote node number
+    // @Description: CAN node number for serial port
+    // @CopyFieldsFrom: CAN_D1_UC_S1_NOD
+    AP_GROUPINFO("S3_NOD", 19,  AP_DroneCAN, serial.ports[2].node, 0),
+
+    // @Param: S3_IDX
+    // @DisplayName: Serial port number on remote CAN node
+    // @Description: Serial port number on remote CAN node
+    // @CopyFieldsFrom: CAN_D1_UC_S1_IDX
+    AP_GROUPINFO("S3_IDX", 20,  AP_DroneCAN, serial.ports[2].idx, 0),
+
+    // @Param: S3_BD
+    // @DisplayName: Serial baud rate on remote CAN node
+    // @Description: Serial baud rate on remote CAN node
+    // @CopyFieldsFrom: CAN_D1_UC_S1_BD
+    AP_GROUPINFO("S3_BD", 21,  AP_DroneCAN, serial.ports[2].state.baud, 57600),
+
+    // @Param: S3_PRO
+    // @DisplayName: Serial protocol of DroneCAN serial port
+    // @Description: Serial protocol of DroneCAN serial port
+    // @CopyFieldsFrom: CAN_D1_UC_S1_PRO
+    AP_GROUPINFO("S3_PRO", 22,  AP_DroneCAN, serial.ports[2].state.protocol, -1),
+#endif
+#endif // AP_DRONECAN_SERIAL_ENABLED
+
+    // RLY_RT is index 23 but has to be above SER_EN so its not hidden
+
     AP_GROUPEND
 };
 
@@ -149,7 +278,7 @@ const AP_Param::GroupInfo AP_DroneCAN::var_info[] = {
 AP_DroneCAN::AP_DroneCAN(const int driver_index) :
 _driver_index(driver_index),
 canard_iface(driver_index),
-_dna_server(*this)
+_dna_server(*this, canard_iface, driver_index)
 {
     AP_Param::setup_object_defaults(this, var_info);
 
@@ -230,7 +359,9 @@ void AP_DroneCAN::init(uint8_t driver_index, bool enable_filters)
     }
 
     // Roundup all subscribers from supported drivers
+#if AP_GPS_DRONECAN_ENABLED
     AP_GPS_DroneCAN::subscribe_msgs(this);
+#endif
 #if AP_COMPASS_DRONECAN_ENABLED
     AP_Compass_DroneCAN::subscribe_msgs(this);
 #endif
@@ -246,6 +377,9 @@ void AP_DroneCAN::init(uint8_t driver_index, bool enable_filters)
 #endif
 #if AP_RANGEFINDER_DRONECAN_ENABLED
     AP_RangeFinder_DroneCAN::subscribe_msgs(this);
+#endif
+#if AP_RCPROTOCOL_DRONECAN_ENABLED
+    AP_RCProtocol_DroneCAN::subscribe_msgs(this);
 #endif
 #if AP_EFI_DRONECAN_ENABLED
     AP_EFI_DroneCAN::subscribe_msgs(this);
@@ -269,9 +403,11 @@ void AP_DroneCAN::init(uint8_t driver_index, bool enable_filters)
     esc_hobbywing_raw.set_timeout_ms(2);
     esc_hobbywing_raw.set_priority(CANARD_TRANSFER_PRIORITY_HIGH);
 #endif
-    
+
+#if AP_DRONECAN_HIMARK_SERVO_SUPPORT
     himark_out.set_timeout_ms(2);
     himark_out.set_priority(CANARD_TRANSFER_PRIORITY_HIGH);
+#endif
 
     rgb_led.set_timeout_ms(20);
     rgb_led.set_priority(CANARD_TRANSFER_PRIORITY_LOW);
@@ -314,6 +450,11 @@ void AP_DroneCAN::init(uint8_t driver_index, bool enable_filters)
     xacti_gnss_status.set_priority(CANARD_TRANSFER_PRIORITY_LOW);
 #endif
 
+#if AP_RELAY_DRONECAN_ENABLED
+    relay_hardpoint.set_timeout_ms(20);
+    relay_hardpoint.set_priority(CANARD_TRANSFER_PRIORITY_LOW);
+#endif
+
     param_save_client.set_timeout_ms(20);
     param_save_client.set_priority(CANARD_TRANSFER_PRIORITY_LOW);
 
@@ -329,9 +470,6 @@ void AP_DroneCAN::init(uint8_t driver_index, bool enable_filters)
     can_stats.set_priority(CANARD_TRANSFER_PRIORITY_LOWEST);
     can_stats.set_timeout_ms(3000);
 
-    rgb_led.set_timeout_ms(20);
-    rgb_led.set_priority(CANARD_TRANSFER_PRIORITY_LOW);
-    
     node_info_server.set_timeout_ms(20);
 
     // setup node status
@@ -352,6 +490,10 @@ void AP_DroneCAN::init(uint8_t driver_index, bool enable_filters)
         return;
     }
 
+#if AP_DRONECAN_SERIAL_ENABLED
+    serial.init(this);
+#endif
+
     _initialized = true;
     debug_dronecan(AP_CANManager::LOG_INFO, "DroneCAN: init done\n\r");
 }
@@ -368,12 +510,13 @@ void AP_DroneCAN::loop(void)
 
         safety_state_send();
         notify_state_send();
+        check_parameter_callback_timeout();
         send_parameter_request();
         send_parameter_save_request();
         send_node_status();
         _dna_server.verify_nodes();
 
-#if AP_DRONECAN_SEND_GPS
+#if AP_DRONECAN_SEND_GPS && AP_GPS_DRONECAN_ENABLED
         if (option_is_set(AP_DroneCAN::Options::SEND_GNSS) && !AP_GPS_DroneCAN::instance_exists(this)) {
             // send if enabled and this interface/driver is not used by the AP_GPS driver
             gnss_send_fix();
@@ -386,13 +529,16 @@ void AP_DroneCAN::loop(void)
 #endif
         if (_SRV_armed_mask != 0) {
             // we have active servos
-            uint32_t now = AP_HAL::native_micros();
+            uint32_t now = AP_HAL::micros();
             const uint32_t servo_period_us = 1000000UL / unsigned(_servo_rate_hz.get());
             if (now - _SRV_last_send_us >= servo_period_us) {
                 _SRV_last_send_us = now;
+#if AP_DRONECAN_HIMARK_SERVO_SUPPORT
                 if (option_is_set(Options::USE_HIMARK_SERVO)) {
                     SRV_send_himark();
-                } else {
+                } else
+#endif
+                {
                     SRV_send_actuator();
                 }
                 for (uint8_t i = 0; i < DRONECAN_SRV_NUMBER; i++) {
@@ -400,12 +546,25 @@ void AP_DroneCAN::loop(void)
                 }
             }
         }
+
+#if AP_DRONECAN_SERIAL_ENABLED
+        serial.update();
+#endif
+
+#if AP_RELAY_DRONECAN_ENABLED
+        relay_hardpoint_send();
+#endif
     }
 }
 
 #if AP_DRONECAN_HOBBYWING_ESC_SUPPORT
 void AP_DroneCAN::hobbywing_ESC_update(void)
 {
+    if (hal.util->get_soft_armed()) {
+        // don't update ID database while disarmed, as it can cause
+        // some hobbywing ESCs to stutter
+        return;
+    }
     uint32_t now = AP_HAL::millis();
     if (now - hobbywing.last_GetId_send_ms >= 1000U) {
         hobbywing.last_GetId_send_ms = now;
@@ -480,7 +639,7 @@ void AP_DroneCAN::handle_hobbywing_StatusMsg2(const CanardRxTransfer& transfer, 
 
 void AP_DroneCAN::send_node_status(void)
 {
-    const uint32_t now = AP_HAL::native_millis();
+    const uint32_t now = AP_HAL::millis();
     if (now - _node_status_last_send_ms < 1000) {
         return;
     }
@@ -528,11 +687,25 @@ void AP_DroneCAN::send_node_status(void)
 void AP_DroneCAN::handle_node_info_request(const CanardRxTransfer& transfer, const uavcan_protocol_GetNodeInfoRequest& req)
 {
     node_info_rsp.status = node_status_msg;
-    node_info_rsp.status.uptime_sec = AP_HAL::native_millis() / 1000;
+    node_info_rsp.status.uptime_sec = AP_HAL::millis() / 1000;
 
     node_info_server.respond(transfer, node_info_rsp);
 }
 
+int16_t AP_DroneCAN::scale_esc_output(uint8_t idx){
+    static const int16_t cmd_max = ((1<<13)-1);
+    float scaled = 0;
+
+    //Check if this channel has a reversible ESC. If it does, we can send negative commands.
+    if ((((uint32_t) 1) << idx) & _esc_rv) {
+        scaled = cmd_max * (hal.rcout->scale_esc_to_unity(_SRV_conf[idx].pulse));
+    } else {
+        scaled = cmd_max * (hal.rcout->scale_esc_to_unity(_SRV_conf[idx].pulse) + 1.0) / 2.0;
+        scaled = constrain_float(scaled, 0, cmd_max);
+    }
+
+    return static_cast<int16_t>(scaled);
+}
 
 ///// SRV output /////
 
@@ -592,6 +765,7 @@ void AP_DroneCAN::SRV_send_actuator(void)
     } while (repeat_send);
 }
 
+#if AP_DRONECAN_HIMARK_SERVO_SUPPORT
 /*
   Himark servo output. This uses com.himark.servo.ServoCmd packets
  */
@@ -623,10 +797,10 @@ void AP_DroneCAN::SRV_send_himark(void)
 
     himark_out.broadcast(msg);
 }
+#endif // AP_DRONECAN_HIMARK_SERVO_SUPPORT
 
 void AP_DroneCAN::SRV_send_esc(void)
 {
-    static const int cmd_max = ((1<<13)-1);
     uavcan_equipment_esc_RawCommand esc_msg;
 
     uint8_t active_esc_num = 0, max_esc_num = 0;
@@ -651,12 +825,7 @@ void AP_DroneCAN::SRV_send_esc(void)
 
         for (uint8_t i = esc_offset; i < max_esc_num && k < 20; i++) {
             if ((((uint32_t) 1) << i) & _ESC_armed_mask) {
-                // TODO: ESC negative scaling for reverse thrust and reverse rotation
-                float scaled = cmd_max * (hal.rcout->scale_esc_to_unity(_SRV_conf[i].pulse) + 1.0) / 2.0;
-
-                scaled = constrain_float(scaled, 0, cmd_max);
-
-                esc_msg.cmd.data[k] = static_cast<int>(scaled);
+                esc_msg.cmd.data[k] = scale_esc_output(i);
             } else {
                 esc_msg.cmd.data[k] = static_cast<unsigned>(0);
             }
@@ -685,7 +854,6 @@ void AP_DroneCAN::SRV_send_esc(void)
  */
 void AP_DroneCAN::SRV_send_esc_hobbywing(void)
 {
-    static const int cmd_max = ((1<<13)-1);
     com_hobbywing_esc_RawCommand esc_msg;
 
     uint8_t active_esc_num = 0, max_esc_num = 0;
@@ -710,12 +878,7 @@ void AP_DroneCAN::SRV_send_esc_hobbywing(void)
 
         for (uint8_t i = esc_offset; i < max_esc_num && k < 20; i++) {
             if ((((uint32_t) 1) << i) & _ESC_armed_mask) {
-                // TODO: ESC negative scaling for reverse thrust and reverse rotation
-                float scaled = cmd_max * (hal.rcout->scale_esc_to_unity(_SRV_conf[i].pulse) + 1.0) / 2.0;
-
-                scaled = constrain_float(scaled, 0, cmd_max);
-
-                esc_msg.command.data[k] = static_cast<int>(scaled);
+                esc_msg.command.data[k] = scale_esc_output(i);
             } else {
                 esc_msg.command.data[k] = static_cast<unsigned>(0);
             }
@@ -781,7 +944,7 @@ void AP_DroneCAN::SRV_push_servos()
 // notify state send
 void AP_DroneCAN::notify_state_send()
 {
-    uint32_t now = AP_HAL::native_millis();
+    uint32_t now = AP_HAL::millis();
 
     if (_notify_state_hz == 0 || (now - _last_notify_state_ms) < uint32_t(1000 / _notify_state_hz)) {
         return;
@@ -876,7 +1039,7 @@ void AP_DroneCAN::notify_state_send()
     }
     msg.aux_data.len = 2;
     notify_state.broadcast(msg);
-    _last_notify_state_ms = AP_HAL::native_millis();
+    _last_notify_state_ms = AP_HAL::millis();
 }
 
 #if AP_DRONECAN_SEND_GPS
@@ -898,7 +1061,7 @@ void AP_DroneCAN::gnss_send_fix()
     const Location &loc = gps.location();
     const Vector3f &vel = gps.velocity();
 
-    pkt.timestamp.usec = AP_HAL::native_micros64();
+    pkt.timestamp.usec = AP_HAL::micros64();
     pkt.gnss_timestamp.usec = gps.time_epoch_usec();
     if (pkt.gnss_timestamp.usec == 0) {
         pkt.gnss_time_standard = UAVCAN_EQUIPMENT_GNSS_FIX2_GNSS_TIME_STANDARD_NONE;
@@ -966,7 +1129,7 @@ void AP_DroneCAN::gnss_send_fix()
 
 
 
-    const uint32_t now_ms = AP_HAL::native_millis();
+    const uint32_t now_ms = AP_HAL::millis();
     if (now_ms - _gnss.last_send_status_ms >= 1000) {
         _gnss.last_send_status_ms = now_ms;
 
@@ -1031,7 +1194,7 @@ void AP_DroneCAN::gnss_send_yaw()
 // SafetyState send
 void AP_DroneCAN::safety_state_send()
 {
-    uint32_t now = AP_HAL::native_millis();
+    uint32_t now = AP_HAL::millis();
     if (now - _last_safety_state_ms < 500) {
         // update at 2Hz
         return;
@@ -1070,6 +1233,33 @@ void AP_DroneCAN::safety_state_send()
         arming_status.broadcast(arming_msg);
     }
 }
+
+// Send relay outputs with hardpoint msg
+#if AP_RELAY_DRONECAN_ENABLED
+void AP_DroneCAN::relay_hardpoint_send()
+{
+    const uint32_t now = AP_HAL::millis();
+    if ((_relay.rate_hz == 0) || ((now - _relay.last_send_ms) < uint32_t(1000 / _relay.rate_hz))) {
+        // Rate limit per user config
+        return;
+    }
+    _relay.last_send_ms = now;
+
+    AP_Relay *relay = AP::relay();
+    if (relay == nullptr) {
+        return;
+    }
+
+    uavcan_equipment_hardpoint_Command msg {};
+
+    // Relay will populate the next command to send and update the last index
+    // This will cycle through each relay in turn
+    if (relay->dronecan.populate_next_command(_relay.last_index, msg)) {
+        relay_hardpoint.broadcast(msg);
+    }
+
+}
+#endif // AP_RELAY_DRONECAN_ENABLED
 
 /*
   handle Button message
@@ -1154,7 +1344,7 @@ void AP_DroneCAN::handle_traffic_report(const CanardRxTransfer& transfer, const 
         pkt.flags |= ADSB_FLAGS_BARO_VALID;
     }
 
-    vehicle.last_update_ms = AP_HAL::native_millis() - (vehicle.info.tslc * 1000);
+    vehicle.last_update_ms = AP_HAL::millis() - (vehicle.info.tslc * 1000);
     adsb->handle_adsb_vehicle(vehicle);
 #endif
 }
@@ -1164,23 +1354,27 @@ void AP_DroneCAN::handle_traffic_report(const CanardRxTransfer& transfer, const 
  */
 void AP_DroneCAN::handle_actuator_status(const CanardRxTransfer& transfer, const uavcan_equipment_actuator_Status& msg)
 {
+#if HAL_LOGGING_ENABLED
     // log as CSRV message
-    AP::logger().Write_ServoStatus(AP_HAL::native_micros64(),
+    AP::logger().Write_ServoStatus(AP_HAL::micros64(),
                                    msg.actuator_id,
                                    msg.position,
                                    msg.force,
                                    msg.speed,
                                    msg.power_rating_pct,
                                    0, 0, 0, 0, 0, 0);
+#endif
 }
 
+#if AP_DRONECAN_HIMARK_SERVO_SUPPORT
 /*
   handle himark ServoInfo message
  */
 void AP_DroneCAN::handle_himark_servoinfo(const CanardRxTransfer& transfer, const com_himark_servo_ServoInfo &msg)
 {
+#if HAL_LOGGING_ENABLED
     // log as CSRV message
-    AP::logger().Write_ServoStatus(AP_HAL::native_micros64(),
+    AP::logger().Write_ServoStatus(AP_HAL::micros64(),
                                    msg.servo_id,
                                    msg.pos_sensor*0.01,
                                    0,
@@ -1192,24 +1386,28 @@ void AP_DroneCAN::handle_himark_servoinfo(const CanardRxTransfer& transfer, cons
                                    msg.motor_temp*0.2-40,
                                    msg.pcb_temp*0.2-40,
                                    msg.error_status);
+#endif
 }
+#endif // AP_DRONECAN_HIMARK_SERVO_SUPPORT
 
 #if AP_DRONECAN_VOLZ_FEEDBACK_ENABLED
 void AP_DroneCAN::handle_actuator_status_Volz(const CanardRxTransfer& transfer, const com_volz_servo_ActuatorStatus& msg)
 {
+#if HAL_LOGGING_ENABLED
     AP::logger().WriteStreaming(
         "CVOL",
         "TimeUS,Id,Pos,Cur,V,Pow,T",
         "s#dAv%O",
         "F-00000",
         "QBfffBh",
-        AP_HAL::native_micros64(),
+        AP_HAL::micros64(),
         msg.actuator_id,
         ToDeg(msg.actual_position),
         msg.current * 0.025f,
         msg.voltage * 0.2f,
         msg.motor_pwm * (100.0/255.0),
         int16_t(msg.motor_temperature) - 50);
+#endif
 }
 #endif
 
@@ -1264,6 +1462,31 @@ void AP_DroneCAN::handle_debug(const CanardRxTransfer& transfer, const uavcan_pr
 #endif
 }
 
+/*
+ check for parameter get/set response timeout
+*/
+void AP_DroneCAN::check_parameter_callback_timeout()
+{
+    WITH_SEMAPHORE(_param_sem);
+
+    // return immediately if not waiting for get/set parameter response
+    if (param_request_sent_ms == 0) {
+        return;
+    }
+
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - param_request_sent_ms > AP_DRONECAN_GETSET_TIMEOUT_MS) {
+        param_request_sent_ms = 0;
+        param_int_cb = nullptr;
+        param_float_cb = nullptr;
+        param_string_cb = nullptr;
+    }
+}
+
+/*
+  send any queued request to get/set parameter
+  called from loop
+*/
 void AP_DroneCAN::send_parameter_request()
 {
     WITH_SEMAPHORE(_param_sem);
@@ -1274,12 +1497,17 @@ void AP_DroneCAN::send_parameter_request()
     param_request_sent = true;
 }
 
+/*
+  set named float parameter on node
+*/
 bool AP_DroneCAN::set_parameter_on_node(uint8_t node_id, const char *name, float value, ParamGetSetFloatCb *cb)
 {
     WITH_SEMAPHORE(_param_sem);
+
+    // fail if waiting for any previous get/set request
     if (param_int_cb != nullptr ||
-        param_float_cb != nullptr) {
-        //busy
+        param_float_cb != nullptr ||
+        param_string_cb != nullptr) {
         return false;
     }
     param_getset_req.index = 0;
@@ -1288,16 +1516,22 @@ bool AP_DroneCAN::set_parameter_on_node(uint8_t node_id, const char *name, float
     param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE;
     param_float_cb = cb;
     param_request_sent = false;
+    param_request_sent_ms = AP_HAL::millis();
     param_request_node_id = node_id;
     return true;
 }
 
+/*
+  set named integer parameter on node
+*/
 bool AP_DroneCAN::set_parameter_on_node(uint8_t node_id, const char *name, int32_t value, ParamGetSetIntCb *cb)
 {
     WITH_SEMAPHORE(_param_sem);
+
+    // fail if waiting for any previous get/set request
     if (param_int_cb != nullptr ||
-        param_float_cb != nullptr) {
-        //busy
+        param_float_cb != nullptr ||
+        param_string_cb != nullptr) {
         return false;
     }
     param_getset_req.index = 0;
@@ -1306,16 +1540,46 @@ bool AP_DroneCAN::set_parameter_on_node(uint8_t node_id, const char *name, int32
     param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE;
     param_int_cb = cb;
     param_request_sent = false;
+    param_request_sent_ms = AP_HAL::millis();
     param_request_node_id = node_id;
     return true;
 }
 
+/*
+  set named string parameter on node
+*/
+bool AP_DroneCAN::set_parameter_on_node(uint8_t node_id, const char *name, const string &value, ParamGetSetStringCb *cb)
+{
+    WITH_SEMAPHORE(_param_sem);
+
+    // fail if waiting for any previous get/set request
+    if (param_int_cb != nullptr ||
+        param_float_cb != nullptr ||
+        param_string_cb != nullptr) {
+        return false;
+    }
+    param_getset_req.index = 0;
+    param_getset_req.name.len = strncpy_noterm((char*)param_getset_req.name.data, name, sizeof(param_getset_req.name.data)-1);
+    memcpy(&param_getset_req.value.string_value, (const void*)&value, sizeof(value));
+    param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_STRING_VALUE;
+    param_string_cb = cb;
+    param_request_sent = false;
+    param_request_sent_ms = AP_HAL::millis();
+    param_request_node_id = node_id;
+    return true;
+}
+
+/*
+  get named float parameter on node
+*/
 bool AP_DroneCAN::get_parameter_on_node(uint8_t node_id, const char *name, ParamGetSetFloatCb *cb)
 {
     WITH_SEMAPHORE(_param_sem);
+
+    // fail if waiting for any previous get/set request
     if (param_int_cb != nullptr ||
-        param_float_cb != nullptr) {
-        //busy
+        param_float_cb != nullptr ||
+        param_string_cb != nullptr) {
         return false;
     }
     param_getset_req.index = 0;
@@ -1323,16 +1587,22 @@ bool AP_DroneCAN::get_parameter_on_node(uint8_t node_id, const char *name, Param
     param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_EMPTY;
     param_float_cb = cb;
     param_request_sent = false;
+    param_request_sent_ms = AP_HAL::millis();
     param_request_node_id = node_id;
     return true;
 }
 
+/*
+  get named integer parameter on node
+*/
 bool AP_DroneCAN::get_parameter_on_node(uint8_t node_id, const char *name, ParamGetSetIntCb *cb)
 {
     WITH_SEMAPHORE(_param_sem);
+
+    // fail if waiting for any previous get/set request
     if (param_int_cb != nullptr ||
-        param_float_cb != nullptr) {
-        //busy
+        param_float_cb != nullptr ||
+        param_string_cb != nullptr) {
         return false;
     }
     param_getset_req.index = 0;
@@ -1340,6 +1610,30 @@ bool AP_DroneCAN::get_parameter_on_node(uint8_t node_id, const char *name, Param
     param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_EMPTY;
     param_int_cb = cb;
     param_request_sent = false;
+    param_request_sent_ms = AP_HAL::millis();
+    param_request_node_id = node_id;
+    return true;
+}
+
+/*
+  get named string parameter on node
+*/
+bool AP_DroneCAN::get_parameter_on_node(uint8_t node_id, const char *name, ParamGetSetStringCb *cb)
+{
+    WITH_SEMAPHORE(_param_sem);
+
+    // fail if waiting for any previous get/set request
+    if (param_int_cb != nullptr ||
+        param_float_cb != nullptr ||
+        param_string_cb != nullptr) {
+        return false;
+    }
+    param_getset_req.index = 0;
+    param_getset_req.name.len = strncpy_noterm((char*)param_getset_req.name.data, name, sizeof(param_getset_req.name.data));
+    param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_EMPTY;
+    param_string_cb = cb;
+    param_request_sent = false;
+    param_request_sent_ms = AP_HAL::millis();
     param_request_node_id = node_id;
     return true;
 }
@@ -1348,7 +1642,8 @@ void AP_DroneCAN::handle_param_get_set_response(const CanardRxTransfer& transfer
 {
     WITH_SEMAPHORE(_param_sem);
     if (!param_int_cb &&
-        !param_float_cb) {
+        !param_float_cb &&
+        !param_string_cb) {
         return;
     }
     if ((rsp.value.union_tag == UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE) && param_int_cb) {
@@ -1360,6 +1655,7 @@ void AP_DroneCAN::handle_param_get_set_response(const CanardRxTransfer& transfer
             param_getset_req.value.integer_value = val;
             param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE;
             param_request_sent = false;
+            param_request_sent_ms = AP_HAL::millis();
             param_request_node_id = transfer.source_node_id;
             return;
         }
@@ -1372,14 +1668,31 @@ void AP_DroneCAN::handle_param_get_set_response(const CanardRxTransfer& transfer
             param_getset_req.value.real_value = val;
             param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE;
             param_request_sent = false;
+            param_request_sent_ms = AP_HAL::millis();
+            param_request_node_id = transfer.source_node_id;
+            return;
+        }
+    } else if ((rsp.value.union_tag == UAVCAN_PROTOCOL_PARAM_VALUE_STRING_VALUE) && param_string_cb) {
+        string val;
+        memcpy(&val, &rsp.value.string_value, sizeof(val));
+        if ((*param_string_cb)(this, transfer.source_node_id, (const char*)rsp.name.data, val)) {
+            // we want the parameter to be set with val
+            param_getset_req.index = 0;
+            memcpy(param_getset_req.name.data, rsp.name.data, rsp.name.len);
+            memcpy(&param_getset_req.value.string_value, &val, sizeof(val));
+            param_getset_req.value.union_tag = UAVCAN_PROTOCOL_PARAM_VALUE_STRING_VALUE;
+            param_request_sent = false;
+            param_request_sent_ms = AP_HAL::millis();
             param_request_node_id = transfer.source_node_id;
             return;
         }
     }
+
+    param_request_sent_ms = 0;
     param_int_cb = nullptr;
     param_float_cb = nullptr;
+    param_string_cb = nullptr;
 }
-
 
 void AP_DroneCAN::send_parameter_save_request()
 {
@@ -1491,6 +1804,22 @@ void AP_DroneCAN::logging(void)
                                 _srv_send_count,
                                 _fail_send_count);
 #endif // HAL_LOGGING_ENABLED
+}
+
+// add an 11 bit auxillary driver
+bool AP_DroneCAN::add_11bit_driver(CANSensor *sensor)
+{
+    return canard_iface.add_11bit_driver(sensor);
+}
+
+// handler for outgoing frames for auxillary drivers
+bool AP_DroneCAN::write_aux_frame(AP_HAL::CANFrame &out_frame, const uint64_t timeout_us)
+{
+    if (out_frame.isExtended()) {
+        // don't allow extended frames to be sent by auxillary driver
+        return false;
+    }
+    return canard_iface.write_aux_frame(out_frame, timeout_us);
 }
 
 #endif // HAL_NUM_CAN_IFACES

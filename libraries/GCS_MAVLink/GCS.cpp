@@ -1,3 +1,7 @@
+#include "GCS_config.h"
+
+#if HAL_GCS_ENABLED
+
 #include "GCS.h"
 
 #include <AC_Fence/AC_Fence.h>
@@ -13,6 +17,7 @@
 #include <AP_VisualOdom/AP_VisualOdom.h>
 #include <AP_Notify/AP_Notify.h>
 #include <AP_OpticalFlow/AP_OpticalFlow.h>
+#include <AP_GPS/AP_GPS.h>
 
 #include "MissionItemProtocol_Waypoints.h"
 #include "MissionItemProtocol_Rally.h"
@@ -20,16 +25,16 @@
 
 extern const AP_HAL::HAL& hal;
 
-// if this assert fails then fix it and the comment in GCS.h where
-// _statustext_queue is declared
-#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-assert_storage_size<GCS::statustext_t, 58> _assert_statustext_t_size;
-#endif
-
 void GCS::get_sensor_status_flags(uint32_t &present,
                                   uint32_t &enabled,
                                   uint32_t &health)
 {
+// if this assert fails then fix it and the comment in GCS.h where
+// _statustext_queue is declared
+#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
+ASSERT_STORAGE_SIZE(GCS::statustext_t, 58);
+#endif
+
     update_sensor_status_flags();
 
     present = control_sensors_present;
@@ -180,10 +185,12 @@ void GCS::update_sensor_status_flags()
 
 #if AP_BARO_ENABLED
     const AP_Baro &barometer = AP::baro();
-    control_sensors_present |= MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
-    control_sensors_enabled |= MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
-    if (barometer.all_healthy()) {
-        control_sensors_health |= MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
+    if (barometer.num_instances() > 0) {
+        control_sensors_present |= MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
+        control_sensors_enabled |= MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
+        if (barometer.all_healthy()) {
+            control_sensors_health |= MAV_SYS_STATUS_SENSOR_ABSOLUTE_PRESSURE;
+        }
     }
 #endif
 
@@ -255,7 +262,7 @@ void GCS::update_sensor_status_flags()
     control_sensors_health |= MAV_SYS_STATUS_SENSOR_MOTOR_OUTPUTS;
 #endif
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL && AP_AHRS_ENABLED
     if (ahrs.get_ekf_type() == 10) {
         // always show EKF type 10 as healthy. This prevents spurious error
         // messages in xplane and other simulators that use EKF type 10
@@ -284,7 +291,12 @@ void GCS::update_sensor_status_flags()
     if (airspeed && airspeed->enabled()) {
         control_sensors_present |= MAV_SYS_STATUS_SENSOR_DIFFERENTIAL_PRESSURE;
         const bool use = airspeed->use();
+#if AP_AHRS_ENABLED
         const bool enabled = AP::ahrs().airspeed_sensor_enabled();
+#else
+        const AP_Airspeed *_airspeed = AP::airspeed();
+        const bool enabled = (_airspeed != nullptr && _airspeed->use());
+#endif
         if (use) {
             control_sensors_enabled |= MAV_SYS_STATUS_SENSOR_DIFFERENTIAL_PRESSURE;
         }
@@ -375,3 +387,5 @@ bool GCS_MAVLINK::check_payload_size(uint16_t max_payload_len)
     }
     return true;
 }
+
+#endif  // HAL_GCS_ENABLED
