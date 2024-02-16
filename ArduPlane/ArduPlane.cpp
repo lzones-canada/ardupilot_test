@@ -306,27 +306,22 @@ void Plane::init_payload_control(void)
     // Position lights
     pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
     pos_lights->mode(HAL_GPIO_OUTPUT);
-    //pos_lights->write(HAL_GPIO_OFF);
 
     // Beacon Lights (Heartbeat Pattern)
     beacon_lights = hal.gpio->channel(HAL_GPIO_PIN_BCN_LIGHTS);
     beacon_lights->mode(HAL_GPIO_OUTPUT);
-    beacon_lights->write(HAL_GPIO_OFF);
 
     // Parachute Release - Logic Reversed.
     chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
     chute_release->mode(HAL_GPIO_OUTPUT);
-    chute_release->write(HAL_GPIO_ON);
 
     // Balloon Release - Logic Reversed.
     balloon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
     balloon_release->mode(HAL_GPIO_OUTPUT);
-    balloon_release->write(HAL_GPIO_ON);
 
     // HSTM Power
     hstm_pwr = hal.gpio->channel(HAL_GPIO_PIN_HSTM_POWER);
     hstm_pwr->mode(HAL_GPIO_OUTPUT);
-    hstm_pwr->write(HAL_GPIO_OFF);
 
     // Analog Source Voltage Output (pin7 on AD&IO, analog 12)
     servo_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_SERV0);
