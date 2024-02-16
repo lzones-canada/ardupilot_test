@@ -49,15 +49,16 @@ extern const AP_HAL::HAL& hal;
 // Reference to the global instance of Volz_State
 Volz_State volz_state;
 
-#define SCALING_FACTOR    (360.0 / 4096.0)
-#define TOTAL_REVS        (9)
-#define TICKS_PER_REV     (4096)
-#define TOTAL_TICKS       (TICKS_PER_REV * TOTAL_REVS)
-#define WING_MIN_DEGREES  (8.0)
-#define WING_MAX_DEGREES  (88.0)
-
-#define MAX_POWER         (0xFF)
-#define KP                (0.1)
+#define SCALING_FACTOR     (360.0 / 4096.0)
+#define TOTAL_REVS         (8.6)
+#define TICKS_PER_REV      (4096)
+#define TOTAL_TICKS        (TICKS_PER_REV * TOTAL_REVS)
+// 0.5 Degree Threshold (460 Ticks / Degree)
+ //  460 / 2 = 230 Ticks * 0.1 = 23 Ticks
+#define THRESHOLD_POSITION (TICKS_PER_REV / 9)
+#define WING_MIN_DEGREES   (6.0)
+#define WING_MAX_DEGREES   (86.0)
+#define MAX_POWER          (0xFF)
 
 
 //------------------------------------------------------------------------------
@@ -69,20 +70,7 @@ AP_VOLZ_Wing::AP_VOLZ_Wing(AP_MAX14830* max14830) :
 {
 }
 
-// Function to convert enum to string
-const char* AP_VOLZ_Wing::stateToString(State state) {
-    switch (state) {
-        case CALIBRATE: return "CALIBRATE";
-        case REQUEST_POSITION: return "REQUEST_POSITION";
-        case WING_LIMIT_HIT: return "WING_LIMIT_HIT";
-        case CALIBRATE_COMPLETE: return "CALIBRATE_COMPLETE";
-        case ACTIVE: return "ACTIVE";
-        case ACTIVE_REQUEST: return "ACTIVE_REQUEST";
-        case INIT_REQUEST: return "INIT_REQUEST";
-        case DEADBAND: return "DEADBAND";
-        default: return "UNKNOWN_STATE";
-    }
-}
+//------------------------------------------------------------------------------
 
 void AP_VOLZ_Wing::init(void)
 {
@@ -171,35 +159,27 @@ void AP_VOLZ_Wing::update()
         // Calculate the target position in ticks
         target_position = calc_target_ticks(target_command);
         // Scale the target with threshold which increases our accuracy
-        if(target_position - total_position >= 460 && target_command < WING_MAX_DEGREES) {
-            target_position += 150;
+        if(target_position - total_position >= THRESHOLD_POSITION && target_command < WING_MAX_DEGREES) {
+            target_position += (THRESHOLD_POSITION / 3);
         }
-        else if(target_position - total_position < -460 && target_command > WING_MIN_DEGREES) {
-            target_position -= 150;
+        else if(target_position - total_position < -THRESHOLD_POSITION && target_command > WING_MIN_DEGREES) {
+            target_position -= (THRESHOLD_POSITION / 3);
         }
-        // Transition to the ACTIVE_REQUEST state
-        machine_state = ACTIVE_REQUEST;
 
-        // // Fully open commanded, lets go slightly past to ensure wing limit contact.
-        // if(target_command == static_cast<uint8_t>(WING_MAX_DEGREES)){
-        //     machine_state = CALIBRATE;
-        // }
-        // else {
-        //     // Transition to the ACTIVE_REQUEST state
-        //     machine_state = ACTIVE_REQUEST;
-        // }
+        // Transition to the ACTIVE_REQUEST state
+        //machine_state = ACTIVE_REQUEST;
+
+        // Fully open commanded, just treat as a CALIBRATE to reset all values and counters.
+        if(target_command == static_cast<uint8_t>(WING_MAX_DEGREES)){
+            machine_state = CALIBRATE;
+        }
+        else {
+            // Transition to the ACTIVE_REQUEST state
+            machine_state = ACTIVE_REQUEST;
+        }
     }
     // Update the previous commanded target
     prev_target_command = target_command;
-
-    // static uint8_t counter = 0;
-    // static State prev_state = machine_state;
-    // counter++;
-    // if (counter >= 25 || prev_state != machine_state) {
-    //     counter = 0;
-    //     DEV_PRINTF("%s\n", stateToString(machine_state));
-    // }
-    // prev_state = machine_state;
 
     // -----------------------------------------------
 
@@ -262,7 +242,7 @@ void AP_VOLZ_Wing::handle_volz_uart1_interrupt()
     //uint8_t rx_data[VOLZ_DATA_FRAME_SIZE] = {0}; 
 
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    _max14830->set_uart_address(UART::ADDR_1);
+    _max14830->set_uart_address(UART::ADDR_4);
     rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
     // Clear the interrupt on this UART Address.
     _max14830->clear_interrupts();
@@ -326,8 +306,11 @@ void AP_VOLZ_Wing::handle_volz_message(uint8_t* rx_work_buffer)
                         // Finished Calibrating and acknowledge, set our position and transition state.
                         // Set our position to max value as we are at the wing limit
                         total_position = TOTAL_TICKS;
-                        // Set prev to current.
+                        // Set prev to current on postion.
                         prev_raw_position = raw_position;
+                        // Set our internal states to the max value
+                        volz_state.set_target_command(WING_MAX_DEGREES);
+                        prev_target_command = WING_MAX_DEGREES;
                         // Transition to the next state after the wing limit state transitions back to false
                         machine_state = DEADBAND;
                     }
@@ -441,105 +424,29 @@ int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_po
 {
     // calculate the error between the current and target position    
     int error = target_pos - current_pos;
-    float command = KP * error;
+    int16_t command = 0; // Initialize command to zero
 
     // Current Position in a Percentage
     curr_percent = wing_status_percent(current_pos);
     // Target Position in a Percentage
     target_percent = wing_status_percent(target_pos);
-
     DEV_PRINTF("curr_percent: %f\n", curr_percent);
     DEV_PRINTF("target_percent: %f\n", target_percent);
-
-    // 0.5 Degree Threshold (460 Ticks / Degree)
-    //  460 / 2 = 230 Ticks * 0.1 = 23 Ticks
-    const float THRESHOLD_POSITION = 230.0 * KP;
+    DEV_PRINTF("error: %d\n", error);
 
     // apply saturation filter to clamp the max command speed
-    if (command > MAX_POWER)
+    if (error > THRESHOLD_POSITION)
     {
         command = MAX_POWER;
     }
-    else if (command < -MAX_POWER)
+    else if (error < -THRESHOLD_POSITION)
     {
         command = -MAX_POWER;
     }
-
-     // Check if the current position is within the tolerance range of the target position
-    // if (fabs(current_pos - target_pos) <= THRESHOLD_POSITION)
-    // {
-    //     command = 0;
-    // }
-
-    // // Max power in reverse direction until we achieve the target position.
-    // command = (curr_percent > (target_percent + 3)) ? -MAX_POWER : 0;
-
-    // Edge case - fully closed
-    if (target_command == static_cast<uint8_t>(WING_MIN_DEGREES))
-    {
-        // Move at full power in reverse direction until we are still 5% out.
-        if(curr_percent > (target_percent + 5)) {
-            command = -MAX_POWER;
-        }
-        // Slow down when within 5% to 1.5% of target.
-        else if(curr_percent <= (target_percent + 5) && curr_percent > 1.5) {
-            command = (-MAX_POWER / 2);
-        }
-        // Slow down further within 1.5% to 0.5% of target.
-        else if(curr_percent <= (target_percent + 1.5) && curr_percent >= 0.5) {
-            command = (-MAX_POWER / 4);
-        }
-        // Stop when within 0.5% to 0% of the target.
-        else {
-            command = 0;
-        }
-    }
-    // Edge case - fully open
-    else if (target_command == static_cast<uint8_t>(WING_MAX_DEGREES))
-    {
-        // Move at full power in reverse direction until we are still 5% out.
-        if(curr_percent < (target_percent - 5)) {
-            command = MAX_POWER;
-        }
-        // Slow down when within 95% to 98.5% of target.
-        else if(curr_percent >= (target_percent - 5) && curr_percent < 98.5) {
-            command = (MAX_POWER / 2);
-        }
-        // Slow down further within 98.5% to 99.5% of target.
-        else if(curr_percent >= (target_percent - 1.5) && curr_percent <= 99.5) {
-            command = (MAX_POWER / 4);
-        }
-        // Stop when within 99.5% to 100% of the target.
-        else {
-            command = 0;
-        }
-    }
     // Check if the current position is within the tolerance range of the target position
-    else if (fabs(command) <= THRESHOLD_POSITION)
+    else if (fabs(error) <= THRESHOLD_POSITION)
     {
         command = 0;
-    }
-
-    // Handle abnormality Edge Case of minor movement where the servo appears to move but not register position..
-    // Counter and threshold for repeated low positive commands
-    static int repeated_low_positive_counter = 0;
-    const int REPEAT_THRESHOLD = 25;
-    const float REPEAT_COMMAND_THRESHOLD = 35.0;
-
-    // Check if the command is repeatedly low and positive
-    if (fabs(command) > 0 && fabs(command) <= REPEAT_COMMAND_THRESHOLD)
-    {
-        repeated_low_positive_counter++;
-        // Check if we have reached our threshold and force stopping of commands.
-        if (repeated_low_positive_counter > REPEAT_THRESHOLD)
-        {
-            command = 0;
-            repeated_low_positive_counter = 0;  // Reset the counter
-        }
-    }
-    else
-    {
-        repeated_low_positive_counter = 0;  // Reset the counter
     }
 
     return command;
@@ -701,7 +608,7 @@ uint16_t AP_VOLZ_Wing::calc_volz_crc(uint8_t data[VOLZ_DATA_FRAME_SIZE])
 
 bool AP_VOLZ_Wing::tx_write(uint8_t *buffer, uint16_t length)
 {
-    _max14830->set_uart_address(UART::ADDR_1);
+    _max14830->set_uart_address(UART::ADDR_4);
     _max14830->tx_write(buffer, length);
 
     return true;

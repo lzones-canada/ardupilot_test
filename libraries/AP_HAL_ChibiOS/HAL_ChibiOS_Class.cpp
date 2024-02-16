@@ -308,8 +308,6 @@ static void main_loop()
         }
 #endif
         schedulerInstance.watchdog_pat();
-        // External Watchdog Service.
-        schedulerInstance.ext_watchdog_pat();
     }
     thread_running = false;
 }

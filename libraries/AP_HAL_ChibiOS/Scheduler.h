@@ -139,7 +139,6 @@ public:
 
     // pat the watchdog
     void watchdog_pat(void);
-    void ext_watchdog_pat(void);
 
 private:
     bool _initialized;
@@ -164,10 +163,10 @@ private:
     // external watchdog setups.
 #if defined(HAL_GPIO_PIN_EXT_WDOG)
     // External Watchdog timers and flags.
-    static const uint16_t WATCHDOG_RESET_TIMEOUT = 25;
-    static const uint16_t KICK_WATCHDOG_PERIOD = 0.06;
-    static const uint16_t UPDATE_PERIOD = 0.02;
-    bool watchdog_reset_done;
+    static const uint16_t WATCHDOG_RESET_TIMEOUT = 50;
+    static constexpr double KICK_WATCHDOG_PERIOD = 0.06;
+    static constexpr double UPDATE_PERIOD = 0.02;
+    bool watchdog_reset_done = false;
 
     AP_HAL::DigitalSource *_ext_wdog;
     AP_HAL::DigitalSource *_ext_wdog_reset;
@@ -206,6 +205,12 @@ private:
 
     // check for free stack space
     void check_stack_free(void);
+
+#if defined(HAL_GPIO_PIN_EXT_WDOG)
+    // external watchdog GPIO support
+    void ext_watchdog_pat(uint32_t now_ms);
+    void ext_watchdog_reset(uint32_t now_ms);
+#endif
 
     static void try_force_mutex(void);
 };

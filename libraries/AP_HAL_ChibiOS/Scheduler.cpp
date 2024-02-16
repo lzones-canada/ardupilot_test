@@ -794,26 +794,19 @@ void Scheduler::watchdog_pat(void)
 {
     stm32_watchdog_pat();
     last_watchdog_pat_ms = AP_HAL::millis();
+#if defined(HAL_GPIO_PIN_EXT_WDOG)
+    ext_watchdog_pat(last_watchdog_pat_ms);
+#endif
 }
 
 #if defined(HAL_GPIO_PIN_EXT_WDOG)
-// External Watchdog tied to main loop.
-void Scheduler::ext_watchdog_pat(void)
+// toggle the external watchdog gpio pin
+void Scheduler::ext_watchdog_pat(uint32_t now_ms)
 {
     // Reset the external watchdog timer.
-    static uint16_t _watchdog_reset_timer = 250;
-
-    // Watchdog reset timer.
-    if(0 == _watchdog_reset_timer)
-    {
-        _ext_wdog_reset->write(HAL_GPIO_ON);
-        watchdog_reset_done = true;
-    }
-    else
-    {
-        --_watchdog_reset_timer;
-        _ext_wdog_reset->write(HAL_GPIO_OFF);
-        _ext_wdog->write(HAL_GPIO_OFF);
+    if(!watchdog_reset_done && hal.scheduler->is_system_initialized()) {
+        ext_watchdog_reset(now_ms);
+        return;
     }
 
     //---------------------------------------------------------------------------
@@ -821,7 +814,8 @@ void Scheduler::ext_watchdog_pat(void)
     // of KICK_WATCHDOG_PERIOD and a pulse width of UPDATE_PERIOD.
     //---------------------------------------------------------------------------
     static uint8_t watchdog_counter = 0;
-    static uint8_t watchdog_iterations = 3;
+    static uint8_t watchdog_iterations =
+				(uint8_t)round(KICK_WATCHDOG_PERIOD / UPDATE_PERIOD);
 
     if(watchdog_reset_done)
     {
@@ -844,6 +838,27 @@ void Scheduler::ext_watchdog_pat(void)
 
     return;
 }
+
+void Scheduler::ext_watchdog_reset(uint32_t now_ms)
+{
+    // Reset the external watchdog timer.
+    static uint16_t _watchdog_reset_timer = WATCHDOG_RESET_TIMEOUT;
+
+    // Watchdog reset timer.
+    if(0 == _watchdog_reset_timer)
+    {
+        _ext_wdog_reset->write(HAL_GPIO_ON);
+        watchdog_reset_done = true;
+    }
+    else
+    {
+        --_watchdog_reset_timer;
+        _ext_wdog_reset->write(HAL_GPIO_OFF);
+    }
+
+    return;
+}
+
 #endif
 
 #if CH_DBG_ENABLE_STACK_CHECK == TRUE
