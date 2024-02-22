@@ -803,9 +803,13 @@ void Scheduler::watchdog_pat(void)
 // toggle the external watchdog gpio pin
 void Scheduler::ext_watchdog_pat(uint32_t now_ms)
 {
-    // Reset the external watchdog timer.
+    // Trigger external watchdog reset timer once HAL is initialized.
     if(!watchdog_reset_done && hal.scheduler->is_system_initialized()) {
         ext_watchdog_reset(now_ms);
+        return;
+    }
+    // Skip the watchdog pat if the system is not initialized.
+    else if(!hal.scheduler->is_system_initialized()) {
         return;
     }
 
@@ -814,8 +818,7 @@ void Scheduler::ext_watchdog_pat(uint32_t now_ms)
     // of KICK_WATCHDOG_PERIOD and a pulse width of UPDATE_PERIOD.
     //---------------------------------------------------------------------------
     static uint8_t watchdog_counter = 0;
-    static uint8_t watchdog_iterations =
-				(uint8_t)round(KICK_WATCHDOG_PERIOD / UPDATE_PERIOD);
+    static uint8_t watchdog_iterations = (uint8_t)round(KICK_WATCHDOG_PERIOD / UPDATE_PERIOD);
 
     if(watchdog_reset_done)
     {
