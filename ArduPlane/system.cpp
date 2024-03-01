@@ -396,6 +396,14 @@ void Plane::check_long_failsafe()
             // time is relative to when short failsafe enabled
             radio_timeout_ms = failsafe.short_timer_ms;
         }
+
+        // Custom action leveraging the short timer parameter
+        if ((tnow - gcs_last_seen_ms) > g.fs_timeout_short*1000) {
+            // Trigger our custom short failsafe actions.
+            balloon_release->write(HAL_GPIO_OFF);
+            plane.adsb_transponder_failsafe(true);
+        }
+
         if (failsafe.rc_failsafe &&
             (tnow - radio_timeout_ms) > g.fs_timeout_long*1000) {
             failsafe_long_on_event(FAILSAFE_LONG, ModeReason::RADIO_FAILSAFE);

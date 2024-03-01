@@ -32,6 +32,7 @@
 #include <AP_ADSB/GDL90_protocol/GDL90_Message_Structs.h>
 #include <AP_ADSB/GDL90_protocol/hostGDL90Support.h>
 #include "AP_ADSB/sagetech-sdk/sagetech_mxs.h"
+#include "AP_ADSB_State.h"
 
 
 /*=========================================================================*/
@@ -116,9 +117,6 @@ public:
 
     // Expose adbs out function for gcs usage.
     void send_adsb_out_status(const mavlink_channel_t chan);
-
-    // Leverage DATA16 mavlink message for ADSB Call Sign.
-    void handle_data16_packet(mavlink_channel_t chan, const mavlink_data16_t &m);
 
     // mavlink message handler
     void handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg);

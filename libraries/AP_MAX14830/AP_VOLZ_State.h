@@ -23,6 +23,10 @@
 #ifndef AP_VOLZ_STATE_H
 #define AP_VOLZ_STATE_H
 
+// Define the wing limits
+#define WING_MIN_DEGREES   (6.0)
+#define WING_MAX_DEGREES   (86.0)
+
 // Stores the current state read by system
 // All backends are required to fill in this state structure
 struct Volz_State {
