@@ -60,7 +60,8 @@ static uint8_t tx_cs_msg[CS_MSG_LENGTH];
 static const uint8_t VFR_MSG_LENGTH = 12;
 static uint8_t tx_vfr_msg[VFR_MSG_LENGTH];
 
-
+// Reference to the global instance of Volz_State
+ADSB_State adsb_state;
 
 
 //------------------------------------------------------------------------------
@@ -545,19 +546,6 @@ void AP_ADSB_Sensor::send_adsb_out_status(const mavlink_channel_t chan)
 
 /* ************************************************************************* */
 
-// DATA16 Msg leveraged as a conduit message for Call Sign.
-void AP_ADSB_Sensor::handle_data16_packet(mavlink_channel_t chan, const mavlink_data16_t &m)
-{
-    // Extract Call Sign from packet.
-    memcpy(&callsign, &m.data[0], sizeof(callsign));
-    // Signal change of callsign flag.
-    cs_flag_change = true;
-
-    return;
-}
-
-/* ************************************************************************* */
-
 void AP_ADSB_Sensor::handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg)
 {
     switch (msg.msgid) {
@@ -673,9 +661,10 @@ uint8_t AP_ADSB_Sensor::get_mode()
     if (ctrl.modeAEnabled && ctrl.modeCEnabled &&  ctrl.modeSEnabled && ctrl.es1090TxEnabled) {
         ctrl.mode = MODE::ALT;
     }
-    // if ((cfg.rfSelect & 1) == 0) {
-    //     ctrl.op_mode = MODE::OFF;
-    // }
+    // Turn off the transponder if we are in failsafe
+    if (adsb_state.get_adsb_failsafe()) {
+        ctrl.mode = MODE::OFF;
+    }
 
     return ctrl.mode;
 }

@@ -40,6 +40,7 @@
 #include <AP_AHRS/AP_AHRS.h>         // ArduPilot Mega DCM Library
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_MAX14830/AP_VOLZ_State.h>  // Volz Protocol Library
+#include <AP_MAX14830/AP_ADSB_State.h>  // Volz Protocol Library
 #include <AP_RangeFinder/AP_RangeFinder.h>     // Range finder library
 #include <Filter/Filter.h>                     // Filter library
 #include <AP_Camera/AP_Camera.h>          // Photo or video camera
@@ -242,6 +243,9 @@ private:
     void volz_wing_calibrate (bool calibr) { volz_state.set_calibrate(calibr); }
     // Get the sweet angle to send GCS.
     float get_volz_sweep_wing ()  const { return volz_state.get_sweep_angle(); };
+
+    // ADSB support for sharing values (Turn off ADSB transponder)
+    void adsb_transponder_failsafe (bool flag) { adsb_state.set_adsb_failsafe(flag); }
 
     // IMET sensor
     AP_MAX14830 max14830;

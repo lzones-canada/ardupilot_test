@@ -56,8 +56,6 @@ Volz_State volz_state;
 // 0.5 Degree Threshold (460 Ticks / Degree)
  //  460 / 2 = 230 Ticks * 0.1 = 23 Ticks
 #define THRESHOLD_POSITION (TICKS_PER_REV / 9)
-#define WING_MIN_DEGREES   (6.0)
-#define WING_MAX_DEGREES   (86.0)
 #define MAX_POWER          (0xFF)
 
 
