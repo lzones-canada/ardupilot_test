@@ -1053,6 +1053,7 @@ private:
     // link quality helper functions.
     void update_link_quality(int pktReceived, int pktLost);
     void calc_link_quality();
+    void mavlink_link_update(mavlink_message_t msg, uint32_t tnow);
 
 #if HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED
     // structure containing default intervals read from files for this
@@ -1107,24 +1108,14 @@ private:
     bool _locked;
 
     // Window Size of 3 Seconds / Elements
-    //  Each calculation is done every second thus 3 elements = 3 seconds.
-    //  Every 200ms a new element is added to the buffer (200ms * 15 = 3 seconds).
-    static const uint8_t WINDOW_SIZE = 15;
+    //  Each calculation is done every 1 second (1200 to account for hysteresis)
+    static const uint16_t UPLINK_CALC_INTERVAL = 1200;
+    //  Every 1.2s a new element is added to the buffer (1.2 * 5 = 6 seconds).
+    static const uint8_t WINDOW_SIZE = 5;
     // Link quality is scaled from 0 to 255.
     static const uint8_t LINK_SCALE = 255;
-    // Max number of no packets before link quality is set to 0. (200ms * 25 = 5 seconds)
-    // Hysteresis account for timer already running for 200ms in between messages (200ms * 5 = 1 second)
-    static const uint8_t MAX_CONSEC_NO_PACKETS = 25;
-    // Max time of no packets before link quality is set to 0.
-    static const int MAX_PACKET_GAP = 5000;
     // timer to track when to calculate the link quality.
     uint32_t last_uplink_calc;
-    uint32_t last_uplink_parse;
-    uint32_t last_received_time = 0;
-    // number of consecutive no packets.
-    uint16_t consec_no_packets;
-    // flag to track if link quality has been initialized.
-    //bool link_quality_initialized = false;
     // Circular buffer to store historical link quality data.
     std::vector<float> link_buffer;
     // Index to track the current position in the circular buffer.
@@ -1134,8 +1125,10 @@ private:
     // Track the number of packets received and lost including prev calculation.
     int pkt_received = 0;
     int pkt_lost = 0;
+    int pkt_count = 0;
     int prev_pkt_received = 0;
-    int prev_pkt_lost = 0;
+    int pkt_loss = 0;
+    int prev_pkt_loss = 0;
     // Flag to indicate we have received our first packet and trigger link quality calculations.
     bool first_packet;
 };
