@@ -154,15 +154,15 @@ void Plane::init_ardupilot()
     g2.gripper.init();
 #endif
 
-// #if AP_WINGSENSOR_ENABLED
-//     wing_sensor.init();
-// #endif
-
     // Init MAX14830 SPI-UART
     max14830.init();
 
     // Placeholder for future use if needed to init user code.
     init_payload_control();
+    
+#if AC_PRECLAND_ENABLED
+    g2.precland.init(scheduler.get_loop_rate_hz());
+#endif
 }
 
 //********************************************************************************
