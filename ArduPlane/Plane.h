@@ -234,6 +234,16 @@ private:
     // Global command for Beacon Light
     bool beacon_light = false;
 
+    // Global variables for station control
+    bool port_modem = false;
+    bool stbd_modem = false;
+    bool modem_boost = false;
+
+    // Helper functions for reading status of station control.
+    uint8_t get_modem_tx_port_status()  const { return port_modem; };
+    uint8_t get_modem_tx_stbd_status()  const { return stbd_modem; };
+    uint8_t get_modem_boost_status()  const { return modem_boost; };
+
     // Support Board Temperature
     float board_temp = 0;
     float servo_vcc = 0;
@@ -1098,7 +1108,6 @@ private:
     void update_payload_control(void);
     void beacon_lights_heartbeat(void);
     void analog_input_calcs(void);
-    void send_payload_status(mavlink_channel_t chan);
     void update_control_mode(void);
     void update_fly_forward(void);
     void update_flight_stage();

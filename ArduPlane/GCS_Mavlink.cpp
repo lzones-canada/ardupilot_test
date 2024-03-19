@@ -462,6 +462,11 @@ bool GCS_MAVLINK_Plane::try_send_message(enum ap_message id)
         send_payload_status();
         break;
 
+    case MSG_STATION_STATUS:
+        CHECK_PAYLOAD_SIZE(STATION_STATUS);
+        send_station_status();
+        break;
+
     default:
         return GCS_MAVLINK::try_send_message(id);
     }
@@ -578,6 +583,44 @@ void GCS_MAVLINK_Plane::send_payload_status()
 
     return;
 }
+
+// Payload Status Message.
+void GCS_MAVLINK_Plane::send_station_status()
+{
+    //mavlink_station_status_t paylod_pkt;
+
+    // Payload Enums
+    uint8_t flags = 0;
+    const uint8_t  port_modem_status  = plane.get_modem_tx_port_status();
+    const uint8_t  stbd_modem_status  = plane.get_modem_tx_stbd_status();
+    const uint8_t  modem_boost_status = plane.get_modem_boost_status();
+
+    // Tx Modem Port modem status - GCS
+    if (port_modem_status) {
+        flags |= STATION_STATUS_FLAGS_TX_PORT;
+    } else {
+        flags &= ~STATION_STATUS_FLAGS_TX_PORT;
+    }
+
+    // Tx Modem Stbd modem status - GCS
+    if (stbd_modem_status) {
+        flags |= STATION_STATUS_FLAGS_TX_STBD;
+    } else {
+        flags &= ~STATION_STATUS_FLAGS_TX_STBD;
+    }
+
+    // Tx Modem Boost status - GCS
+    if (modem_boost_status) {
+        flags |= STATION_STATUS_FLAGS_MODEM_BOOST;
+    } else {
+        flags &= ~STATION_STATUS_FLAGS_MODEM_BOOST;
+    }
+
+    mavlink_msg_station_status_send(chan, flags);
+
+    return;
+}
+
 
 /*
   default stream rates to 1Hz
@@ -776,6 +819,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #endif
     MSG_EKF_STATUS_REPORT,
     MSG_VIBRATION,
+    MSG_STATION_STATUS,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
@@ -809,13 +853,29 @@ struct PAYLOAD_CTRL_FLAGS
     enum
     {
         BEACON_LIGHT    = (0x01 << 7),
-        MODEM_BOOST     = (0x01 << 6),
-        SWEEP_WING_INIT = (0x01 << 5),
-        SWEEP_WING_VAL  = (0x01 << 4),
+        SWEEP_WING_INIT = (0x01 << 6),
+        SWEEP_WING_VAL  = (0x01 << 5),
+        RESERVED5       = (0x01 << 4),
         RESERVED4       = (0x01 << 3),
         RESERVED3       = (0x01 << 2),
         RESERVED2       = (0x01 << 1),
         RESERVED1       = (0x01 << 0)
+    };
+};
+
+// Station Control Flags for which value is valid.
+struct STATION_CTRL_FLAGS
+{
+    enum
+    {
+        TX_PORT_MODEM = (0x01 << 7),
+        TX_STBD_MODEM = (0x01 << 6),
+        MODEM_BOOST   = (0x01 << 5),
+        RESERVED5     = (0x01 << 4),
+        RESERVED4     = (0x01 << 3),
+        RESERVED3     = (0x01 << 2),
+        RESERVED2     = (0x01 << 1),
+        RESERVED1     = (0x01 << 0)
     };
 };
 
@@ -1511,12 +1571,6 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
         {
             plane.beacon_light = payload_ctrl.beacon_lights;
         }
-        // Payload Control - Modem Boost
-        if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::MODEM_BOOST)
-        {
-            // Do Nothing for now - not implemented.
-            //plane.modem_boost = payload_ctrl.modem_boost;
-        }
         // Payload Control - Sweep Wing Calibration
         if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::SWEEP_WING_INIT)
         {
@@ -1527,6 +1581,21 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
         {
             plane.volz_wing_deg_cmd(payload_ctrl.sweep_wing_value);
         }
+        break;
+
+    // Special handle of custom payload control command
+    case MAVLINK_MSG_ID_STATION_CTRL:
+        // decode packet
+        mavlink_station_ctrl_t station_ctrl;
+        mavlink_msg_station_ctrl_decode(&msg, &station_ctrl);
+
+        // Station Control - Tx Port Modem, Straight passthrough for now.
+        plane.port_modem  = (station_ctrl.flags & STATION_CTRL_FLAGS::TX_PORT_MODEM);
+        // Station Control - Tx Stbd Modem, Straight passthrough for now.
+        plane.stbd_modem  = (station_ctrl.flags & STATION_CTRL_FLAGS::TX_STBD_MODEM);
+        // Station Control - Modem Boost, Straight passthrough for now.
+        plane.modem_boost = (station_ctrl.flags & STATION_CTRL_FLAGS::MODEM_BOOST);
+
         break;
 
     default:
