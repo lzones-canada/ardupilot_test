@@ -1041,9 +1041,9 @@ private:
     static void save_signing_timestamp(bool force_save_now);
 
     // link quality helper functions.
-    void update_link_quality(int pktReceived, int pktLost);
+    void update_link_quality(int received, int lost, uint32_t tnow);
     void calc_link_quality();
-    void mavlink_link_update(mavlink_message_t msg, uint32_t tnow);
+    void mavlink_link_update(mavlink_message_t msg);
 
 #if HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED
     // structure containing default intervals read from files for this
