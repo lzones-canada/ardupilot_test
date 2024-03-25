@@ -1961,10 +1961,9 @@ void GCS_MAVLINK::mavlink_link_update(mavlink_message_t msg)
         if (pkt_count == 0) {
             pkt_loss = 0;
             prev_seq = msg.seq-1;  // Initialize prev_seq to the current sequence number
-            first_packet = true;
         }
 
-        DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
+        //DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
 
         // Detect pkt loss
         if (msg.seq != ++prev_seq) {
@@ -1986,6 +1985,8 @@ void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
 {
     // Link quality data
     uint8_t link_data = 0;
+    // Previous link quality data
+    static uint8_t prev_link_data = 0;
     // Combined counter of received and lost packets
     uint8_t pkt_total = received + lost;
 
@@ -1995,16 +1996,12 @@ void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
         link_data = (received * LINK_SCALE) / (pkt_total);
     // No received packets - Handle cases.
     } else {
-        // Check if we have received any packets yet, return if not.
-        if(!first_packet)
-            return;
-
-        // If we have not received any packets from our GCS for more than 2.4 seconds, set link quality to 0.
+        // If we have not received any packets from our GCS for more than 1.2 seconds, set link quality to 0.
         if((tnow - gcs().sysid_myggcs_last_seen_time_ms()) > (UPLINK_CALC_INTERVAL * 2)) {
             link_data = 0;
         } else {
-            // We have received packets from our GCS within the last second, set link quality to 100.
-            link_data = LINK_SCALE;
+            // We have received packets from our GCS within the last second, set link quality to prev value.
+            link_data = prev_link_data;
         }
     }
 
@@ -2013,6 +2010,9 @@ void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
 
     // Update the current index in a circular manner.
     link_idx = (link_idx + 1) % WINDOW_SIZE;
+
+    // Save the previous link data for the next calculation.
+    prev_link_data = link_data;
 
     return;
 }

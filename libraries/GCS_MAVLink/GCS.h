@@ -1129,8 +1129,6 @@ private:
     int prev_pkt_received = 0;
     int pkt_loss = 0;
     int prev_pkt_loss = 0;
-    // Flag to indicate we have received our first packet and trigger link quality calculations.
-    bool first_packet;
 };
 
 /// @class GCS
