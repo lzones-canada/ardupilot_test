@@ -173,8 +173,6 @@ public:
     AP_MAX14830_Driver(void);
     ~AP_MAX14830_Driver(void){}
 
-    static constexpr const char *name = "max14830";
-
     // initialize sensor object
     bool init(void);
 
@@ -212,6 +210,10 @@ public:
     {
         _dev->get_semaphore()->give();
     }
+
+    bool signal_ready = false;
+
+    bool max14830_chip_init(void);
 
 protected:
     uint8_t _uart_address = 0;
@@ -252,8 +254,6 @@ private:
 
     // Set Fifo Trigger Level on the RX Fifo
     void _set_fifo_trg_lvl(FIFO_TRIG::value trg_level);
-
-    bool signal_ready = false;
 
     // Read known software Register signalling the MAX14830 is ready for commands.
     bool _read_ready(void);

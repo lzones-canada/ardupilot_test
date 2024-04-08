@@ -63,13 +63,14 @@ extern const AP_HAL::HAL& hal;
 #define MAX14830R_GLOBALIRQ      (0x1F)
 #define MAX14830R_GLOBALCOMND    (0x1F)
 
-#define MAX14830R_TRGT_ISR       (0x60)
+#define MAX14830R_TRGT_DIVLSB    (0x01)
 #define MAX14830_WRITE_FLAG      (0x80)
 #define MAX14830_READ_FLAG       (0x7F)
 
 /*=========================================================================*/
 
 extern const AP_HAL::HAL &hal;
+#define HAL_MAX14830_SPI_NAME "max14830"
 
 AP_MAX14830_Driver::AP_MAX14830_Driver() :
     _dev(nullptr)
@@ -87,24 +88,30 @@ bool AP_MAX14830_Driver::init()
     }
 
     // Look for "max chip" device
-    _dev = std::move(hal.spi->get_device(name));
+    _dev = std::move(hal.spi->get_device(HAL_MAX14830_SPI_NAME));
     if (!_dev) {
         return false;
     }
 
-    WITH_SEMAPHORE(_dev->get_semaphore());
+    max14830_chip_init();
 
-    _dev->set_speed(AP_HAL::Device::SPEED_LOW);
+    return true;
+}
+
+/* ************************************************************************* */
+
+// MAX14830 initialization - Split out for re-attempts.
+bool AP_MAX14830_Driver::max14830_chip_init() {
+
+    WITH_SEMAPHORE(_dev->get_semaphore());
 
     // Command reset to MAX Chip
     _max_soft_reset();
-    // delay to allow for reset
-    hal.scheduler->delay(2);
 
     /*=======================================================================*/
 
     // For loop to allow for startup attempts.
-    for (unsigned i = 0; i < 6; i++) 
+    for (unsigned i = 0; i < 8; i++) 
     {
         // Waiting for board reset.. read known Register REVID..
         if(_read_ready()) {
@@ -265,8 +272,6 @@ bool AP_MAX14830_Driver::init()
 
     /*=======================================================================*/
 
-    _dev->set_speed(AP_HAL::Device::SPEED_HIGH);
-
     return true;
 }
 
@@ -285,20 +290,20 @@ void AP_MAX14830_Driver::set_uart_address(UART::value uart_addr)
 // Software reset of the MAX Chip.
 void AP_MAX14830_Driver::_max_soft_reset()
 {
-    uart_offset = 0;
-    // Iterate through UART addresses and Reset.
-    for (UART::value uart_address = static_cast<UART::value>(UART::ADDR_1);
-         uart_address <= static_cast<UART::value>(UART::ADDR_4);
-         uart_address = static_cast<UART::value>(uart_address + uart_offset))
-    {
-        set_uart_address(uart_address);
-        _write_register(MAX14830R_MODE2, 0x01);
-        _write_register(MAX14830R_MODE2, 0x00);
-        hal.scheduler->delay(1);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_1 | MAX14830_WRITE_FLAG , 0x01, true);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_2 | MAX14830_WRITE_FLAG , 0x01, true);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_3 | MAX14830_WRITE_FLAG , 0x01, true);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_4 | MAX14830_WRITE_FLAG , 0x01, true);
 
-        // Increment the offset to move to the next UART
-        uart_offset = static_cast<int>(UART::ADDR_2) - static_cast<int>(UART::ADDR_1);
-    }
+    hal.scheduler->delay(2);
+
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_1 | MAX14830_WRITE_FLAG , 0x00, true);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_2 | MAX14830_WRITE_FLAG , 0x00, true);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_3 | MAX14830_WRITE_FLAG , 0x00, true);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_4 | MAX14830_WRITE_FLAG , 0x00, true);
+
+    // Finished looping through all UARTs
+    hal.scheduler->delay(2);
 
     return;
 }
@@ -309,24 +314,22 @@ void AP_MAX14830_Driver::_max_soft_reset()
 bool AP_MAX14830_Driver::_read_ready()
 {
     bool ready = false;
-    uart_offset = 0;
-    // Iterate through UART addresses and Reset.
-    for (UART::value uart_address = static_cast<UART::value>(UART::ADDR_1);
-         uart_address <= static_cast<UART::value>(UART::ADDR_4);
-         uart_address = static_cast<UART::value>(uart_address + uart_offset))
+
+    // Set UART address to start to UART 1
+    set_uart_address(UART::ADDR_1);
+
+    // Read Device ID Register until reset is complete.
+    for (unsigned i = 0; i < 10; i++)
     {
-        set_uart_address(uart_address);
-        uint8_t isr_id = _read_register(MAX14830R_ISR);
+        uint8_t dev_id = _read_register(MAX14830R_DIVLSB);
+
         hal.scheduler->delay(1);
 
-        if (isr_id == MAX14830R_TRGT_ISR)
+        if (dev_id == MAX14830R_TRGT_DIVLSB)
         {
             ready = true;
-            break;
+            break; // Exit loop as condition met.
         }
-
-        // Increment the offset to move to the next UART
-        uart_offset = static_cast<int>(UART::ADDR_2) - static_cast<int>(UART::ADDR_1);
     }
 
     return ready;
@@ -399,20 +402,25 @@ uint8_t AP_MAX14830_Driver::fifo_tx_write(uint8_t *txdata, uint8_t len)
 int AP_MAX14830_Driver::_read_register(uint8_t reg)
 {
     // Init Rx Buffer for SPI Read.
-    uint8_t rxbuf[2];
-    memset(rxbuf, 0x00, 2);
+    int len = 1;
+    // Buffer to hold read data (1 byte + dummy byte + register data byte)
+    uint8_t rxbuf[len+2];
+    // Clear rxbuf buffer
+    memset(rxbuf, 0x00, len+2);
 
     // Set address of MAX UART to read from.
     reg |= _uart_address;
     // Read transaction is indicated by MSbit of the MAX3108 register address byte = 0
     reg &= MAX14830_READ_FLAG;
+    // Set address of MAX UART to read from.
+    rxbuf[0] = reg;
 
     // Read from SPI Device.
-    if (!_dev->read_registers(reg, rxbuf, sizeof(rxbuf))) {
+    if (!_dev->transfer(rxbuf, len+2, rxbuf, len+2)) {
         return false;
     }
 
-    return rxbuf[0];
+    return rxbuf[1]; // Return the first byte of data received
 }
 
 /* ************************************************************************* */

@@ -68,6 +68,10 @@ void AP_MAX14830::init()
  */
 void AP_MAX14830::_timer(void)
 {
+    if(!_driver.signal_ready) {
+        _driver.max14830_chip_init();
+    }
+
     // Read GlobalIRQ register to determine which UART is source of interrupt.
     uint8_t global_irq = _driver.global_interrupt_source();
     //DEV_PRINTF("IRQ: %d\n", global_irq);
