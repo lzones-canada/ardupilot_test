@@ -89,9 +89,9 @@ void AP_VOLZ_Wing::init(void)
     curr_percent = 0.0;
     servo_cmd = 0;
 
-    // target percent to achieve from GCS
-    volz_state.set_target_command(WING_MAX_DEGREES);
-    prev_target_command = WING_MAX_DEGREES;
+    // Init target command to min degrees (fully open)
+    volz_state.set_target_command(WING_MIN_DEGREES);
+    prev_target_command = WING_MIN_DEGREES;
     target_percent = 0.0;
     target_command = 0;
 
@@ -153,7 +153,6 @@ void AP_VOLZ_Wing::update()
     target_command = volz_state.get_target_command();
     // Check if the target deviates more than 1% from our previous target 
     if (prev_target_command != target_command) {
-        printf("target_command: %d\n", target_command);
         // Calculate the target position in ticks
         target_position = calc_target_ticks(target_command);
         // Scale the target with threshold which increases our accuracy
@@ -164,11 +163,8 @@ void AP_VOLZ_Wing::update()
             target_position -= (THRESHOLD_POSITION / 3);
         }
 
-        // Transition to the ACTIVE_REQUEST state
-        //machine_state = ACTIVE_REQUEST;
-
         // Fully open commanded, just treat as a CALIBRATE to reset all values and counters.
-        if(target_command == static_cast<uint8_t>(WING_MAX_DEGREES)){
+        if(target_command == static_cast<uint8_t>(WING_MIN_DEGREES)){
             machine_state = CALIBRATE;
         }
         else {
@@ -302,13 +298,13 @@ void AP_VOLZ_Wing::handle_volz_message(uint8_t* rx_work_buffer)
                     }
                     if(machine_state == CALIBRATE_COMPLETE) {
                         // Finished Calibrating and acknowledge, set our position and transition state.
-                        // Set our position to max value as we are at the wing limit
-                        total_position = TOTAL_TICKS;
+                        // Set our position to 0 as we are at the wing limit
+                        total_position = 0;
                         // Set prev to current on postion.
                         prev_raw_position = raw_position;
-                        // Set our internal states to the max value
-                        volz_state.set_target_command(WING_MAX_DEGREES);
-                        prev_target_command = WING_MAX_DEGREES;
+                        // Set our internal states to the min value
+                        volz_state.set_target_command(WING_MIN_DEGREES);
+                        prev_target_command = WING_MIN_DEGREES;
                         // Transition to the next state after the wing limit state transitions back to false
                         machine_state = DEADBAND;
                     }
@@ -380,14 +376,14 @@ void AP_VOLZ_Wing::handle_pos_msg(uint8_t data[VOLZ_DATA_FRAME_SIZE])
 
     // Account for full rotations
     if (angle_diff < -TICKS_PER_REV / 2) {
-        // Increment spin count for full rotations in the forward direction
-        total_position += TICKS_PER_REV;
-    } else if (angle_diff > TICKS_PER_REV / 2) {
-        // Decrement spin count for full rotations in the backward direction
+        // Decrement spin count for full rotations in the forward direction
         total_position -= TICKS_PER_REV;
+    } else if (angle_diff > TICKS_PER_REV / 2) {
+        // Increment spin count for full rotations in the backward direction
+        total_position += TICKS_PER_REV;
     }
     // Increment spin count for forward rotation or decrement for backward rotation
-    total_position += angle_diff;
+    total_position -= angle_diff;
 
     // Update previous position for the next iteration
     prev_raw_position = raw_position;
@@ -425,21 +421,21 @@ int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_po
     int16_t command = 0; // Initialize command to zero
 
     // Current Position in a Percentage
-    curr_percent = wing_status_percent(current_pos);
-    // Target Position in a Percentage
-    target_percent = wing_status_percent(target_pos);
-    DEV_PRINTF("curr_percent: %f\n", curr_percent);
-    DEV_PRINTF("target_percent: %f\n", target_percent);
-    DEV_PRINTF("error: %d\n", error);
+    // curr_percent = wing_status_percent(current_pos);
+    // // Target Position in a Percentage
+    // target_percent = wing_status_percent(target_pos);
+    // DEV_PRINTF("curr_percent: %f\n", curr_percent);
+    // DEV_PRINTF("target_percent: %f\n", target_percent);
+    // DEV_PRINTF("error: %d\n", error);
 
     // apply saturation filter to clamp the max command speed
     if (error > THRESHOLD_POSITION)
     {
-        command = MAX_POWER;
+        command = -MAX_POWER;
     }
     else if (error < -THRESHOLD_POSITION)
     {
-        command = -MAX_POWER;
+        command = MAX_POWER;
     }
     // Check if the current position is within the tolerance range of the target position
     else if (fabs(error) <= THRESHOLD_POSITION)
@@ -455,8 +451,8 @@ int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_po
 void AP_VOLZ_Wing::set_servo_command(int16_t command)
 {
 
-    DEV_PRINTF("command: %d\n", command);
-    DEV_PRINTF("\n");
+    // DEV_PRINTF("command: %d\n", command);
+    // DEV_PRINTF("\n");
 
     // Command Forward when positive
     if (command >= 0) {

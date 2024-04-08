@@ -24,8 +24,8 @@
 #define AP_VOLZ_STATE_H
 
 // Define the wing limits
-#define WING_MIN_DEGREES   (6.0)
-#define WING_MAX_DEGREES   (86.0)
+#define WING_MIN_DEGREES   (8.0)  // Fully Open (angled measured from vertical, dont' ask me why)
+#define WING_MAX_DEGREES   (88.0) // Fully Closed (angled measured from vertical, dont' ask me why)
 
 // Stores the current state read by system
 // All backends are required to fill in this state structure
