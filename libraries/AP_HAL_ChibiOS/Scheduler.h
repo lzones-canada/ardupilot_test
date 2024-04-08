@@ -212,7 +212,6 @@ private:
 #if defined(HAL_GPIO_PIN_EXT_WDOG)
     // external watchdog GPIO support
     void ext_watchdog_pat(uint32_t now_ms);
-    void ext_watchdog_reset(uint32_t now_ms);
 #endif
 
     static void try_force_mutex(void);

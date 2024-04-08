@@ -803,15 +803,26 @@ void Scheduler::watchdog_pat(void)
 // toggle the external watchdog gpio pin
 void Scheduler::ext_watchdog_pat(uint32_t now_ms)
 {
-    // Trigger external watchdog reset timer once HAL is initialized.
-    if(!watchdog_reset_done && hal.scheduler->is_system_initialized()) {
-        ext_watchdog_reset(now_ms);
-        return;
-    }
+    // Reset the external watchdog timer.
+    static uint16_t _watchdog_reset_timer = WATCHDOG_RESET_TIMEOUT;
+
     // Skip the watchdog pat if the system is not initialized.
-    else if(!hal.scheduler->is_system_initialized()) {
+    if(!hal.scheduler->is_system_initialized()) {
         return;
     }
+
+    // Watchdog reset timer.
+    if(0 == _watchdog_reset_timer)
+    {
+        _ext_wdog_reset->write(HAL_GPIO_ON);
+        watchdog_reset_done = true;
+    }
+    else
+    {
+        --_watchdog_reset_timer;
+        _ext_wdog_reset->write(HAL_GPIO_OFF);
+    }
+
 
     //---------------------------------------------------------------------------
     // Generate the Watchdog output.  This generates a pulse train with a period
@@ -837,26 +848,6 @@ void Scheduler::ext_watchdog_pat(uint32_t now_ms)
         {
             watchdog_counter = 0;
         }
-    }
-
-    return;
-}
-
-void Scheduler::ext_watchdog_reset(uint32_t now_ms)
-{
-    // Reset the external watchdog timer.
-    static uint16_t _watchdog_reset_timer = WATCHDOG_RESET_TIMEOUT;
-
-    // Watchdog reset timer.
-    if(0 == _watchdog_reset_timer)
-    {
-        _ext_wdog_reset->write(HAL_GPIO_ON);
-        watchdog_reset_done = true;
-    }
-    else
-    {
-        --_watchdog_reset_timer;
-        _ext_wdog_reset->write(HAL_GPIO_OFF);
     }
 
     return;
