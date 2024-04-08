@@ -132,7 +132,7 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
 #if PARACHUTE == ENABLED
             parachute_release();
             // Extend the wings to slow the descent
-            plane.volz_wing_deg_cmd(WING_MAX_DEGREES);
+            plane.volz_wing_deg_cmd(WING_MIN_DEGREES);
 #endif
         } else if (g.fs_action_long == FS_ACTION_LONG_GLIDE) {
             set_mode(mode_fbwa, reason);
@@ -174,7 +174,7 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
 #if PARACHUTE == ENABLED
             parachute_release();
             // Extend the wings to slow the descent
-            plane.volz_wing_deg_cmd(WING_MAX_DEGREES);
+            plane.volz_wing_deg_cmd(WING_MIN_DEGREES);
 #endif
         } else if (g.fs_action_long == FS_ACTION_LONG_GLIDE) {
             set_mode(mode_fbwa, reason);
