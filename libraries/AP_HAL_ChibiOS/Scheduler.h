@@ -167,6 +167,7 @@ private:
     // external watchdog setups.
 #if defined(HAL_GPIO_PIN_EXT_WDOG)
     // External Watchdog timers and flags.
+    //  1s Reset Timer (50 * 20ms = 1s)
     static const uint16_t WATCHDOG_RESET_TIMEOUT = 50;
     static constexpr double KICK_WATCHDOG_PERIOD = 0.06;
     static constexpr double UPDATE_PERIOD = 0.02;

@@ -806,7 +806,6 @@ void Scheduler::watchdog_pat(void)
     last_watchdog_pat_ms = AP_HAL::millis();
 #if defined(HAL_GPIO_PIN_EXT_WDOG)
     ext_watchdog_pat(last_watchdog_pat_ms);
-    last_ext_watchdog_ms = last_watchdog_pat_ms;
 #endif
 }
 
@@ -840,21 +839,11 @@ void Scheduler::ext_watchdog_pat(uint32_t now_ms)
     // of KICK_WATCHDOG_PERIOD and a pulse width of UPDATE_PERIOD.
     //---------------------------------------------------------------------------
     static uint8_t watchdog_counter = 0;
-    static uint8_t watchdog_iterations =
-				(uint8_t)round(KICK_WATCHDOG_PERIOD / UPDATE_PERIOD);
-
-    // Calculate the elapsed time since the last watchdog pat
-    uint32_t elapsed_time = now_ms - last_ext_watchdog_ms;
-    // Check if the elapsed time falls within the defined window
-    if (elapsed_time < MIN_WATCHDOG_INTERVAL || elapsed_time > MAX_WATCHDOG_INTERVAL) {
-        // Skip watchdog pat if the interval is not within the window
-        DEV_PRINTF("WD_SERVICE_SKIP: %lu\n", elapsed_time);
-        return;
-    }
+    static uint8_t watchdog_iterations = (uint8_t)round(KICK_WATCHDOG_PERIOD / UPDATE_PERIOD);
 
     if(watchdog_reset_done)
     {
-        if(0 == watchdog_counter && elapsed_time > MIN_WATCHDOG_INTERVAL && elapsed_time < MAX_WATCHDOG_INTERVAL)
+        if(0 == watchdog_counter)
         {
             _ext_wdog->write(HAL_GPIO_ON);
         }
@@ -864,7 +853,6 @@ void Scheduler::ext_watchdog_pat(uint32_t now_ms)
         }
 
         ++watchdog_counter;
-        last_ext_watchdog_ms = now_ms;
 
         if(watchdog_iterations <= watchdog_counter)
         {
