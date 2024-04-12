@@ -176,6 +176,9 @@ public:
     // initialize sensor object
     bool init(void);
 
+    // Break out Chip Initialization for reattempts
+    bool max14830_chip_init(void);
+
     // Sets UART address as MAX14830 has 4 UART Channels to write too.
     void set_uart_address(UART::value uart_addr);
 
@@ -197,6 +200,9 @@ public:
 	// Clear FIFOs, both TX and RX cleared/flushed
     void fifo_reset(void);
 
+    // Getter for signal_ready flag
+    bool get_signal_ready(void) { return signal_ready;}
+
     // Register Periodic Callback for higher level functions to use
     AP_HAL::Device::PeriodicHandle register_periodic_callback(uint32_t period_usec, AP_HAL::Device::PeriodicCb);
 
@@ -210,10 +216,6 @@ public:
     {
         _dev->get_semaphore()->give();
     }
-
-    bool signal_ready = false;
-
-    bool max14830_chip_init(void);
 
 protected:
     uint8_t _uart_address = 0;
@@ -258,7 +260,8 @@ private:
     // Read known software Register signalling the MAX14830 is ready for commands.
     bool _read_ready(void);
 
-    uint8_t uart_offset;
+    // Flag set when MAX14830 is ready for commands
+    bool signal_ready = false;
 
     enum MAX14830_bit_rate _get_bit_rate_enum(BAUD::value bit_rate);
 

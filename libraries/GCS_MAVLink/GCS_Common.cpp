@@ -1863,7 +1863,7 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         pkt_lost     = (pkt_loss  - prev_pkt_loss);
         // Update link quality buffer
         update_link_quality(pkt_received, pkt_lost, tnow);
-        // Calculate the link quality.0
+        // Calculate the link quality.
         calc_link_quality();
         // Store the current values for the next calculation.
         prev_pkt_received = pkt_count;
@@ -1997,7 +1997,7 @@ void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
     // No received packets - Handle cases.
     } else {
         // If we have not received any packets from our GCS for more than 1.2 seconds, set link quality to 0.
-        if((tnow - gcs().sysid_myggcs_last_seen_time_ms()) > (UPLINK_CALC_INTERVAL * 2)) {
+        if((tnow - gcs().sysid_myggcs_last_seen_time_ms()) > (UPLINK_CALC_INTERVAL / 2)) {
             link_data = 0;
         } else {
             // We have received packets from our GCS within the last second, set link quality to prev value.

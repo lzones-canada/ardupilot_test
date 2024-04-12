@@ -105,15 +105,19 @@ bool AP_MAX14830_Driver::max14830_chip_init() {
 
     WITH_SEMAPHORE(_dev->get_semaphore());
 
-    // Command reset to MAX Chip
+    /* Soft-reset the MAX14830
+        Return value of 'write_register()' is not checked.
+        This commands has the tendency to fail upon soft-reset.
+    */
     _max_soft_reset();
+    hal.scheduler->delay(10);
 
     /*=======================================================================*/
 
     // For loop to allow for startup attempts.
     for (unsigned i = 0; i < 8; i++) 
     {
-        // Waiting for board reset.. read known Register REVID..
+        // Waiting for board reset.. read known Register DIVLSB.
         if(_read_ready()) {
             signal_ready = true;
         }
@@ -126,144 +130,90 @@ bool AP_MAX14830_Driver::max14830_chip_init() {
         // Setup UART 2 - IMET ----------------------------------------------------
         set_uart_address(UART::ADDR_2);
 
-        // Read Interrupt Status Register to clear interrupts.
-        _read_register(MAX14830R_ISR);
-
         // Set baud rate
         _set_baud(BAUD::RATE_57600);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Enable Rx Interrupt
         _set_rx_interrupt(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
         
         // Set Rx Timeout Enable Register
         _set_rx_timeout_interrupt(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // No parity, StopBit, 8 Data Bits
         _set_line(false, false);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Rx Timeout (default 2 byte timeout)
         _set_rx_byte_timeout(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-
         // Set FIFO Interrupt Trigger Level at 3/4 full?
         // Actual FIFO trigger level is 8 times RxTrig[7:4], hence, selectable threshold granularity is eight.
         _set_fifo_trg_lvl(FIFO_TRIG::LEVEL_12);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Set IRQ Interrupt Enable, Auto Transceiver Direction Control Disabled
         _set_irq_trans_ctrl(true, false);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Setup UART 3 - ADSB ----------------------------------------------------
         set_uart_address(UART::ADDR_3);
 
-        // Read Interrupt Status Register to clear interrupts.
-        _read_register(MAX14830R_ISR);
-
         // Set baud rate
         _set_baud(BAUD::RATE_57600);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Enable Rx Interrupt
         _set_rx_interrupt(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
         
         // Set Rx Timeout Enable Register
         _set_rx_timeout_interrupt(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // No parity, StopBit, 8 Data Bits
         _set_line(false, false);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Rx Timeout (default 2 byte timeout)
         _set_rx_byte_timeout(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Set FIFO Interrupt Trigger Level at 3/4 full?
         // Actual FIFO trigger level is 8 times RxTrig[7:4], hence, selectable threshold granularity is eight.
         _set_fifo_trg_lvl(FIFO_TRIG::LEVEL_12);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Set IRQ Interrupt Enable, Auto Transceiver Direction Control Disabled
         _set_irq_trans_ctrl(true, false);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Setup UART 4 - Sweep Wing Servo  ---------------------------------------
         set_uart_address(UART::ADDR_4);
 
-        // Read Interrupt Status Register to clear interrupts.
-        _read_register(MAX14830R_ISR);
-
         // Set baud rate
         _set_baud(BAUD::RATE_115200);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Enable Rx Interrupt
         _set_rx_interrupt(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
         
         // Set Rx Timeout Enable Register
         _set_rx_timeout_interrupt(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // No parity, StopBit, 8 Data Bits
         // TODO: TWO STOP BTIS?!
         _set_line(false, false);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Rx Timeout (default 2 byte timeout)
         _set_rx_byte_timeout(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Set FIFO Interrupt Trigger Level at 3/4 full?
         // Actual FIFO trigger level is 8 times RxTrig[7:4], hence, selectable threshold granularity is eight.
         _set_fifo_trg_lvl(FIFO_TRIG::LEVEL_12);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
 
         // Set IRQ Interrupt Enable, Auto Transceiver Direction Control Disabled
         _set_irq_trans_ctrl(true, true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
-
         // Set Half duplex delay register for RTS line buffer
         _set_rts_delay(true);
-        // delay to allow for reset
-        hal.scheduler->delay(1);
+
 
         // Dev Setup --------------------------------------------------------------
-        // FIXME: Enable CLK Source DEV BOARD - ****** NOT NEEDED ON CHIP CHANGE ******
+        // FIXME: Enable CLK Source DEV BOARD - **** NOT NEEDED ON CHIP CHANGE ****
         //set_uart_address(UART::ADDR_1);
-        //hal.scheduler->delay(1);
         //_write_register(MAX14830R_CLKSOURCE, 0x0A);
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"CLKSOURCE: 0x%02X", _read_register(MAX14830R_CLKSOURCE));
+        // ------------------------------------------------------------------------
 
         // Read known Register break out once we get known value confirming reset.
         if(signal_ready) {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"CLKSOURCE: 0x%02X", _read_register(MAX14830R_CLKSOURCE));
             break;
         }
     }
@@ -290,20 +240,15 @@ void AP_MAX14830_Driver::set_uart_address(UART::value uart_addr)
 // Software reset of the MAX Chip.
 void AP_MAX14830_Driver::_max_soft_reset()
 {
-    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_1 | MAX14830_WRITE_FLAG , 0x01, true);
-    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_2 | MAX14830_WRITE_FLAG , 0x01, true);
-    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_3 | MAX14830_WRITE_FLAG , 0x01, true);
-    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_4 | MAX14830_WRITE_FLAG , 0x01, true);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_1 | MAX14830_WRITE_FLAG, 0x01);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_2 | MAX14830_WRITE_FLAG, 0x01);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_3 | MAX14830_WRITE_FLAG, 0x01);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_4 | MAX14830_WRITE_FLAG, 0x01);
 
-    hal.scheduler->delay(2);
-
-    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_1 | MAX14830_WRITE_FLAG , 0x00, true);
-    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_2 | MAX14830_WRITE_FLAG , 0x00, true);
-    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_3 | MAX14830_WRITE_FLAG , 0x00, true);
-    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_4 | MAX14830_WRITE_FLAG , 0x00, true);
-
-    // Finished looping through all UARTs
-    hal.scheduler->delay(2);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_1 | MAX14830_WRITE_FLAG, 0x00);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_2 | MAX14830_WRITE_FLAG, 0x00);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_3 | MAX14830_WRITE_FLAG, 0x00);
+    _dev->write_register(MAX14830R_MODE2 | UART::ADDR_4 | MAX14830_WRITE_FLAG, 0x00);
 
     return;
 }
@@ -313,26 +258,24 @@ void AP_MAX14830_Driver::_max_soft_reset()
 // Check if Chip has completed reset and ready to receive commands.
 bool AP_MAX14830_Driver::_read_ready()
 {
-    bool ready = false;
-
-    // Set UART address to start to UART 1
-    set_uart_address(UART::ADDR_1);
+    //bool ready = false;
+    uint8_t v;
 
     // Read Device ID Register until reset is complete.
     for (unsigned i = 0; i < 10; i++)
     {
-        uint8_t dev_id = _read_register(MAX14830R_DIVLSB);
 
-        hal.scheduler->delay(1);
-
-        if (dev_id == MAX14830R_TRGT_DIVLSB)
-        {
-            ready = true;
-            break; // Exit loop as condition met.
+        if (!_dev->read_registers(MAX14830R_DIVLSB, &v, 1) || v != MAX14830R_TRGT_DIVLSB) {
+            continue;
+        }
+        else {
+            return true;
+            // Exit loop as UART is ready.
+            break;
         }
     }
 
-    return ready;
+    return false;
 }
 /* ************************************************************************* */
 
@@ -345,8 +288,6 @@ void AP_MAX14830_Driver::fifo_reset()
     // Set the FIFORst bit high to clear both Rx / Tx FIFOs of all data.
     mode2_state |= MODE2::FIFORST;
     _write_register(MAX14830R_MODE2, mode2_state);
-    // delay to allow for reset
-    hal.scheduler->delay(1);
     // FIFORst bit must then be set back to 0 to continue normal operation.
     mode2_state &= ~(MODE2::FIFORST);
     _write_register(MAX14830R_MODE2, mode2_state);
