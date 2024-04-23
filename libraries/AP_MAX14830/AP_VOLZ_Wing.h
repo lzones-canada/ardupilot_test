@@ -68,7 +68,7 @@ class AP_VOLZ_Wing
 {
 public:
     // Constructor
-    AP_VOLZ_Wing(AP_MAX14830* max14830);
+    AP_VOLZ_Wing(AP_HAL::OwnPtr<AP_MAX14830> max14830);
 
     // Declare stateToString function
     const char* stateToString(State state);
@@ -81,7 +81,7 @@ public:
 
 private:
     // Pointer to MAX14830 object
-    AP_MAX14830* _max14830;
+    AP_HAL::OwnPtr<AP_MAX14830> _max14830;
 
     // Private functors
     void init(void);

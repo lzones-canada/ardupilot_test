@@ -67,8 +67,8 @@ ADSB_State adsb_state;
 //------------------------------------------------------------------------------
 // Constructor
 //------------------------------------------------------------------------------
-AP_ADSB_Sensor::AP_ADSB_Sensor(AP_MAX14830* max14830)
-    : _max14830(max14830)
+AP_ADSB_Sensor::AP_ADSB_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
+    _max14830(std::move(max14830))
 {
 }
 
@@ -548,41 +548,14 @@ void AP_ADSB_Sensor::send_adsb_out_status(const mavlink_channel_t chan)
 
 void AP_ADSB_Sensor::handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg)
 {
-    switch (msg.msgid) {
-        case MAVLINK_MSG_ID_ADSB_VEHICLE: {
-            adsb_vehicle_t vehicle {};
-            mavlink_msg_adsb_vehicle_decode(&msg, &vehicle.info);
-            vehicle.last_update_ms = AP_HAL::millis() - uint32_t(vehicle.info.tslc * 1000U);
-            //handle_adsb_vehicle(vehicle);
-            break;
-        }
-
-        case MAVLINK_MSG_ID_UAVIONIX_ADSB_TRANSCEIVER_HEALTH_REPORT: {
-            mavlink_uavionix_adsb_transceiver_health_report_t packet {};
-            mavlink_msg_uavionix_adsb_transceiver_health_report_decode(&msg, &packet);
-            //handle_transceiver_report(chan, packet);
-            break;
-        }
-
-        case MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_CFG: {
-            mavlink_uavionix_adsb_out_cfg_t packet {};
-            mavlink_msg_uavionix_adsb_out_cfg_decode(&msg, &packet);
-            //handle_out_cfg(packet);
-            break;
-        }
-
-        case MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_DYNAMIC:
-            // unhandled, this is an outbound packet only
-            break;
-
-        case MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_CONTROL: {
-            mavlink_uavionix_adsb_out_control_t packet {};            
-            mavlink_msg_uavionix_adsb_out_control_decode(&msg, &packet);
-            handle_out_control(packet);
-            break;
-        }
+    if (msg.msgid == MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_CONTROL)
+    {
+        mavlink_uavionix_adsb_out_control_t packet {};
+        mavlink_msg_uavionix_adsb_out_control_decode(&msg, &packet);
+        handle_out_control(packet);
     }
-
+    
+    return;
 }
 
 /* ************************************************************************* */

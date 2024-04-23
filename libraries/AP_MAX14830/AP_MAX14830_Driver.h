@@ -206,17 +206,6 @@ public:
     // Register Periodic Callback for higher level functions to use
     AP_HAL::Device::PeriodicHandle register_periodic_callback(uint32_t period_usec, AP_HAL::Device::PeriodicCb);
 
-    // Bus locking mechanism
-    bool lock_bus(void)
-    {
-        _dev->get_semaphore()->take_blocking();
-        return true;
-    }
-    void unlock_bus(void)
-    {
-        _dev->get_semaphore()->give();
-    }
-
 protected:
     uint8_t _uart_address = 0;
 

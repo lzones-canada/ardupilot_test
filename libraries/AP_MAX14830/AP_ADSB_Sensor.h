@@ -95,7 +95,7 @@ class AP_ADSB_Sensor
 {
 public:
     // Constructor
-    AP_ADSB_Sensor(AP_MAX14830* max14830);
+    AP_ADSB_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830);
 
     // Update function for ADSB out.
     void update(void);
@@ -215,7 +215,7 @@ public:
 
 private:
     // Pointer to MAX14830 object
-    AP_MAX14830* _max14830;
+    AP_HAL::OwnPtr<AP_MAX14830> _max14830;
 
     // Write Function for ADSB out.
     bool _tx_write(uint8_t *buffer, uint16_t length);

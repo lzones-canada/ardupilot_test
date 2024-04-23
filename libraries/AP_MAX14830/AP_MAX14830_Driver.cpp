@@ -213,7 +213,7 @@ bool AP_MAX14830_Driver::max14830_chip_init() {
 
         // Read known Register break out once we get known value confirming reset.
         if(signal_ready) {
-            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"CLKSOURCE: 0x%02X", _read_register(MAX14830R_CLKSOURCE));
+            GCS_SEND_TEXT(MAV_SEVERITY_NOTICE,"MaxQuart Clock[0x%02X] Enabled", _read_register(MAX14830R_CLKSOURCE));
             break;
         }
     }

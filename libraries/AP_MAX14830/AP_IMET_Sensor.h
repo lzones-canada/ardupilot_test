@@ -43,7 +43,7 @@ class AP_IMET_Sensor
 {
 public:
     // Constructor
-    AP_IMET_Sensor(AP_MAX14830* max14830);
+    AP_IMET_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830);
 
     // initialize sensor object
     void init();
@@ -62,7 +62,7 @@ public:
 
 private:
     // Pointer to MAX14830 object
-    AP_MAX14830* _max14830;
+    AP_HAL::OwnPtr<AP_MAX14830> _max14830;
 };
 
 #endif // AP_IMET_SENSOR_H

@@ -62,8 +62,8 @@ Volz_State volz_state;
 //------------------------------------------------------------------------------
 // Constructor
 //------------------------------------------------------------------------------
-AP_VOLZ_Wing::AP_VOLZ_Wing(AP_MAX14830* max14830) : 
-    _max14830(max14830),
+AP_VOLZ_Wing::AP_VOLZ_Wing(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
+    _max14830(std::move(max14830)),
     sweep_angle_limit(WING_MAX_DEGREES, WING_MIN_DEGREES)
 {
 }

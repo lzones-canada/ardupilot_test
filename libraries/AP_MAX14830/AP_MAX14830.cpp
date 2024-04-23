@@ -37,6 +37,7 @@ AP_MAX14830 *AP_MAX14830::_singleton;       // Singleton Pattern
 
 // Constructor
 AP_MAX14830::AP_MAX14830() :
+    driver(new AP_MAX14830_Driver()), // Initialize _driver with a new instance of AP_MAX14830_Driver
     adsb(this),
     imet(this),
     volz(this)
@@ -54,10 +55,10 @@ AP_MAX14830::AP_MAX14830() :
 void AP_MAX14830::init()
 {
     // Init UART-SPI Max Driver
-    _driver.init();
+    driver->init();
 
     /* Request 50Hz update (20ms) */
-    _driver.register_periodic_callback(20 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
+    driver->register_periodic_callback(20 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
 
     return;
 }
@@ -69,17 +70,24 @@ void AP_MAX14830::init()
 void AP_MAX14830::_timer(void)
 {
     // Check if the signal is ready.
-    if(!_driver.get_signal_ready()) {
+    if(!driver->get_signal_ready()) {
         // If not, keep attempting to initialize the chip.
-        _driver.max14830_chip_init();
-        // Clear the interrupt sources.
-        uint8_t dummy = _driver.global_interrupt_source();
-        dummy++;
+        driver->max14830_chip_init();
+
+        // Clear all interrupt sources.
+        set_uart_address(UART::ADDR_1);
+        clear_interrupts();
+        set_uart_address(UART::ADDR_2);
+        clear_interrupts();
+        set_uart_address(UART::ADDR_3);
+        clear_interrupts();
+        set_uart_address(UART::ADDR_4);
+        clear_interrupts();
         return;
     }
 
     // Read GlobalIRQ register to determine which UART is source of interrupt.
-    uint8_t global_irq = _driver.global_interrupt_source();
+    uint8_t global_irq = driver->global_interrupt_source();
     //DEV_PRINTF("IRQ: %d\n", global_irq);
 
     // Handle UART1 Interrupt - HSTM data.
@@ -122,14 +130,14 @@ void AP_MAX14830::_timer(void)
 
 uint8_t AP_MAX14830::rx_read(uint8_t *buf, uint8_t len)
 {
-    return _driver.fifo_rx_read(buf, len);
+    return driver->fifo_rx_read(buf, len);
 }
 
 /* ************************************************************************* */
 
 void AP_MAX14830::clear_interrupts()
 {
-    _driver.clear_interrupts();
+    driver->clear_interrupts();
     return;
 }
 
@@ -137,7 +145,7 @@ void AP_MAX14830::clear_interrupts()
 
 void AP_MAX14830::set_uart_address(UART::value uart_addr)
 {
-    _driver.set_uart_address(uart_addr);
+    driver->set_uart_address(uart_addr);
     return;
 }
 
@@ -145,7 +153,7 @@ void AP_MAX14830::set_uart_address(UART::value uart_addr)
 
 void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len)
 {
-    _driver.fifo_tx_write(buf, len);
+    driver->fifo_tx_write(buf, len);
     return;
 }
 
@@ -153,7 +161,7 @@ void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len)
 
 void AP_MAX14830::set_RTS_state(bool state)
 {
-    _driver.set_RTS_state(state);
+    driver->set_RTS_state(state);
     return;
 }
 

@@ -44,8 +44,8 @@ static uint8_t  rx_buffer_len = 0;
 //------------------------------------------------------------------------------
 // Constructor
 //------------------------------------------------------------------------------
-AP_IMET_Sensor::AP_IMET_Sensor(AP_MAX14830* max14830)
-    : _max14830(max14830)
+AP_IMET_Sensor::AP_IMET_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
+    _max14830(std::move(max14830))
 {
 }
 

@@ -80,7 +80,7 @@ protected:
 
 private:
     // SPI object for communication management through MAX14830 Chip.
-    AP_MAX14830_Driver _driver;
+    AP_HAL::OwnPtr<AP_MAX14830_Driver> driver;
 
     // External Interrupt Pin for Data Ready
     AP_HAL::DigitalSource *_drdy_pin;
