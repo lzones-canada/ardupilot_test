@@ -826,8 +826,6 @@ static const ap_message STREAM_PARAMS_msgs[] = {
 };
 static const ap_message STREAM_ADSB_msgs[] = {
     MSG_ADSB_VEHICLE,
-    // TODO: EVALUATE IF NECESSARY
-    MSG_UAVIONIX_ADSB_OUT_STATUS,
 #if AP_AIS_ENABLED
     MSG_AIS_VESSEL,
 #endif

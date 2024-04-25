@@ -5816,12 +5816,6 @@ void GCS_MAVLINK::send_uavionix_adsb_out_status() const
     if (adsb != nullptr) {
         adsb->send_adsb_out_status(chan);
     }
-
-    // Send out on our Custom Driver
-    AP_MAX14830 *max14830 = AP::MAX14830();
-    if (max14830 != nullptr) {
-        max14830->adsb.send_adsb_out_status(chan);
-    }
 }
 #endif
 

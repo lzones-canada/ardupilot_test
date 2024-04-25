@@ -45,12 +45,6 @@ public:
     // Constructor
     AP_IMET_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830);
 
-    // initialize sensor object
-    void init();
-
-    // Update function for IMET Sensor.
-    void update(void);
-
     // Handle UART1 Interrupt
     void handle_imet_uart2_interrupt(void);
 

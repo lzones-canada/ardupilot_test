@@ -73,7 +73,7 @@ public:
     // Declare stateToString function
     const char* stateToString(State state);
 
-    // Update function for ADSB out.
+    // Update function for Volz Wing
     void update(void);
 
     // Handle VOLZ-UART1 Interrupt
@@ -137,10 +137,6 @@ private:
     uint8_t target_command;
     // variable to store the previous position
     uint8_t prev_target_command;
-     // variable to store current command in percentage
-    float target_percent;
-    // variable to store position in percentage.
-    float curr_percent;
     // flag to indicate we have initialised
     bool initialised;
 };

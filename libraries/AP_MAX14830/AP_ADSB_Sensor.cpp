@@ -470,8 +470,9 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             tx_dynamic.numSats = UINT8_MAX;
 
 
-            // Send out Mavlink Message
+            // Send out Mavlink ADSB status messages
             gcs().send_to_active_channels(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_DYNAMIC, (const char *)&tx_dynamic);
+            gcs().send_to_active_channels(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_STATUS, (const char *)&tx_status);
 
             //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_OWNSHIP_REPORT");
             break;
@@ -529,17 +530,6 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
     } else {
         tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
     }
-
-    return;
-}
-
-/* ************************************************************************* */
-
-// send a periodic report of the ADSB out status
-void AP_ADSB_Sensor::send_adsb_out_status(const mavlink_channel_t chan)
-{
-    // Send out ADSB out status
-    mavlink_msg_uavionix_adsb_out_status_send_struct(chan, &tx_status);
 
     return;
 }

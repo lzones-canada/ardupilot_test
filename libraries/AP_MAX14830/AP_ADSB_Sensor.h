@@ -115,14 +115,8 @@ public:
     // Handle complete ABSB message.
     void handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg);
 
-    // Expose adbs out function for gcs usage.
-    void send_adsb_out_status(const mavlink_channel_t chan);
-
     // mavlink message handler
     void handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg);
-
-    // configure ADSB-out transceivers
-    void handle_out_cfg(const mavlink_uavionix_adsb_out_cfg_t &packet);
 
     // control ADSB-out transcievers
     void handle_out_control(const mavlink_uavionix_adsb_out_control_t &packet);
@@ -155,9 +149,6 @@ public:
 
     // Timer for last Ownship Message.
     uint32_t last_Ownship_ms;
-
-    // Timer for last call into the function.
-    uint32_t last_called;
 
     // Length of bytes to read - returned from Max14830 FIFO.
     uint8_t rxbuf_fifo_len;
@@ -206,12 +197,6 @@ public:
         uint8_t mode = MODE::OFF;
         bool x_bit;
     } ctrl; // Declare ctrl as a member variable
-
-    struct adsb_vehicle_t 
-    {
-        mavlink_adsb_vehicle_t info; // the whole mavlink struct with all the juicy details. sizeof() == 38
-        uint32_t last_update_ms; // last time this was refreshed, allows timeouts
-    };
 
 private:
     // Pointer to MAX14830 object

@@ -85,14 +85,11 @@ void AP_VOLZ_Wing::init(void)
     total_position = 0;
     target_position = 0;
     offset = 0;
-    
-    curr_percent = 0.0;
     servo_cmd = 0;
 
     // Init target command to min degrees (fully open)
     volz_state.set_target_command(WING_MIN_DEGREES);
     prev_target_command = WING_MIN_DEGREES;
-    target_percent = 0.0;
     target_command = 0;
 
     // Init state machine.
@@ -419,14 +416,6 @@ int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_po
     // calculate the error between the current and target position    
     int error = target_pos - current_pos;
     int16_t command = 0; // Initialize command to zero
-
-    // Current Position in a Percentage
-    // curr_percent = wing_status_percent(current_pos);
-    // // Target Position in a Percentage
-    // target_percent = wing_status_percent(target_pos);
-    // DEV_PRINTF("curr_percent: %f\n", curr_percent);
-    // DEV_PRINTF("target_percent: %f\n", target_percent);
-    // DEV_PRINTF("error: %d\n", error);
 
     // apply saturation filter to clamp the max command speed
     if (error > THRESHOLD_POSITION)
