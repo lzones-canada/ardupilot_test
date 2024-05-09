@@ -57,6 +57,12 @@ void AP_MAX14830::init()
     // Init UART-SPI Max Driver
     driver->init();
 
+    // Init ADSB
+    adsb.init();
+
+    // Init Volz Wing
+    volz.init();
+
     /* Request 50Hz update (20ms) */
     driver->register_periodic_callback(20 * AP_USEC_PER_MSEC, FUNCTOR_BIND_MEMBER(&AP_MAX14830::_timer, void));
 

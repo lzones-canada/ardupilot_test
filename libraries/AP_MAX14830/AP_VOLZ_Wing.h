@@ -70,8 +70,8 @@ public:
     // Constructor
     AP_VOLZ_Wing(AP_HAL::OwnPtr<AP_MAX14830> max14830);
 
-    // Declare stateToString function
-    const char* stateToString(State state);
+    // Initialize volz sweep wing object
+    void init(void);
 
     // Update function for Volz Wing
     void update(void);
@@ -84,7 +84,6 @@ private:
     AP_HAL::OwnPtr<AP_MAX14830> _max14830;
 
     // Private functors
-    void init(void);
     void send_command(uint8_t data[VOLZ_DATA_FRAME_SIZE]);
     void handle_volz_message(uint8_t* rx_work_buffer);
     void handle_pos_msg(uint8_t data[VOLZ_DATA_FRAME_SIZE]);
@@ -137,8 +136,6 @@ private:
     uint8_t target_command;
     // variable to store the previous position
     uint8_t prev_target_command;
-    // flag to indicate we have initialised
-    bool initialised;
 };
 
 #endif // AP_VOLZ_Wing

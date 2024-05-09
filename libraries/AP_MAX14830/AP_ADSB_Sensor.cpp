@@ -72,6 +72,16 @@ AP_ADSB_Sensor::AP_ADSB_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
 {
 }
 
+//------------------------------------------------------------------------------
+
+void AP_ADSB_Sensor::init()
+{
+    // Retrieve Squawk Code from ADSB_SQUAWK parameter and Init value from Parameter.
+    squawk_octal_param = (AP_Int16*)AP_Param::find("ADSB_SQUAWK", &ptype);
+    ctrl.squawkCode = (uint16_t)squawk_octal_param->get();
+
+    return;
+}
 
 //------------------------------------------------------------------------------
 // Periodic update to handle vehicle message timeouts
@@ -79,10 +89,6 @@ AP_ADSB_Sensor::AP_ADSB_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
 void AP_ADSB_Sensor::update()
 {
     const uint32_t now_ms = AP_HAL::millis();
-
-    // Retrieve Squawk Code from ADSB_SQUAWK parameter.
-    squawk_octal_param = (AP_Int16*)AP_Param::find("ADSB_SQUAWK", &ptype);
-    squawk_octal = (uint16_t)squawk_octal_param->get();
 
     // Call Sign Message - 1 min interval or on change
     if(now_ms - last_cs_msg >= VEHICLE_CS_MSG || cs_flag_change) 

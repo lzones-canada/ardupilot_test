@@ -70,7 +70,7 @@ AP_VOLZ_Wing::AP_VOLZ_Wing(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
 
 //------------------------------------------------------------------------------
 
-void AP_VOLZ_Wing::init(void)
+void AP_VOLZ_Wing::init()
 {
     // wing limit servo pin
     _wing_limit = hal.gpio->channel(HAL_GPIO_PIN_WING_LIMIT);
@@ -104,11 +104,6 @@ void AP_VOLZ_Wing::init(void)
 //------------------------------------------------------------------------------
 void AP_VOLZ_Wing::update()
 {
-    if (!initialised) {
-        initialised = true;
-        init();
-    }
-
     // Update the sweep wing angle every iteration.
     update_position();
 

@@ -97,6 +97,9 @@ public:
     // Constructor
     AP_ADSB_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830);
 
+    // Initialize ADSB object
+    void init(void);
+
     // Update function for ADSB out.
     void update(void);
 
@@ -136,7 +139,6 @@ public:
     // ADSB Squak Code
     enum ap_var_type ptype;
     AP_Int16   *squawk_octal_param;
-    uint16_t    squawk_octal;
 
     // Timer for last Call Sign Message.
     uint32_t last_cs_msg;
