@@ -113,7 +113,6 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(update_logging10,        10,    300, 120),
     SCHED_TASK(update_logging25,        25,    300, 123),
 #endif
-    SCHED_TASK(update_payload_control,  50,    400, 125),
 #if HAL_SOARING_ENABLED
     SCHED_TASK(update_soaring,         50,    400, 126),
 #endif
@@ -145,6 +144,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if AC_PRECLAND_ENABLED
     SCHED_TASK(precland_update, 400, 50, 160),
 #endif
+    SCHED_TASK(update_payload_control,  50,    400, 165),
 };
 
 void Plane::get_scheduler_tasks(const AP_Scheduler::Task *&tasks,
@@ -306,6 +306,13 @@ void Plane::update_logging25(void)
  */
 void Plane::init_payload_control(void)
 {
+    // Handle Pin Configuration for Software crashing..
+    enum ap_var_type ptype_relay;
+    AP_Int8 *relay_101 = (AP_Int8*)AP_Param::find("RELAY1_PIN", &ptype_relay);
+    if(relay_101->get() != HAL_GPIO_PIN_POS_LIGHTS) {
+        AP_Param::set_by_name("RELAY1_PIN", HAL_GPIO_PIN_POS_LIGHTS);
+    }
+
     // Position lights
     pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
     pos_lights->mode(HAL_GPIO_OUTPUT);
@@ -333,9 +340,75 @@ void Plane::init_payload_control(void)
     servo_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_SERV0);
     // Analog Source Vehicle Temperature Support Board (# pin6 on AD&IO, analog 13)
     board_temp_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_BOARD_TEMP);
-    
+#if defined(HAL_GPIO_EXT_WDOG)
+    // Watchdog Pins
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_OUTPUT);
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG, HAL_GPIO_OUTPUT);
+
+    // Register External Watchdog Service (1kHz / 1ms - timer callback)
+    hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&Plane::ext_watchdog_service, void));
+#endif
     return;
 }
+
+#if defined(HAL_GPIO_EXT_WDOG)
+/*
+  External Watchdog Service
+ */
+void Plane::ext_watchdog_service()
+{
+    uint32_t tnow = AP_HAL::millis();
+
+    /*************************************************************************
+    * Watchdog - Generate the Watchdog output and reset the external watchdog
+    *************************************************************************/
+    if(watchdog_reset_done)
+    {
+        // Generates pulse train for the external watchdog output.
+        if (time_to_toggle >= WATCHDOG_PULSE_TRAIN)
+        {
+            // If the time exceeds 60ms - reset timer
+            time_to_toggle = 0;
+            hal.gpio->write(HAL_GPIO_EXT_WDOG, HAL_GPIO_OFF);
+        }
+        else if (time_to_toggle >= (WATCHDOG_PULSE_TRAIN / 2))
+        {
+            // If the time exceeds 30ms - drive pin high for period of time.
+            hal.gpio->write(HAL_GPIO_EXT_WDOG, HAL_GPIO_ON);
+        }
+        else
+        {
+            // If the time to toggle is greater than 0 and less than 30 milliseconds, drive pin high low
+            hal.gpio->write(HAL_GPIO_EXT_WDOG, HAL_GPIO_OFF);
+        }
+    }
+    else
+    {
+        // Set our reset timer.
+        watchdog_reset_timer = WATCHDOG_RESET_TIMEOUT;
+        watchdog_reset_done = true;
+    }
+
+    // Check if the watchdog reset timer is active.
+    if(0 != watchdog_reset_timer)
+    {
+        // If the watchdog reset timer is active, decrement it and drive external watchdog reset pin low.
+        --watchdog_reset_timer;
+        hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_OFF);
+    }
+    else
+    {
+        // If the watchdog reset timer is expired, drive external watchdog reset pin high
+        hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_ON);
+    }
+
+    // Update time_to_toggle based on elapsed time since the last function call.
+    time_to_toggle += (tnow - last_ext_watchdog_ms);
+    last_ext_watchdog_ms = tnow;
+
+    return;
+}
+#endif
 
 /*
   do 50Hz payload control
@@ -346,22 +419,6 @@ void Plane::update_payload_control()
 
     analog_input_calcs();
 
-    // wing_sensor.update();
-
-    // static uint16_t counter = 0;
-    // counter++;
-    // if (counter > 500) {
-    //     counter = 0;
-    //     gcs().send_text(MAV_SEVERITY_CRITICAL, "Plane_Angle: Angle1:%f, Angle2:%f", wing_sensor.get_angle_1(), wing_sensor.get_angle_2());
-    // }
-    // return;
-
-    // static uint8_t counter = 0;
-    // counter++;
-    // if (counter > 25) {
-    //     counter = 0;
-    //     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL,"Wing Limit Pin: %s", get_wing_limit_status() ? "true" : "false");
-    // }
     return;
 } 
 

@@ -226,6 +226,7 @@ private:
     uint8_t get_beac_lights_status()  const { return beacon_light; };
     uint8_t get_hstm_status()         const { return hstm_pwr->read(); };
     uint8_t get_wing_limit_status()   const { return hal.gpio->read(HAL_GPIO_PIN_WING_LIMIT); };
+    //uint8_t get_watchdog_status()     const { return hal.gpio->read(HAL_GPIO_DRDY2_EXT_GPIO); };
 
     // Analog Input Source for monitoring.
     AP_HAL::AnalogSource *servo_analog_input;
@@ -1212,6 +1213,16 @@ private:
     // soaring.cpp
 #if HAL_SOARING_ENABLED
     void update_soaring();
+#endif
+
+#if defined(HAL_GPIO_EXT_WDOG)
+    void ext_watchdog_service(void);
+    static const uint32_t WATCHDOG_RESET_TIMEOUT = 2000; // 2 Seconds
+    static const uint32_t WATCHDOG_PULSE_TRAIN = 60;
+    uint32_t last_ext_watchdog_ms;
+    uint32_t time_to_toggle;
+    bool watchdog_reset_done = false;
+    uint32_t watchdog_reset_timer = 0;
 #endif
 
     // RC_Channel.cpp
