@@ -140,6 +140,8 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
         if(g.fs_action_long == FS_ACTION_LONG_PARACHUTE) {
 #if PARACHUTE == ENABLED
             parachute_release();
+            // Extend the wings to slow the descent
+            plane.volz_wing_deg_cmd(WING_MIN_DEGREES);
 #endif
         } else if (g.fs_action_long == FS_ACTION_LONG_GLIDE) {
             set_mode(mode_fbwa, reason);
@@ -189,6 +191,8 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
         if(g.fs_action_long == FS_ACTION_LONG_PARACHUTE) {
 #if PARACHUTE == ENABLED
             parachute_release();
+            // Extend the wings to slow the descent
+            plane.volz_wing_deg_cmd(WING_MIN_DEGREES);
 #endif
         } else if (g.fs_action_long == FS_ACTION_LONG_GLIDE) {
             set_mode(mode_fbwa, reason);
@@ -233,6 +237,9 @@ void Plane::failsafe_long_off_event(ModeReason reason)
     // We're back in radio contact with RC or GCS
     if (reason == ModeReason:: GCS_FAILSAFE) {
         gcs().send_text(MAV_SEVERITY_WARNING, "GCS Failsafe Off");
+        // Reset our short failsafes values
+        balloon_release->write(1);
+        plane.adsb_transponder_failsafe(false);
     }
     else {
         gcs().send_text(MAV_SEVERITY_WARNING, "RC Long Failsafe Cleared");

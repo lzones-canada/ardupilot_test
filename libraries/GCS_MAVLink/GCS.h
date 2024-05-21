@@ -757,6 +757,9 @@ protected:
     // methods to extract a Location object from a command_int
     bool location_from_command_t(const mavlink_command_int_t &in, Location &out);
 
+    // Custom uplink quality calculation
+    uint8_t get_link_quality() const { return _link_quality; };
+
 private:
 
     // define the two objects used for parsing incoming messages:
@@ -1063,6 +1066,11 @@ private:
     bool signing_enabled(void) const;
     static void save_signing_timestamp(bool force_save_now);
 
+    // link quality helper functions.
+    void update_link_quality(int received, int lost, uint32_t tnow);
+    void calc_link_quality();
+    void mavlink_link_update(mavlink_message_t msg);
+
 #if HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED
     // structure containing default intervals read from files for this
     // link:
@@ -1114,6 +1122,30 @@ private:
     // true if we should NOT do MAVLink on this port (usually because
     // someone's doing SERIAL_CONTROL over mavlink)
     bool _locked;
+
+    // Window Size of 3 Seconds / Elements
+    //  Each calculation is done every 1 second (1200 to account for hysteresis)
+    static const uint16_t UPLINK_CALC_INTERVAL = 1200;
+    //  Every 1.2s a new element is added to the buffer (1.2 * 5 = 6 seconds).
+    static const uint8_t WINDOW_SIZE = 5;
+    // Link quality is scaled from 0 to 255.
+    static const uint8_t LINK_SCALE = 255;
+    // timer to track when to calculate the link quality.
+    uint32_t last_uplink_calc;
+    // Circular buffer to store historical link quality data.
+    //std::vector<float> link_buffer;
+    uint8_t link_buffer[WINDOW_SIZE] = { 0 };
+    // Index to track the current position in the circular buffer.
+    size_t link_idx;
+    // Current link quality.
+    uint8_t _link_quality;
+    // Track the number of packets received and lost including prev calculation.
+    int pkt_received = 0;
+    int pkt_lost = 0;
+    int pkt_count = 0;
+    int prev_pkt_received = 0;
+    int pkt_loss = 0;
+    int prev_pkt_loss = 0;
 };
 
 /// @class GCS

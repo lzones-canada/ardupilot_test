@@ -813,7 +813,8 @@ void Scheduler::ext_watchdog_pat(uint32_t now_ms)
 {
     // toggle watchdog GPIO every WDI_OUT_INTERVAL_TIME_MS
     if ((now_ms - last_ext_watchdog_ms) >= EXT_WDOG_INTERVAL_MS) {
-        palToggleLine(HAL_GPIO_PIN_EXT_WDOG);
+        //palToggleLine(HAL_GPIO_LINE_GPIO56);
+        hal.gpio->toggle(HAL_GPIO_PIN_EXT_WDOG);
         last_ext_watchdog_ms = now_ms;
     }
 }

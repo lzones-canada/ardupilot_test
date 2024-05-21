@@ -39,6 +39,8 @@ protected:
     void send_attitude() const override;
     void send_attitude_target() override;
     void send_wind() const;
+    void send_payload_status();
+    void send_station_status();
 
     bool persist_streamrates() const override { return true; }
 
@@ -68,6 +70,8 @@ private:
     void handle_set_position_target_global_int(const mavlink_message_t &msg);
     void handle_set_position_target_local_ned(const mavlink_message_t &msg);
     void handle_set_attitude_target(const mavlink_message_t &msg);
+    void handle_payload_ctrl(const mavlink_message_t &msg);
+    void handle_station_ctrl(const mavlink_message_t &msg);
 
 #if HAL_QUADPLANE_ENABLED
 #if AP_MAVLINK_COMMAND_LONG_ENABLED

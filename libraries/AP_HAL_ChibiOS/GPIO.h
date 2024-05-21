@@ -123,7 +123,7 @@ public:
     void    toggle() override;
     // IOMCU GPIO is write only
     void    mode(uint8_t output) override {};
-    uint8_t    read() override { return 0; }
+    uint8_t    read() override;
 private:
     uint8_t pin;
 };

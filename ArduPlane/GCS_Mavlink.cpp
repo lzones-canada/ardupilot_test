@@ -457,6 +457,16 @@ bool GCS_MAVLINK_Plane::try_send_message(enum ap_message id)
 #endif
         break;
 
+    case MSG_PAYLOAD_STATUS:
+        CHECK_PAYLOAD_SIZE(PAYLOAD_STATUS);
+        send_payload_status();
+        break;
+
+    case MSG_STATION_STATUS:
+        CHECK_PAYLOAD_SIZE(STATION_STATUS);
+        send_station_status();
+        break;
+
     default:
         return GCS_MAVLINK::try_send_message(id);
     }
@@ -500,6 +510,125 @@ void GCS_MAVLINK_Plane::send_hygrometer()
     }
 }
 #endif // AP_AIRSPEED_HYGROMETER_ENABLE
+
+// Payload Status Message.
+void GCS_MAVLINK_Plane::send_payload_status()
+{
+    //mavlink_payload_status_t paylod_pkt;
+
+    // Payload Enums
+    uint8_t flags = 0;
+    const uint8_t  chute_status       = plane.get_chute_status();
+    const uint8_t  balloon_status     = plane.get_balloon_status();
+    const uint8_t  pos_lights_status  = plane.get_pos_lights_status();
+    const uint8_t  beac_lights_status = plane.get_beac_lights_status();
+    const uint8_t  hstm_status        = plane.get_hstm_status();
+    const uint8_t  wing_limit         = plane.get_wing_limit_status();
+    //const uint8_t  watchdog_status    = plane.get_watchdog_status();
+
+    // Parachute Deploy Status - Logic Reversed.
+    if (!chute_status) {
+        flags |= PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_PARACHUTE_RELEASE;
+    }
+
+    // Balloon Release Status - Logic Reversed.
+    if (!balloon_status) {
+        flags |= PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_BALLOON_RELEASE;
+    }
+
+    // Position Lights Status.
+    if (pos_lights_status) {
+        flags |= PAYLOAD_STATUS_FLAGS_POSITION_LIGHTS;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_POSITION_LIGHTS;
+    }
+
+    // Beacon Lights Status.
+    if (beac_lights_status) {
+        flags |= PAYLOAD_STATUS_FLAGS_BEACON_LIGHTS;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_BEACON_LIGHTS;
+    }
+
+    // HSTM Power Status.
+    if (hstm_status) {
+        flags |= PAYLOAD_STATUS_FLAGS_HSTM_POWER;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_HSTM_POWER;
+    }
+
+    // Wing Limit Input Status.
+    if (wing_limit) {
+        flags |= PAYLOAD_STATUS_FLAGS_SWEEP_WING_LIMIT;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_SWEEP_WING_LIMIT;
+    }
+
+    // Watchdog Input Status.
+    // if (watchdog_status) {
+    //     flags |= PAYLOAD_STATUS_FLAGS_WATCHDOG_STATUS;
+    // } else {
+    //     flags &= ~PAYLOAD_STATUS_FLAGS_WATCHDOG_STATUS;
+    //     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "WATCHDOG TRIPPED");
+    // }
+
+    // Message Body.
+    const uint8_t  link_quality = get_link_quality();
+    const uint16_t servo_vcc    = plane.get_servo_volt() * 1000.0;
+    const int16_t  board_temp   = plane.get_support_board_temp() * 100.0;
+    const uint16_t sweep_wing   = plane.get_volz_sweep_wing() * 100.0;
+
+    mavlink_msg_payload_status_send(
+            chan,
+            flags,
+            link_quality,   // link quality
+            servo_vcc,      // Servo Voltage Rail - millivolts
+            board_temp,     // Support Board Temperature.
+            sweep_wing);    // Sweep wing angle - centi-degrees.
+
+    return;
+}
+
+// Payload Status Message.
+void GCS_MAVLINK_Plane::send_station_status()
+{
+    //mavlink_station_status_t paylod_pkt;
+
+    // Payload Enums
+    uint8_t flags = 0;
+    const uint8_t  port_modem_status  = plane.get_modem_tx_port_status();
+    const uint8_t  stbd_modem_status  = plane.get_modem_tx_stbd_status();
+    const uint8_t  modem_boost_status = plane.get_modem_boost_status();
+
+    // Tx Modem Port modem status - GCS
+    if (port_modem_status) {
+        flags |= STATION_STATUS_FLAGS_TX_PORT;
+    } else {
+        flags &= ~STATION_STATUS_FLAGS_TX_PORT;
+    }
+
+    // Tx Modem Stbd modem status - GCS
+    if (stbd_modem_status) {
+        flags |= STATION_STATUS_FLAGS_TX_STBD;
+    } else {
+        flags &= ~STATION_STATUS_FLAGS_TX_STBD;
+    }
+
+    // Tx Modem Boost status - GCS
+    if (modem_boost_status) {
+        flags |= STATION_STATUS_FLAGS_MODEM_BOOST;
+    } else {
+        flags &= ~STATION_STATUS_FLAGS_MODEM_BOOST;
+    }
+
+    mavlink_msg_station_status_send(chan, flags);
+
+    return;
+}
 
 
 /*
@@ -634,6 +763,7 @@ static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
     MSG_FENCE_STATUS,
 #endif
     MSG_POSITION_TARGET_GLOBAL_INT,
+    MSG_PAYLOAD_STATUS,
 };
 static const ap_message STREAM_POSITION_msgs[] = {
     MSG_LOCATION,
@@ -698,6 +828,7 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #endif
     MSG_EKF_STATUS_REPORT,
     MSG_VIBRATION,
+    MSG_STATION_STATUS,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM
@@ -721,6 +852,38 @@ const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
     MAV_STREAM_ENTRY(STREAM_PARAMS),
     MAV_STREAM_ENTRY(STREAM_ADSB),
     MAV_STREAM_TERMINATOR // must have this at end of stream_entries
+};
+
+// Payload Control Flags for which value is valid.
+struct PAYLOAD_CTRL_FLAGS
+{
+    enum
+    {
+        BEACON_LIGHT    = (0x01 << 7),
+        SWEEP_WING_INIT = (0x01 << 6),
+        SWEEP_WING_VAL  = (0x01 << 5),
+        RESERVED5       = (0x01 << 4),
+        RESERVED4       = (0x01 << 3),
+        RESERVED3       = (0x01 << 2),
+        RESERVED2       = (0x01 << 1),
+        RESERVED1       = (0x01 << 0)
+    };
+};
+
+// Station Control Flags for which value is valid.
+struct STATION_CTRL_FLAGS
+{
+    enum
+    {
+        TX_PORT_MODEM = (0x01 << 7),
+        TX_STBD_MODEM = (0x01 << 6),
+        MODEM_BOOST   = (0x01 << 5),
+        RESERVED5     = (0x01 << 4),
+        RESERVED4     = (0x01 << 3),
+        RESERVED3     = (0x01 << 2),
+        RESERVED2     = (0x01 << 1),
+        RESERVED1     = (0x01 << 0)
+    };
 };
 
 /*
@@ -1179,10 +1342,10 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_MAV_CMD_DO_PARACHUTE(const mavlink_command_
             return MAV_RESULT_ACCEPTED;
         case PARACHUTE_RELEASE:
             // treat as a manual release which performs some additional check of altitude
-            if (plane.parachute.released()) {
-                gcs().send_text(MAV_SEVERITY_NOTICE, "Parachute already released");
-                return MAV_RESULT_FAILED;
-            }
+            // if (plane.parachute.released()) {
+            //     gcs().send_text(MAV_SEVERITY_NOTICE, "Parachute already released");
+            //     return MAV_RESULT_FAILED;
+            // }
             if (!plane.parachute.enabled()) {
                 gcs().send_text(MAV_SEVERITY_NOTICE, "Parachute not enabled");
                 return MAV_RESULT_FAILED;
@@ -1256,6 +1419,16 @@ void GCS_MAVLINK_Plane::handle_message(const mavlink_message_t &msg)
 
     case MAVLINK_MSG_ID_SET_POSITION_TARGET_GLOBAL_INT:
         handle_set_position_target_global_int(msg);
+        break;
+
+    // Special handle of custom payload control command
+    case MAVLINK_MSG_ID_PAYLOAD_CTRL:
+        handle_payload_ctrl(msg);
+        break;
+
+    // Special handle of custom payload control command
+    case MAVLINK_MSG_ID_STATION_CTRL:
+        handle_station_ctrl(msg);
         break;
 
     default:
@@ -1407,6 +1580,46 @@ void GCS_MAVLINK_Plane::handle_set_position_target_global_int(const mavlink_mess
             }
         } // end if alt_mask       
     }
+
+void GCS_MAVLINK_Plane::handle_payload_ctrl(const mavlink_message_t &msg)
+{
+    // decode packet
+    mavlink_payload_ctrl_t payload_ctrl;
+    mavlink_msg_payload_ctrl_decode(&msg, &payload_ctrl);
+
+    // Check which Flag is set signalling which payload is valid for this message.
+    // Payload Control - Beacon Lights.
+    if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::BEACON_LIGHT)
+    {
+        plane.beacon_light = payload_ctrl.beacon_lights;
+    }
+    // Payload Control - Sweep Wing Calibration
+    if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::SWEEP_WING_INIT)
+    {
+        plane.volz_wing_calibrate(payload_ctrl.sweep_wing_calibrate);
+    }
+    // Payload Control - Sweep Wing Control Percentage
+    if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::SWEEP_WING_VAL)
+    {
+        plane.volz_wing_deg_cmd(payload_ctrl.sweep_wing_value);
+    }
+    return;
+}
+
+void GCS_MAVLINK_Plane::handle_station_ctrl(const mavlink_message_t &msg)
+{
+    // decode packet
+    mavlink_station_ctrl_t station_ctrl;
+    mavlink_msg_station_ctrl_decode(&msg, &station_ctrl);
+
+    // Station Control - Tx Port Modem, Straight passthrough for now.
+    plane.port_modem  = (station_ctrl.flags & STATION_CTRL_FLAGS::TX_PORT_MODEM);
+    // Station Control - Tx Stbd Modem, Straight passthrough for now.
+    plane.stbd_modem  = (station_ctrl.flags & STATION_CTRL_FLAGS::TX_STBD_MODEM);
+    // Station Control - Modem Boost, Straight passthrough for now.
+    plane.modem_boost = (station_ctrl.flags & STATION_CTRL_FLAGS::MODEM_BOOST);
+    return;
+}
 
 MAV_RESULT GCS_MAVLINK_Plane::handle_command_do_set_mission_current(const mavlink_command_int_t &packet)
 {
