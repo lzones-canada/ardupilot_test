@@ -144,7 +144,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if AC_PRECLAND_ENABLED
     SCHED_TASK(precland_update, 400, 50, 160),
 #endif
-    SCHED_TASK(update_payload_control, 50, 400, 165),
+    SCHED_TASK(update_payload_control, 10, 500, 200),
 };
 
 void Plane::get_scheduler_tasks(const AP_Scheduler::Task *&tasks,
@@ -426,44 +426,37 @@ void Plane::update_payload_control()
  */
 void Plane::beacon_lights_heartbeat()
 {
-    // 50hz Counter.
-    static uint16_t heartbeat_count = 0;
-    static const double HEARTBEAT_PERIOD = 50; // 50hz
-    static const uint16_t FIRST_ON_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.15); // 15% on
-    static const uint16_t OFF_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.1); // 10% off
-    static const uint16_t SECOND_ON_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.2); // 20% on
+    // Current time in milliseconds
+    uint32_t tnow = AP_HAL::millis();
+    static uint32_t last_update_time = 0;
+
+    // Duration for each part of the heartbeat cycle in milliseconds
+    static const uint32_t HEARTBEAT_PERIOD = 1300; // 1300ms (1.3 seconds) total period
+    static const uint32_t FIRST_ON_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.15); // 15% on
+    static const uint32_t OFF_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.1); // 10% off
+    static const uint32_t SECOND_ON_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.2); // 20% on
+
+    // Calculate the elapsed time since the last update
+    uint32_t elapsed_time = tnow - last_update_time;
 
     // Only turn on Nav Lights when commanded from GCS
-    if(beacon_light) 
-    {
-        if(FIRST_ON_TIME > heartbeat_count)
-        {
+    if (beacon_light) {
+        if(FIRST_ON_TIME > elapsed_time) {
             beacon_lights->write(1);
-        }
-        else if((FIRST_ON_TIME + OFF_TIME) > heartbeat_count)
-        {
+        } else if ((FIRST_ON_TIME + OFF_TIME) > elapsed_time) {
             beacon_lights->write(0);
-        }
-        else if((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > heartbeat_count)
-        {
+        } else if ((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > elapsed_time) {
             beacon_lights->write(1);
-        }
-        else if(((uint16_t)round(HEARTBEAT_PERIOD)) > heartbeat_count)
-        {
+        } else if (HEARTBEAT_PERIOD > elapsed_time) {
             beacon_lights->write(0);
-        }
-        else
-        {
+        } else {
             beacon_lights->write(0);
-            heartbeat_count = 0;
+            // Reset the last update time to start a new cycle
+            last_update_time = tnow;
         }
-    }
-    // off otherwise
-    else {
+    } else {
         beacon_lights->write(0);
     }
-
-    ++heartbeat_count;
 
     return;
 }
