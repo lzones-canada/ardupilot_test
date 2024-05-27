@@ -815,7 +815,7 @@ void Scheduler::ext_watchdog_pat(uint32_t now_ms)
             last_ext_watchdog_ms = now_ms;
         }
     } else {
-        // 5 second hold off period for external watchdog reset
+        // Hold off period for external watchdog reset
         if (now_ms > EXT_WDOG_RESET_HOLD_OFF_MS) {
             hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 1);
             watchdog_reset_done = true;
