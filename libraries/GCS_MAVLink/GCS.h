@@ -25,7 +25,13 @@
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_RangeFinder/AP_RangeFinder_config.h>
 #include <AP_Winch/AP_Winch_config.h>
+<<<<<<< HEAD
 
+=======
+#include <AP_AHRS/AP_AHRS_config.h>
+#include <AP_Arming/AP_Arming_config.h>
+#include <Filter/AverageFilter.h>
+>>>>>>> f347c3a1e6 (update link_buffer to use built in filtered average buffer. removing)
 #include "ap_message.h"
 
 #define GCS_DEBUG_SEND_MESSAGE_TIMINGS 0
@@ -1052,7 +1058,6 @@ private:
 
     // link quality helper functions.
     void update_link_quality(int received, int lost, uint32_t tnow);
-    void calc_link_quality();
     void mavlink_link_update(mavlink_message_t msg);
 
 #if HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED
@@ -1109,19 +1114,20 @@ private:
 
     // Window Size of 3 Seconds / Elements
     //  Each calculation is done every 1 second (1200 to account for hysteresis)
-    static const uint16_t UPLINK_CALC_INTERVAL = 1200;
-    //  Every 1.2s a new element is added to the buffer (1.2 * 5 = 6 seconds).
-    static const uint8_t WINDOW_SIZE = 5;
+    static const uint16_t UPLINK_CALC_INTERVAL = 600;
+    static const uint16_t MAX_GCS_TIME_GAP = 3000;
     // Link quality is scaled from 0 to 255.
     static const uint8_t LINK_SCALE = 255;
     // timer to track when to calculate the link quality.
     uint32_t last_uplink_calc;
-    // Circular buffer to store historical link quality data.
-    std::vector<float> link_buffer;
-    // Index to track the current position in the circular buffer.
-    size_t link_idx;
+    // Average filter to calculate the link quality.
+    AverageFilterUInt8_Size5 link_buffer;
     // Current link quality.
     uint8_t _link_quality;
+    // Link quality data
+    uint8_t link_data = 0;
+    // Previous link quality data
+    uint8_t prev_link_data = 0;
     // Track the number of packets received and lost including prev calculation.
     int pkt_received = 0;
     int pkt_lost = 0;
