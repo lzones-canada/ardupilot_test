@@ -1897,8 +1897,6 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         pkt_lost     = (pkt_loss  - prev_pkt_loss);
         // Update link quality buffer
         update_link_quality(pkt_received, pkt_lost, tnow);
-        // Calculate the link quality.
-        calc_link_quality();
         // Store the current values for the next calculation.
         prev_pkt_received = pkt_count;
         prev_pkt_loss     = pkt_loss;
@@ -1981,13 +1979,12 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 #endif
 }
 
-#if HAL_LOGGING_ENABLED
-
 /*
   calculate uplink quality
 */
 void GCS_MAVLINK::mavlink_link_update(mavlink_message_t msg)
 {
+    // Static variable to save the previous sequence number
     static uint8_t  prev_seq = 0;
 
     // If we have received a packet and from our VCSI GCS
@@ -1998,11 +1995,11 @@ void GCS_MAVLINK::mavlink_link_update(mavlink_message_t msg)
             prev_seq = msg.seq-1;  // Initialize prev_seq to the current sequence number
         }
 
-        //DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
+        DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
 
         // Detect pkt loss
         if (msg.seq != ++prev_seq) {
-            pkt_loss += (msg.seq - prev_seq + LINK_SCALE + 1) % (LINK_SCALE + 1);
+            pkt_loss += (msg.seq - --prev_seq + LINK_SCALE + 1) % (LINK_SCALE + 1);
         }
 
         // Save state for next calculation.
@@ -2018,10 +2015,6 @@ void GCS_MAVLINK::mavlink_link_update(mavlink_message_t msg)
 */
 void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
 {
-    // Link quality data
-    uint8_t link_data = 0;
-    // Previous link quality data
-    static uint8_t prev_link_data = 0;
     // Combined counter of received and lost packets
     uint8_t pkt_total = received + lost;
 
@@ -2031,20 +2024,27 @@ void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
         link_data = (received * LINK_SCALE) / (pkt_total);
     // No received packets - Handle cases.
     } else {
-        // If we have not received any packets from our GCS for more than 1.2 seconds, set link quality to 0.
-        if((tnow - gcs().sysid_myggcs_last_seen_time_ms()) > (UPLINK_CALC_INTERVAL / 2)) {
+        // Time since we last saw the GCS
+        uint32_t last_seen = gcs().sysid_myggcs_last_seen_time_ms();
+        uint32_t time_gap = tnow - last_seen;
+
+        // Threshold for maximum time gap (e.g., 3000 ms)
+        if (time_gap > MAX_GCS_TIME_GAP) {
+            // If the gap is more than the maximum, set link quality to 0
             link_data = 0;
+        } else if (time_gap > (UPLINK_CALC_INTERVAL *2)) {
+            // Dynamically decrease link_data as time_gap increases
+            // This maps the time gap linearly to the range [prev_link_data, 0]
+            float ratio = static_cast<float>(time_gap) / MAX_GCS_TIME_GAP;
+            link_data = static_cast<uint8_t>(prev_link_data * (1.0 - ratio));
         } else {
-            // We have received packets from our GCS within the last second, set link quality to prev value.
+            // If the gap is less than the maximum, set link quality to the previous value
             link_data = prev_link_data;
         }
     }
 
-    // Add the new data to the circular buffer at the current index.
-    link_buffer[link_idx] = link_data;
-
-    // Update the current index in a circular manner.
-    link_idx = (link_idx + 1) % WINDOW_SIZE;
+    // Add new calulated link quality to the Average Link Quality Buffer
+    _link_quality = link_buffer.apply(link_data);
 
     // Save the previous link data for the next calculation.
     prev_link_data = link_data;
@@ -2052,21 +2052,7 @@ void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
     return;
 }
 
-/*
-  calculate update uplink quality
-*/
-void GCS_MAVLINK::calc_link_quality()
-{
-    // Calculate the average link quality over the last 3 seconds.
-    uint16_t sum = 0;
-    for (uint8_t i = 0; i < WINDOW_SIZE; ++i) {
-        sum += link_buffer[i];
-    }
-
-    _link_quality = (sum / WINDOW_SIZE);
-    return;
-}
-
+#if HAL_LOGGING_ENABLED
 /*
   record stats about this link to logger
 */
