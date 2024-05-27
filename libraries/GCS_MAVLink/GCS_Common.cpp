@@ -1961,7 +1961,7 @@ void GCS_MAVLINK::mavlink_link_update(mavlink_message_t msg)
             prev_seq = msg.seq-1;  // Initialize prev_seq to the current sequence number
         }
 
-        DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
+        //DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
 
         // Detect pkt loss
         if (msg.seq != ++prev_seq) {
