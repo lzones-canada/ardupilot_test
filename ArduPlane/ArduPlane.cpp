@@ -426,7 +426,7 @@ void Plane::beacon_lights_heartbeat()
     static uint32_t last_update_time = 0;
 
     // Duration for each part of the heartbeat cycle in milliseconds
-    static const uint32_t HEARTBEAT_PERIOD = 1300; // 1300ms (1.3 seconds) total period
+    static const uint32_t HEARTBEAT_PERIOD = 1400; // 1400ms (1.4 seconds) total period
     static const uint32_t FIRST_ON_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.15); // 15% on
     static const uint32_t OFF_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.1); // 10% off
     static const uint32_t SECOND_ON_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.2); // 20% on
