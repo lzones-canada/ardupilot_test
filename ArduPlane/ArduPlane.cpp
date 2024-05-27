@@ -306,13 +306,6 @@ void Plane::update_logging25(void)
  */
 void Plane::init_payload_control(void)
 {
-    // Handle Pin Configuration for Software crashing..
-    enum ap_var_type ptype_relay;
-    AP_Int8 *relay_101 = (AP_Int8*)AP_Param::find("RELAY1_PIN", &ptype_relay);
-    if(relay_101->get() != HAL_GPIO_PIN_POS_LIGHTS) {
-        AP_Param::set_by_name("RELAY1_PIN", HAL_GPIO_PIN_POS_LIGHTS);
-    }
-
     // Position lights
     pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
     pos_lights->mode(HAL_GPIO_OUTPUT);
@@ -342,6 +335,9 @@ void Plane::init_payload_control(void)
     board_temp_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_BOARD_TEMP);
 
     hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OUTPUT);
+    hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG, 0);
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_OUTPUT);
+    hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 0);
 
 #if defined(HAL_GPIO_EXT_WDOG)
     // Watchdog Pins

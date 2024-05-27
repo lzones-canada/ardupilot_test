@@ -202,6 +202,7 @@ private:
     // external watchdog GPIO support
     void ext_watchdog_pat(uint32_t now_ms);
     uint32_t last_ext_watchdog_ms;
+    bool watchdog_reset_done;
 #endif
 
     static void try_force_mutex(void);
