@@ -208,7 +208,7 @@ const AP_Param::GroupInfo SIM::var_info2[] = {
     AP_GROUPINFO("TEMP_BFACTOR", 4, SIM,  temp_baro_factor, 0),
 
     AP_GROUPINFO("WIND_DIR_Z",  10, SIM,  wind_dir_z,     0),
-    // @Param: WIND_T_
+    // @Param: WIND_T
     // @DisplayName: Wind Profile Type
     // @Description: Selects how wind varies from surface to WIND_T_ALT
     // @Values: 0:square law,1: none, 2:linear-see WIND_T_COEF
@@ -1183,6 +1183,11 @@ const AP_Param::GroupInfo SIM::var_ins[] = {
     // @DisplayName: SIM-on_hardware Relay Enable Mask
     // @Description: Allow relay output operation when running SIM-on-hardware
     AP_GROUPINFO("OH_RELAY_MSK",     48, SIM, on_hardware_relay_enable_mask, SIM_DEFAULT_ENABLED_RELAY_CHANNELS),
+
+    // @Param: CLAMP_CH
+    // @DisplayName: Simulated Clamp Channel
+    // @Description: If non-zero the vehicle will be clamped in position until the value on this servo channel passes 1800PWM
+    AP_GROUPINFO("CLAMP_CH",     49, SIM, clamp_ch, 0),
 
     // the IMUT parameters must be last due to the enable parameters
 #if HAL_INS_TEMPERATURE_CAL_ENABLE
