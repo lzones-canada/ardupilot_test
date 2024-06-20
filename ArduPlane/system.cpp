@@ -397,7 +397,7 @@ void Plane::check_long_failsafe()
         // Custom action leveraging the short timer parameter
         if ((tnow - gcs_last_seen_ms) > g.fs_timeout_short*1000) {
             // Trigger our custom short failsafe actions.
-            balloon_release->write(HAL_GPIO_OFF);
+            balloon_release->write(0);
             plane.adsb_transponder_failsafe(true);
         }
 

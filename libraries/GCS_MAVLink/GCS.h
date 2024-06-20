@@ -25,13 +25,9 @@
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_RangeFinder/AP_RangeFinder_config.h>
 #include <AP_Winch/AP_Winch_config.h>
-<<<<<<< HEAD
-
-=======
 #include <AP_AHRS/AP_AHRS_config.h>
 #include <AP_Arming/AP_Arming_config.h>
 #include <Filter/AverageFilter.h>
->>>>>>> f347c3a1e6 (update link_buffer to use built in filtered average buffer. removing)
 #include "ap_message.h"
 
 #define GCS_DEBUG_SEND_MESSAGE_TIMINGS 0

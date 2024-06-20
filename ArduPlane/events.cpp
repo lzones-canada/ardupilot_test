@@ -234,7 +234,7 @@ void Plane::failsafe_long_off_event(ModeReason reason)
     if (reason == ModeReason:: GCS_FAILSAFE) {
         gcs().send_text(MAV_SEVERITY_WARNING, "GCS Failsafe Off");
         // Reset our short failsafes values
-        balloon_release->write(HAL_GPIO_ON);
+        balloon_release->write(1);
         plane.adsb_transponder_failsafe(false);
     }
     else {

@@ -129,9 +129,6 @@ GCS_MAVLINK::GCS_MAVLINK(GCS_MAVLINK_Parameters &parameters,
     _port = &uart;
 
     streamRates = parameters.streamRates;
-
-    link_buffer.clear();
-    link_buffer.resize(WINDOW_SIZE);
 }
 
 bool GCS_MAVLINK::init(uint8_t instance)

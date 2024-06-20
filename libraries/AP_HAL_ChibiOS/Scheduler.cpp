@@ -148,6 +148,16 @@ void Scheduler::init()
                      this);                  /* Thread parameter.      */
 #endif
 
+#if defined(HAL_GPIO_PIN_EXT_WDOG)
+    // initialize ext-wdog pinModes to output.
+    _ext_wdog = hal.gpio->channel(HAL_GPIO_PIN_EXT_WDOG);
+    _ext_wdog->mode(HAL_GPIO_OUTPUT);
+    _ext_wdog->write(0);
+
+    _ext_wdog_reset = hal.gpio->channel(HAL_GPIO_PIN_EXT_WDOG_RESET);
+    _ext_wdog_reset->mode(HAL_GPIO_OUTPUT);
+    _ext_wdog_reset->write(0);
+#endif
 }
 
 void Scheduler::delay_microseconds(uint16_t usec)
@@ -803,27 +813,56 @@ void Scheduler::watchdog_pat(void)
 // toggle the external watchdog gpio pin
 void Scheduler::ext_watchdog_pat(uint32_t now_ms)
 {
-    /*************************************************************************
-    * Watchdog - Generate the Watchdog output and reset the external watchdog
-    *************************************************************************/
+    // Reset the external watchdog timer.
+    static uint16_t _watchdog_reset_timer = WATCHDOG_RESET_TIMEOUT;
+
+    // Skip the watchdog pat if the system is not initialized.
+    if(!hal.scheduler->is_system_initialized()) {
+        return;
+    }
+
+    // Watchdog reset timer.
+    if(0 == _watchdog_reset_timer)
+    {
+        _ext_wdog_reset->write(1);
+        watchdog_reset_done = true;
+    }
+    else
+    {
+        --_watchdog_reset_timer;
+        _ext_wdog_reset->write(0);
+    }
+
+
+    //---------------------------------------------------------------------------
+    // Generate the Watchdog output.  This generates a pulse train with a period
+    // of KICK_WATCHDOG_PERIOD and a pulse width of UPDATE_PERIOD.
+    //---------------------------------------------------------------------------
+    static uint8_t watchdog_counter = 0;
+    static uint8_t watchdog_iterations = (uint8_t)round(KICK_WATCHDOG_PERIOD / UPDATE_PERIOD);
+
     if(watchdog_reset_done)
     {
-        // toggle watchdog GPIO every WDI_OUT_INTERVAL_TIME_MS
-        if ((now_ms - last_ext_watchdog_ms) >= EXT_WDOG_INTERVAL_MS) {
-            //palToggleLine(HAL_GPIO_LINE_GPIO56);
-            hal.gpio->toggle(HAL_GPIO_PIN_EXT_WDOG);
-            last_ext_watchdog_ms = now_ms;
+        if(0 == watchdog_counter)
+        {
+            _ext_wdog->write(1);
         }
-    } else {
-        // Hold off period for external watchdog reset
-        if (now_ms > EXT_WDOG_RESET_HOLD_OFF_MS) {
-            hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 1);
-            watchdog_reset_done = true;
-        } else {
-            hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 0);
+        else
+        {
+            _ext_wdog->write(0);
+        }
+
+        ++watchdog_counter;
+
+        if(watchdog_iterations <= watchdog_counter)
+        {
+            watchdog_counter = 0;
         }
     }
+
+    return;
 }
+
 #endif
 
 #if CH_DBG_ENABLE_STACK_CHECK == TRUE
