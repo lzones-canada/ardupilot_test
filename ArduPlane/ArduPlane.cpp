@@ -319,10 +319,12 @@ void Plane::init_payload_control(void)
     // Parachute Release - Logic Reversed.
     chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
     chute_release->mode(HAL_GPIO_OUTPUT);
+    pos_lights->write(1);
 
     // Balloon Release - Logic Reversed.
     balloon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
     balloon_release->mode(HAL_GPIO_OUTPUT);
+    pos_lights->write(1);
 
     // HSTM Power
     hstm_pwr = hal.gpio->channel(HAL_GPIO_PIN_HSTM_POWER);
