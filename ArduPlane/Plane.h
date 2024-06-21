@@ -39,6 +39,9 @@
 #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 #include <AP_AHRS/AP_AHRS.h>         // ArduPilot Mega DCM Library
 #include <SRV_Channel/SRV_Channel.h>
+#include <AP_MAX14830/AP_VOLZ_State.h>  // Volz Protocol Library
+#include <AP_MAX14830/AP_ADSB_State.h>  // ADSB Transponder Library
+#include <AP_MAX14830/AP_MAX14830.h>    // MAX14830 libraries declaration
 #include <AP_RangeFinder/AP_RangeFinder.h>     // Range finder library
 #include <Filter/Filter.h>                     // Filter library
 #include <AP_Camera/AP_Camera.h>          // Photo or video camera
@@ -215,6 +218,64 @@ private:
 #if AP_RPM_ENABLED
     AP_RPM rpm_sensor;
 #endif
+
+    // Parachute Release (Pin 103)
+    AP_HAL::DigitalSource *chute_release;
+    // Balloon Release   (Pin 104) 
+    AP_HAL::DigitalSource *balloon_release;
+    // Position Lights   (Pin 101)
+    AP_HAL::DigitalSource *pos_lights;
+    // Beacon Lights     (Pin 102)
+    AP_HAL::DigitalSource *beacon_lights;
+    // HSTM Power        (Pin 105) 
+    AP_HAL::DigitalSource *hstm_pwr;
+
+    // Helper functions for reading the status of the digital pins
+    uint8_t get_chute_status()        const { return chute_release->read(); };
+    uint8_t get_balloon_status()      const { return balloon_release->read(); };
+    uint8_t get_pos_lights_status()   const { return pos_lights->read(); };
+    uint8_t get_beac_lights_status()  const { return beacon_light; };
+    uint8_t get_hstm_status()         const { return hstm_pwr->read(); };
+    uint8_t get_wing_limit_status()   const { return hal.gpio->read(HAL_GPIO_PIN_WING_LIMIT); };
+    //uint8_t get_watchdog_status()     const { return hal.gpio->read(HAL_GPIO_DRDY2_EXT_GPIO); };
+
+    // Analog Input Source for monitoring.
+    AP_HAL::AnalogSource *servo_analog_input;
+    AP_HAL::AnalogSource *board_temp_analog_input;
+
+    // Global command for Beacon Light
+    bool beacon_light = false;
+
+    // Global variables for station control
+    bool port_modem = false;
+    bool stbd_modem = false;
+    bool modem_boost = false;
+
+    // Helper functions for reading status of station control.
+    uint8_t get_modem_tx_port_status()  const { return port_modem; };
+    uint8_t get_modem_tx_stbd_status()  const { return stbd_modem; };
+    uint8_t get_modem_boost_status()  const { return modem_boost; };
+
+    // Support Board Temperature
+    float board_temp = 0;
+    float servo_vcc = 0;
+    // Helper functions for getting analog pins.
+    float get_servo_volt()          const { return servo_vcc; }; 
+    float get_support_board_temp()  const { return board_temp; };
+
+    // Volz Protocol support for sharing values
+    // Set the target percent command for Volz Loop from GCS
+    void volz_wing_deg_cmd (uint8_t value) { volz_state.set_target_command(value); }
+    // Calibrate flag for Volz Loop from GCS
+    void volz_wing_calibrate (bool calibr) { volz_state.set_calibrate(calibr); }
+    // Get the sweet angle to send GCS.
+    float get_volz_sweep_wing ()  const { return volz_state.get_sweep_angle(); };
+
+    // ADSB support for sharing values (Turn off ADSB transponder)
+    void adsb_transponder_failsafe (bool flag) { adsb_state.set_adsb_failsafe(flag); }
+
+    // IMET sensor
+    AP_MAX14830 max14830;
 
     AP_TECS TECS_controller{ahrs, aparm, landing, MASK_LOG_TECS};
     AP_L1_Control L1_controller{ahrs, &TECS_controller};
@@ -1041,6 +1102,10 @@ private:
     void compass_save(void);
     void update_logging10(void);
     void update_logging25(void);
+    void init_payload_control(void);
+    void update_payload_control(void);
+    void beacon_lights_heartbeat(void);
+    void analog_input_calcs(void);
     void update_control_mode(void);
     void update_fly_forward(void);
     void update_flight_stage();
@@ -1145,6 +1210,16 @@ private:
     // soaring.cpp
 #if HAL_SOARING_ENABLED
     void update_soaring();
+#endif
+
+#if defined(HAL_GPIO_EXT_WDOG)
+    void ext_watchdog_service(void);
+    static const uint32_t WATCHDOG_RESET_TIMEOUT = 2000; // 2 Seconds
+    static const uint32_t WATCHDOG_PULSE_TRAIN = 60;
+    uint32_t last_ext_watchdog_ms;
+    uint32_t time_to_toggle;
+    bool watchdog_reset_done = false;
+    uint32_t watchdog_reset_timer = 0;
 #endif
 
     // RC_Channel.cpp

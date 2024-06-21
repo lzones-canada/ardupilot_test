@@ -1,0 +1,45 @@
+# hw definition file for processing by chibios_hwdef.py
+# for the Pixhawk V6X LZC custom hardware version
+
+include ../Pixhawk6X/hwdef.dat
+
+# Custom Firmware String
+define AP_CUSTOM_FIRMWARE_STRING "LZC-Gitpo"
+
+# Max14830 SPI6 Configuration
+SPIDEV max14830 SPI6 DEVID1 EXT1_CS MODE0 10*MHZ 10*MHZ
+
+# QUART Interrupt Line
+PD11 DRDY1_EXT INPUT GPIO(100)
+define HAL_GPIO_DRDY1_EXT_GPIO      100
+
+# Watchdog Tripped Input
+PD12 DRDY2_EXT INPUT GPIO(99)
+define HAL_GPIO_DRDY2_EXT_GPIO      99
+
+# Watchdog Reset
+PF10 NRESET_EXT OUTPUT GPIO(98)
+define HAL_GPIO_NRESET_EXT_GPIO     98
+#define HAL_GPIO_EXT_WDOG_RESET      98
+
+# Watchdog Service
+PA15 EXT1_CS2 OUTPUT GPIO(97)
+define HAL_GPIO_EXT_CS2_GPIO        97
+#define HAL_GPIO_EXT_WDOG            97
+
+# FMU GPIO (50-57)
+define HAL_GPIO_PIN_WING_LIMIT      54
+define HAL_GPIO_PIN_EXT_WDOG        56
+define HAL_GPIO_EXT_WDOG_RESET      57
+define EXT_WDOG_INTERVAL_MS         505
+
+# IOMCU GPIO (101-108)
+define HAL_GPIO_PIN_POS_LIGHTS      101
+define HAL_GPIO_PIN_BCN_LIGHTS      102
+define HAL_GPIO_PIN_CHUTE_RELEASE   103
+define HAL_GPIO_PIN_BLN_RELEASE     104
+define HAL_GPIO_PIN_HSTM_POWER      105
+
+# Analog Input Pins
+define HAL_ANALOG_PIN_SERV0          12
+define HAL_ANALOG_PIN_BOARD_TEMP     13

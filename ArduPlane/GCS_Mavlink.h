@@ -34,6 +34,8 @@ protected:
     void send_attitude() const override;
     void send_attitude_target() override;
     void send_wind() const;
+    void send_payload_status();
+    void send_station_status();
 
     bool persist_streamrates() const override { return true; }
 
@@ -61,6 +63,9 @@ private:
     MAV_RESULT handle_MAV_CMD_DO_MOTOR_TEST(const mavlink_command_int_t &packet);
     MAV_RESULT handle_MAV_CMD_DO_PARACHUTE(const mavlink_command_int_t &packet);
     MAV_RESULT handle_command_DO_VTOL_TRANSITION(const mavlink_command_int_t &packet);
+
+    void handle_payload_ctrl(const mavlink_message_t &msg);
+    void handle_station_ctrl(const mavlink_message_t &msg);
 
 #if HAL_QUADPLANE_ENABLED
 #if AP_MAVLINK_COMMAND_LONG_ENABLED

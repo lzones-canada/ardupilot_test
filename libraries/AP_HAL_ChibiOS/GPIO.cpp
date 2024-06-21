@@ -237,6 +237,11 @@ void GPIO::pinMode(uint8_t pin, uint8_t output)
 
 uint8_t GPIO::read(uint8_t pin)
 {
+#if HAL_WITH_IO_MCU
+    if (AP_BoardConfig::io_enabled() && iomcu.valid_GPIO_pin(pin)) {
+        return iomcu.read_GPIO(pin);
+    }
+#endif
     struct gpio_entry *g = gpio_by_pin_num(pin);
     if (g) {
         return palReadLine(g->pal_line);
@@ -425,6 +430,11 @@ IOMCU_DigitalSource::IOMCU_DigitalSource(uint8_t _pin) :
 void IOMCU_DigitalSource::write(uint8_t value)
 {
     iomcu.write_GPIO(pin, value);
+}
+
+uint8_t IOMCU_DigitalSource::read()
+{
+    return iomcu.read_GPIO(pin);
 }
 
 void IOMCU_DigitalSource::toggle()

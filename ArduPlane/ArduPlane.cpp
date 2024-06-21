@@ -144,6 +144,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if AC_PRECLAND_ENABLED
     SCHED_TASK(precland_update, 400, 50, 160),
 #endif
+    SCHED_TASK(update_payload_control, 50, 400, 165),
 };
 
 void Plane::get_scheduler_tasks(const AP_Scheduler::Task *&tasks,
@@ -299,6 +300,200 @@ void Plane::update_logging25(void)
         AP::ins().Write_Vibration();
 }
 #endif  // HAL_LOGGING_ENABLED
+
+/*
+  init payload control
+ */
+void Plane::init_payload_control(void)
+{
+    // Handle Pin Configuration for Software crashing..
+    enum ap_var_type ptype_relay;
+    AP_Int8 *relay_101 = (AP_Int8*)AP_Param::find("RELAY1_PIN", &ptype_relay);
+    if(relay_101->get() != HAL_GPIO_PIN_POS_LIGHTS) {
+        AP_Param::set_by_name("RELAY1_PIN", HAL_GPIO_PIN_POS_LIGHTS);
+    }
+
+    // Position lights
+    pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
+    pos_lights->mode(HAL_GPIO_OUTPUT);
+    pos_lights->write(0);
+
+    // Beacon Lights (Heartbeat Pattern)
+    beacon_lights = hal.gpio->channel(HAL_GPIO_PIN_BCN_LIGHTS);
+    beacon_lights->mode(HAL_GPIO_OUTPUT);
+    beacon_lights->write(0);
+
+    // Parachute Release - Logic Reversed.
+    chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
+    chute_release->mode(HAL_GPIO_OUTPUT);
+
+    // Balloon Release - Logic Reversed.
+    balloon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
+    balloon_release->mode(HAL_GPIO_OUTPUT);
+
+    // HSTM Power
+    hstm_pwr = hal.gpio->channel(HAL_GPIO_PIN_HSTM_POWER);
+    hstm_pwr->mode(HAL_GPIO_OUTPUT);
+    hstm_pwr->write(0);
+
+    // Analog Source Voltage Output (pin7 on AD&IO, analog 12)
+    servo_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_SERV0);
+    // Analog Source Vehicle Temperature Support Board (# pin6 on AD&IO, analog 13)
+    board_temp_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_BOARD_TEMP);
+
+    hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OUTPUT);
+
+#if defined(HAL_GPIO_EXT_WDOG)
+    // Watchdog Pins
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_OUTPUT);
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG, HAL_GPIO_OUTPUT);
+
+    // Register External Watchdog Service (1kHz / 1ms - timer callback)
+    //hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&Plane::ext_watchdog_service, void));
+#endif
+    return;
+}
+
+#if defined(HAL_GPIO_EXT_WDOG)
+/*
+  External Watchdog Service
+ */
+void Plane::ext_watchdog_service()
+{
+    // uint32_t tnow = AP_HAL::millis();
+
+    // /*************************************************************************
+    // * Watchdog - Generate the Watchdog output and reset the external watchdog
+    // *************************************************************************/
+    // if(watchdog_reset_done)
+    // {
+    //     // Generates pulse train for the external watchdog output.
+    //     if (time_to_toggle >= WATCHDOG_PULSE_TRAIN)
+    //     {
+    //         // If the time exceeds 60ms - reset timer
+    //         time_to_toggle = 0;
+    //         hal.gpio->write(HAL_GPIO_EXT_WDOG, 0);
+    //     }
+    //     else if (time_to_toggle >= (WATCHDOG_PULSE_TRAIN / 2))
+    //     {
+    //         // If the time exceeds 30ms - drive pin high for period of time.
+    //         hal.gpio->write(HAL_GPIO_EXT_WDOG, 1);
+    //     }
+    //     else
+    //     {
+    //         // If the time to toggle is greater than 0 and less than 30 milliseconds, drive pin high low
+    //         hal.gpio->write(HAL_GPIO_EXT_WDOG, 0);
+    //     }
+    // }
+    // else
+    // {
+    //     // Set our reset timer.
+    //     watchdog_reset_timer = WATCHDOG_RESET_TIMEOUT;
+    //     watchdog_reset_done = true;
+    // }
+
+    // // Check if the watchdog reset timer is active.
+    // if(0 != watchdog_reset_timer)
+    // {
+    //     // If the watchdog reset timer is active, decrement it and drive external watchdog reset pin low.
+    //     --watchdog_reset_timer;
+    //     hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 0);
+    // }
+    // else
+    // {
+    //     // If the watchdog reset timer is expired, drive external watchdog reset pin high
+    //     hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 1);
+    // }
+
+    // // Update time_to_toggle based on elapsed time since the last function call.
+    // time_to_toggle += (tnow - last_ext_watchdog_ms);
+    // last_ext_watchdog_ms = tnow;
+
+    return;
+}
+#endif
+
+/*
+  do 50Hz payload control
+ */
+void Plane::update_payload_control()
+{
+    beacon_lights_heartbeat();
+
+    analog_input_calcs();
+
+    return;
+} 
+
+/*
+  Beacon Lights Control (Heartbeat Pattern) @ 50Hz
+ */
+void Plane::beacon_lights_heartbeat()
+{
+    // 50hz Counter.
+    static uint16_t heartbeat_count = 0;
+    static const double HEARTBEAT_PERIOD = 50; // 50hz
+    static const uint16_t FIRST_ON_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.15); // 15% on
+    static const uint16_t OFF_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.1); // 10% off
+    static const uint16_t SECOND_ON_TIME = (uint16_t)round(HEARTBEAT_PERIOD * 0.2); // 20% on
+
+    // Only turn on Nav Lights when commanded from GCS
+    if(beacon_light) 
+    {
+        if(FIRST_ON_TIME > heartbeat_count)
+        {
+            beacon_lights->write(1);
+        }
+        else if((FIRST_ON_TIME + OFF_TIME) > heartbeat_count)
+        {
+            beacon_lights->write(0);
+        }
+        else if((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > heartbeat_count)
+        {
+            beacon_lights->write(1);
+        }
+        else if(((uint16_t)round(HEARTBEAT_PERIOD)) > heartbeat_count)
+        {
+            beacon_lights->write(0);
+        }
+        else
+        {
+            beacon_lights->write(0);
+            heartbeat_count = 0;
+        }
+    }
+    // off otherwise
+    else {
+        beacon_lights->write(0);
+    }
+
+    ++heartbeat_count;
+
+    return;
+}
+
+/*
+    Analog Input Calculations @ 50Hz
+ */
+void Plane::analog_input_calcs()
+{
+    // Servo Rail Voltage - multiply by 2 account for Divider.
+    servo_vcc = servo_analog_input->voltage_average() * 2.0;
+
+    // Support Board Temperature
+    double Vout = board_temp_analog_input->voltage_average();
+    // Define known values for Support board calculations.
+    double const A = -1481.96;
+    double const B = 2.1962e6;
+    double const C = 1.8639;
+    double const D = 3.88e-6;
+    // Analog Input Voltage
+
+    // Analog output of TMP20 over –55°C to +130°C temperature range corresponds to parabolic transfer function from datasheet.
+    board_temp = (A + sqrt(B + (C - Vout) / D));
+
+    return;
+}
 
 /*
   check for AFS failsafe check

@@ -66,6 +66,7 @@
 #include <AP_KDECAN/AP_KDECAN.h>
 #include <AP_LandingGear/AP_LandingGear.h>
 #include <AP_Landing/AP_Landing_config.h>
+#include <AP_MAX14830/AP_MAX14830.h>
 
 #include "MissionItemProtocol_Waypoints.h"
 #include "MissionItemProtocol_Rally.h"
@@ -1819,6 +1820,7 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
             gcs_alternative_active[chan] = false;
             alternative.last_mavlink_ms = now_ms;
             hal.util->persistent_data.last_mavlink_msgid = 0;
+            mavlink_link_update(msg);
         }
 
         if (parsed_packet || i % 100 == 0) {
@@ -1849,6 +1851,22 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         }
     }
 #endif
+
+    // calculate uplink once every 1.2s (200ms hysterises to allow heartbeat to arrive..).
+    if (tnow - last_uplink_calc > UPLINK_CALC_INTERVAL) {
+        // Track the difference of packets received and lost.
+        pkt_received = (pkt_count - prev_pkt_received);
+        pkt_lost     = (pkt_loss  - prev_pkt_loss);
+        // Update link quality buffer
+        update_link_quality(pkt_received, pkt_lost, tnow);
+        // Calculate the link quality.
+        calc_link_quality();
+        // Store the current values for the next calculation.
+        prev_pkt_received = pkt_count;
+        prev_pkt_loss     = pkt_loss;
+        // Reset the timer.
+        last_uplink_calc = tnow;
+    }
 
 #if GCS_DEBUG_SEND_MESSAGE_TIMINGS
 
@@ -1926,6 +1944,91 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 }
 
 #if HAL_LOGGING_ENABLED
+
+/*
+  calculate uplink quality
+*/
+void GCS_MAVLINK::mavlink_link_update(mavlink_message_t msg)
+{
+    static uint8_t  prev_seq = 0;
+
+    // If we have received a packet and from our VCSI GCS
+    if (msg.sysid == sysid_my_gcs()) {
+        // Initial condition: If no packet has been received so far, drop count is undefined
+        if (pkt_count == 0) {
+            pkt_loss = 0;
+            prev_seq = msg.seq-1;  // Initialize prev_seq to the current sequence number
+        }
+
+        //DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
+
+        // Detect pkt loss
+        if (msg.seq != ++prev_seq) {
+            pkt_loss += (msg.seq - prev_seq + LINK_SCALE + 1) % (LINK_SCALE + 1);
+        }
+
+        // Save state for next calculation.
+        ++pkt_count;
+        prev_seq = msg.seq;
+    }
+
+    return;
+}
+
+/*
+  update uplink quality
+*/
+void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
+{
+    // Link quality data
+    uint8_t link_data = 0;
+    // Previous link quality data
+    static uint8_t prev_link_data = 0;
+    // Combined counter of received and lost packets
+    uint8_t pkt_total = received + lost;
+
+    // Check if there are received packets
+    if (pkt_total > 0) {
+        // Calculate link quality based on received and lost packets
+        link_data = (received * LINK_SCALE) / (pkt_total);
+    // No received packets - Handle cases.
+    } else {
+        // If we have not received any packets from our GCS for more than 1.2 seconds, set link quality to 0.
+        if((tnow - gcs().sysid_myggcs_last_seen_time_ms()) > (UPLINK_CALC_INTERVAL / 2)) {
+            link_data = 0;
+        } else {
+            // We have received packets from our GCS within the last second, set link quality to prev value.
+            link_data = prev_link_data;
+        }
+    }
+
+    // Add the new data to the circular buffer at the current index.
+    link_buffer[link_idx] = link_data;
+
+    // Update the current index in a circular manner.
+    link_idx = (link_idx + 1) % WINDOW_SIZE;
+
+    // Save the previous link data for the next calculation.
+    prev_link_data = link_data;
+
+    return;
+}
+
+/*
+  calculate update uplink quality
+*/
+void GCS_MAVLINK::calc_link_quality()
+{
+    // Calculate the average link quality over the last 3 seconds.
+    uint16_t sum = 0;
+    for (uint8_t i = 0; i < WINDOW_SIZE; ++i) {
+        sum += link_buffer[i];
+    }
+
+    _link_quality = (sum / WINDOW_SIZE);
+    return;
+}
+
 /*
   record stats about this link to logger
 */
@@ -3910,6 +4013,12 @@ void GCS_MAVLINK::handle_adsb_message(const mavlink_message_t &msg)
     AP_ADSB *adsb = AP::ADSB();
     if (adsb != nullptr) {
         adsb->handle_message(chan, msg);
+    }
+
+    // Send out on our Custom Driver
+    AP_MAX14830 *max14830 = AP::MAX14830();
+    if (max14830 != nullptr) {
+        max14830->adsb.handle_message(chan, msg);
     }
 }
 #endif

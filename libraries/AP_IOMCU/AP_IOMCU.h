@@ -160,6 +160,9 @@ public:
     // write to a output pin
     void write_GPIO(uint8_t pin, bool value);
 
+     // read from an output pin
+    bool read_GPIO(uint8_t pin);
+
     // toggle a output pin
     void toggle_GPIO(uint8_t pin);
 
