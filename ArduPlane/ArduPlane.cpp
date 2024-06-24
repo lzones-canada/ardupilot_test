@@ -336,6 +336,9 @@ void Plane::init_payload_control(void)
     // Analog Source Vehicle Temperature Support Board (# pin6 on AD&IO, analog 13)
     board_temp_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_BOARD_TEMP);
 
+    // Wdog Tripped status
+    // hal.gpio->pinMode(HAL_GPIO_DRDY2_EXT_GPIO, HAL_GPIO_INPUT);
+
     hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OUTPUT);
     hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG, 0);
     hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_OUTPUT);
