@@ -1859,7 +1859,6 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
             gcs_alternative_active[chan] = false;
             alternative.last_mavlink_ms = now_ms;
             hal.util->persistent_data.last_mavlink_msgid = 0;
-            mavlink_link_update(msg);
         }
 
         if (parsed_packet || i % 100 == 0) {
@@ -1894,20 +1893,6 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         }
     }
 #endif
-
-    // calculate uplink once every 1.2s (200ms hysterises to allow heartbeat to arrive..).
-    if (tnow - last_uplink_calc > UPLINK_CALC_INTERVAL) {
-        // Track the difference of packets received and lost.
-        pkt_received = (pkt_count - prev_pkt_received);
-        pkt_lost     = (pkt_loss  - prev_pkt_loss);
-        // Update link quality buffer
-        update_link_quality(pkt_received, pkt_lost, tnow);
-        // Store the current values for the next calculation.
-        prev_pkt_received = pkt_count;
-        prev_pkt_loss     = pkt_loss;
-        // Reset the timer.
-        last_uplink_calc = tnow;
-    }
 
 #if GCS_DEBUG_SEND_MESSAGE_TIMINGS
 
@@ -1982,79 +1967,6 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         try_send_message_stats.statustext_last_sent_ms = now16_ms;
     }
 #endif
-}
-
-/*
-  calculate uplink quality
-*/
-void GCS_MAVLINK::mavlink_link_update(mavlink_message_t msg)
-{
-    // Static variable to save the previous sequence number
-    static uint8_t  prev_seq = 0;
-
-    // If we have received a packet and from our VCSI GCS
-    if (msg.sysid == sysid_my_gcs()) {
-        // Initial condition: If no packet has been received so far, drop count is undefined
-        if (pkt_count == 0) {
-            pkt_loss = 0;
-            prev_seq = msg.seq-1;  // Initialize prev_seq to the current sequence number
-        }
-
-        //DEV_PRINTF("chan=%u msgid=%u seq=%u,%u count=%u pkt_loss=%u sysid=%u compid=%u lnk=%.2f\n", chan, msg.msgid, msg.seq, prev_seq, pkt_count, pkt_loss, msg.sysid,msg.compid, ((_link_quality / 255.0 ) * 100.0));
-
-        // Detect pkt loss
-        if (msg.seq != ++prev_seq) {
-            pkt_loss += (msg.seq - --prev_seq + LINK_SCALE + 1) % (LINK_SCALE + 1);
-        }
-
-        // Save state for next calculation.
-        ++pkt_count;
-        prev_seq = msg.seq;
-    }
-
-    return;
-}
-
-/*
-  update uplink quality
-*/
-void GCS_MAVLINK::update_link_quality(int received, int lost, uint32_t tnow)
-{
-    // Combined counter of received and lost packets
-    uint8_t pkt_total = received + lost;
-
-    // Check if there are received packets
-    if (pkt_total > 0) {
-        // Calculate link quality based on received and lost packets
-        link_data = (received * LINK_SCALE) / (pkt_total);
-    // No received packets - Handle cases.
-    } else {
-        // Time since we last saw the GCS
-        uint32_t last_seen = gcs().sysid_myggcs_last_seen_time_ms();
-        uint32_t time_gap = tnow - last_seen;
-
-        // Threshold for maximum time gap (e.g., 3000 ms)
-        if (time_gap > MAX_GCS_TIME_GAP) {
-            // If the gap is more than the maximum, set link quality to 0
-            link_data = 0;
-        } else if (time_gap > (UPLINK_CALC_INTERVAL *2)) {
-            // Dynamically decrease link_data as time_gap increases
-            // This maps the time gap linearly to the range [prev_link_data, 0]
-            float ratio = static_cast<float>(time_gap) / MAX_GCS_TIME_GAP;
-            link_data = static_cast<uint8_t>(prev_link_data * (1.0 - ratio));
-        } else {
-            // If the gap is less than the maximum, set link quality to the previous value
-            link_data = prev_link_data;
-        }
-    }
-
-    // Add new calulated link quality to the Average Link Quality Buffer
-    _link_quality = link_buffer.apply(link_data);
-
-    // Save the previous link data for the next calculation.
-    prev_link_data = link_data;
-
-    return;
 }
 
 #if HAL_LOGGING_ENABLED

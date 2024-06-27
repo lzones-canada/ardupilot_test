@@ -577,7 +577,7 @@ void GCS_MAVLINK_Plane::send_payload_status()
     // }
 
     // Message Body.
-    const uint8_t  link_quality = get_link_quality();
+    const uint8_t  link_quality = plane.get_link_quality();
     const uint16_t servo_vcc    = plane.get_servo_volt() * 1000.0;
     const int16_t  board_temp   = plane.get_support_board_temp() * 100.0;
     const uint16_t sweep_wing   = plane.get_volz_sweep_wing() * 100.0;

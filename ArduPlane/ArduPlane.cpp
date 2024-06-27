@@ -408,7 +408,7 @@ void Plane::ext_watchdog_service()
 #endif
 
 /*
-  do 50Hz payload control
+  do 10Hz payload control
  */
 void Plane::update_payload_control()
 {
@@ -420,7 +420,7 @@ void Plane::update_payload_control()
 } 
 
 /*
-  Beacon Lights Control (Heartbeat Pattern) @ 50Hz
+  Beacon Lights Control (Heartbeat Pattern) @ 10Hz
  */
 void Plane::beacon_lights_heartbeat()
 {
@@ -460,7 +460,7 @@ void Plane::beacon_lights_heartbeat()
 }
 
 /*
-    Analog Input Calculations @ 50Hz
+    Analog Input Calculations @ 10Hz
  */
 void Plane::analog_input_calcs()
 {
@@ -482,6 +482,27 @@ void Plane::analog_input_calcs()
     return;
 }
 
+/*
+    Calculate Uplink Quality @ 3Hz
+ */
+void Plane::calculate_link_quality()
+{
+    const uint32_t tnow_ms = millis();
+    const uint32_t gcs_last_seen_ms = gcs().sysid_myggcs_last_seen_time_ms();
+    
+    if ((tnow_ms - gcs_last_seen_ms) < 360) {
+        link_calculation = 255;
+    } else if ((tnow_ms - gcs_last_seen_ms) > 1000) {
+        link_calculation = 0;
+    } else {
+        link_calculation = static_cast<uint8_t>(255 * (1.0f - (static_cast<float>((tnow_ms - gcs_last_seen_ms) - 360) / (1000 - 360))));
+    }
+
+    // Add new calulated link quality to the Average Link Quality Buffer
+    link_quality = link_buffer.apply(link_calculation);
+
+    return;
+}
 /*
   check for AFS failsafe check
  */
@@ -568,6 +589,8 @@ void Plane::three_hz_loop()
 #if AP_FENCE_ENABLED
     fence_check();
 #endif
+    // Uplink time based calculations
+    calculate_link_quality();
 }
 
 void Plane::compass_save()
