@@ -141,7 +141,7 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
 #if PARACHUTE == ENABLED
             parachute_release();
             //stop motors to avoid parachute tangling
-            plane.arming.disarm(AP_Arming::Method::PARACHUTE_RELEASE, false);
+            //plane.arming.disarm(AP_Arming::Method::PARACHUTE_RELEASE, false);
             // Extend the wings to slow the descent
             plane.volz_wing_deg_cmd(WING_MIN_DEGREES);
 #endif
@@ -186,7 +186,7 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
 #if PARACHUTE == ENABLED
             parachute_release();
             //stop motors to avoid parachute tangling
-            plane.arming.disarm(AP_Arming::Method::PARACHUTE_RELEASE, false);
+            //plane.arming.disarm(AP_Arming::Method::PARACHUTE_RELEASE, false);
             // Extend the wings to slow the descent
             plane.volz_wing_deg_cmd(WING_MIN_DEGREES);
 #endif
