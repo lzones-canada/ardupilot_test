@@ -263,6 +263,14 @@ private:
     float get_servo_volt()          const { return servo_vcc; }; 
     float get_support_board_temp()  const { return board_temp; };
 
+    // Uplink quality calculation variables / helpers
+    uint8_t link_quality;
+    uint8_t link_calculation;
+    // Average filter to calculate the link quality.
+    //  9 samples every 333.33ms = 3 seconds average.
+    AverageFilterUInt8_Size9 link_buffer;
+    uint8_t get_link_quality() const { return link_quality; };
+
     // Volz Protocol support for sharing values
     // Set the target percent command for Volz Loop from GCS
     void volz_wing_deg_cmd (uint8_t value) { volz_state.set_target_command(value); }
@@ -1106,6 +1114,7 @@ private:
     void update_payload_control(void);
     void beacon_lights_heartbeat(void);
     void analog_input_calcs(void);
+    void calculate_link_quality(void);
     void update_control_mode(void);
     void update_fly_forward(void);
     void update_flight_stage();

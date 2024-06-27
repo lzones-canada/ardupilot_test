@@ -25,7 +25,6 @@
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_RangeFinder/AP_RangeFinder_config.h>
 #include <AP_Winch/AP_Winch_config.h>
-#include <Filter/AverageFilter.h>
 
 #include "ap_message.h"
 
@@ -744,9 +743,6 @@ protected:
     // methods to extract a Location object from a command_int
     bool location_from_command_t(const mavlink_command_int_t &in, Location &out);
 
-    // Custom uplink quality calculation
-    uint8_t get_link_quality() const { return _link_quality; };
-
 private:
 
     // define the two objects used for parsing incoming messages:
@@ -1052,10 +1048,6 @@ private:
     bool signing_enabled(void) const;
     static void save_signing_timestamp(bool force_save_now);
 
-    // link quality helper functions.
-    void update_link_quality(int received, int lost, uint32_t tnow);
-    void mavlink_link_update(mavlink_message_t msg);
-
 #if HAL_MAVLINK_INTERVALS_FROM_FILES_ENABLED
     // structure containing default intervals read from files for this
     // link:
@@ -1107,30 +1099,6 @@ private:
     // true if we should NOT do MAVLink on this port (usually because
     // someone's doing SERIAL_CONTROL over mavlink)
     bool _locked;
-
-    // Window Size of 3 Seconds / Elements
-    //  Each calculation is done every 1 second (1200 to account for hysteresis)
-    static const uint16_t UPLINK_CALC_INTERVAL = 600;
-    static const uint16_t MAX_GCS_TIME_GAP = 3000;
-    // Link quality is scaled from 0 to 255.
-    static const uint8_t LINK_SCALE = 255;
-    // timer to track when to calculate the link quality.
-    uint32_t last_uplink_calc;
-    // Average filter to calculate the link quality.
-    AverageFilterUInt8_Size5 link_buffer;
-    // Current link quality.
-    uint8_t _link_quality;
-    // Link quality data
-    uint8_t link_data = 0;
-    // Previous link quality data
-    uint8_t prev_link_data = 0;
-    // Track the number of packets received and lost including prev calculation.
-    int pkt_received = 0;
-    int pkt_lost = 0;
-    int pkt_count = 0;
-    int prev_pkt_received = 0;
-    int pkt_loss = 0;
-    int prev_pkt_loss = 0;
 };
 
 /// @class GCS
