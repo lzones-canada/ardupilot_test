@@ -2662,7 +2662,6 @@ class TestSuite(ABC):
             "SIM_WAVE_ENABLE",
             "SIM_WAVE_LENGTH",
             "SIM_WAVE_SPEED",
-            "SIM_WIND_DIR_Z",
         ])
 
         vinfo_key = self.vehicleinfo_key()
@@ -9992,13 +9991,13 @@ Also, ignores heartbeats not from our target system'''
             self.arm_vehicle()
             tstart = self.get_sim_time()
             last_status = 0
+            mavproxy.send('repeat add 1 dataflash_logger status\n')
             while True:
                 now = self.get_sim_time()
                 if now - tstart > 60:
                     break
                 if now - last_status > 5:
                     last_status = now
-                    mavproxy.send('dataflash_logger status\n')
                     # seen on autotest: Active Rate(3s):97.790kB/s Block:164 Missing:0 Fixed:0 Abandoned:0
                     mavproxy.expect(r"Active Rate\([0-9]+s\):([0-9]+[.][0-9]+)")
                     rate = float(mavproxy.match.group(1))
@@ -10009,6 +10008,7 @@ Also, ignores heartbeats not from our target system'''
                     if rate < desired_rate:
                         raise NotAchievedException("Exceptionally low transfer rate (%u < %u)" % (rate, desired_rate))
             self.disarm_vehicle()
+            mavproxy.send('repeat remove 0\n')
         except Exception as e:
             self.print_exception_caught(e)
             self.disarm_vehicle()
