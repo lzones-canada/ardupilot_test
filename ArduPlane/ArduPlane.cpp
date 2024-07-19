@@ -337,7 +337,7 @@ void Plane::init_payload_control(void)
     board_temp_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_BOARD_TEMP);
 
     // Wdog Tripped status
-    // hal.gpio->pinMode(HAL_GPIO_DRDY2_EXT_GPIO, HAL_GPIO_INPUT);
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_STATUS, HAL_GPIO_INPUT);
 
     hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OUTPUT);
     hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG, 0);

@@ -524,7 +524,7 @@ void GCS_MAVLINK_Plane::send_payload_status()
     const uint8_t  beac_lights_status = plane.get_beac_lights_status();
     const uint8_t  hstm_status        = plane.get_hstm_status();
     const uint8_t  wing_limit         = plane.get_wing_limit_status();
-    //const uint8_t  watchdog_status    = plane.get_watchdog_status();
+    const uint8_t  watchdog_status    = plane.get_watchdog_status();
 
     // Parachute Deploy Status - Logic Reversed.
     if (!chute_status) {
@@ -569,12 +569,12 @@ void GCS_MAVLINK_Plane::send_payload_status()
     }
 
     // Watchdog Input Status.
-    // if (watchdog_status) {
-    //     flags |= PAYLOAD_STATUS_FLAGS_WATCHDOG_STATUS;
-    // } else {
-    //     flags &= ~PAYLOAD_STATUS_FLAGS_WATCHDOG_STATUS;
-    //     GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "WATCHDOG TRIPPED");
-    // }
+    if (watchdog_status) {
+        flags |= PAYLOAD_STATUS_FLAGS_WATCHDOG_STATUS;
+    } else {
+        flags &= ~PAYLOAD_STATUS_FLAGS_WATCHDOG_STATUS;
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "WATCHDOG TRIPPED");
+    }
 
     // Message Body.
     const uint8_t  link_quality = plane.get_link_quality();
