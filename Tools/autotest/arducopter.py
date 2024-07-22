@@ -2266,46 +2266,36 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
     def ModeFlip(self):
         '''Fly Flip Mode'''
-        ex = None
-        try:
-            self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE, 100)
+        self.context_set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE, 100)
 
-            self.takeoff(20)
-            self.hover()
-            old_speedup = self.get_parameter("SIM_SPEEDUP")
-            self.set_parameter('SIM_SPEEDUP', 1)
-            self.progress("Flipping in roll")
-            self.set_rc(1, 1700)
-            self.send_cmd_do_set_mode('FLIP') # don't wait for success
-            self.wait_attitude(despitch=0, desroll=45, tolerance=30)
-            self.wait_attitude(despitch=0, desroll=90, tolerance=30)
-            self.wait_attitude(despitch=0, desroll=-45, tolerance=30)
-            self.progress("Waiting for level")
-            self.set_rc(1, 1500) # can't change quickly enough!
-            self.wait_attitude(despitch=0, desroll=0, tolerance=5)
+        self.takeoff(20)
 
-            self.progress("Regaining altitude")
-            self.change_mode('ALT_HOLD')
-            self.wait_altitude(19, 60, relative=True)
+        self.progress("Flipping in roll")
+        self.set_rc(1, 1700)
+        self.send_cmd_do_set_mode('FLIP') # don't wait for success
+        self.wait_attitude(despitch=0, desroll=45, tolerance=30)
+        self.wait_attitude(despitch=0, desroll=90, tolerance=30)
+        self.wait_attitude(despitch=0, desroll=-45, tolerance=30)
+        self.progress("Waiting for level")
+        self.set_rc(1, 1500) # can't change quickly enough!
+        self.wait_attitude(despitch=0, desroll=0, tolerance=5)
 
-            self.progress("Flipping in pitch")
-            self.set_rc(2, 1700)
-            self.send_cmd_do_set_mode('FLIP') # don't wait for success
-            self.wait_attitude(despitch=45, desroll=0, tolerance=30)
-            # can't check roll here as it flips from 0 to -180..
-            self.wait_attitude(despitch=90, tolerance=30)
-            self.wait_attitude(despitch=-45, tolerance=30)
-            self.progress("Waiting for level")
-            self.set_rc(2, 1500) # can't change quickly enough!
-            self.wait_attitude(despitch=0, desroll=0, tolerance=5)
-            self.set_parameter('SIM_SPEEDUP', old_speedup)
-            self.do_RTL()
-        except Exception as e:
-            self.print_exception_caught(e)
-            ex = e
-        self.set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE, 0)
-        if ex is not None:
-            raise ex
+        self.progress("Regaining altitude")
+        self.change_mode('ALT_HOLD')
+        self.wait_altitude(19, 60, relative=True)
+
+        self.progress("Flipping in pitch")
+        self.set_rc(2, 1700)
+        self.send_cmd_do_set_mode('FLIP') # don't wait for success
+        self.wait_attitude(despitch=45, desroll=0, tolerance=30)
+        # can't check roll here as it flips from 0 to -180..
+        self.wait_attitude(despitch=90, tolerance=30)
+        self.wait_attitude(despitch=-45, tolerance=30)
+        self.progress("Waiting for level")
+        self.set_rc(2, 1500) # can't change quickly enough!
+        self.wait_attitude(despitch=0, desroll=0, tolerance=5)
+
+        self.do_RTL()
 
     def configure_EKFs_to_use_optical_flow_instead_of_GPS(self):
         '''configure EKF to use optical flow instead of GPS'''
@@ -5255,6 +5245,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
     def test_mount_pitch(self, despitch, despitch_tolerance, mount_mode, timeout=10, hold=0, constrained=True):
         tstart = self.get_sim_time()
         success_start = 0
+
         while True:
             now = self.get_sim_time_cached()
             if now - tstart > timeout:
@@ -5265,9 +5256,9 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 despitch = self.constrained_mount_pitch(despitch)
 
             '''retrieve latest angles from GIMBAL_DEVICE_ATTITUDE_STATUS'''
-            mount_roll, mount_pitch, mount_yaw = self.get_mount_roll_pitch_yaw_deg()
+            mount_roll, mount_pitch, mount_yaw, mount_yaw_is_absolute = self.get_mount_roll_pitch_yaw_deg()
 
-            self.progress("despitch=%f roll=%f pitch=%f yaw=%f" % (despitch, mount_roll, mount_pitch, mount_yaw))
+            # self.progress("despitch=%f roll=%f pitch=%f yaw=%f" % (despitch, mount_roll, mount_pitch, mount_yaw))
             if abs(despitch - mount_pitch) > despitch_tolerance:
                 self.progress("Mount pitch incorrect: got=%f want=%f (+/- %f)" %
                               (mount_pitch, despitch, despitch_tolerance))
@@ -5323,10 +5314,11 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         # wait for gimbal attitude message
         m = self.assert_receive_message('GIMBAL_DEVICE_ATTITUDE_STATUS', timeout=5)
 
+        yaw_is_absolute = m.flags & mavutil.mavlink.GIMBAL_DEVICE_FLAGS_YAW_LOCK
         # convert quaternion to euler angles and return
         q = quaternion.Quaternion(m.q)
         euler = q.euler
-        return math.degrees(euler[0]), math.degrees(euler[1]), math.degrees(euler[2])
+        return math.degrees(euler[0]), math.degrees(euler[1]), math.degrees(euler[2]), yaw_is_absolute
 
     def set_mount_mode(self, mount_mode):
         '''set mount mode'''
@@ -5343,9 +5335,9 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             p3=0, # stabilize pitch (unsupported)
         )
 
-    def test_mount_rc_targetting(self):
+    def test_mount_rc_targetting(self, pitch_rc_neutral=1500, do_rate_tests=True):
         '''called in multipleplaces to make sure that mount RC targetting works'''
-        try:
+        if True:
             self.context_push()
             self.set_parameters({
                 'RC6_OPTION': 0,
@@ -5405,6 +5397,13 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
             self.set_rc(12, 1500)
 
+            if do_rate_tests:
+                self.test_mount_rc_targetting_rate_control()
+
+            self.context_pop()
+
+    def test_mount_rc_targetting_rate_control(self, pitch_rc_neutral=1500):
+        if True:
             self.progress("Testing RC rate control")
             self.set_parameter('MNT1_RC_RATE', 10)
             self.test_mount_pitch(0, 1, mavutil.mavlink.MAV_MOUNT_MODE_RC_TARGETING)
@@ -5427,46 +5426,21 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             self.set_rc(12, 1500)
             self.test_mount_pitch(0, 0.1, mavutil.mavlink.MAV_MOUNT_MODE_RC_TARGETING)
 
-            self.context_pop()
-
-        except Exception as e:
-            self.print_exception_caught(e)
-            self.context_pop()
-            raise e
-
-    def Mount(self):
-        '''Test Camera/Antenna Mount'''
-        ex = None
-        self.context_push()
-        old_srcSystem = self.mav.mav.srcSystem
-        self.mav.mav.srcSystem = 250
-        self.set_parameter("DISARM_DELAY", 0)
-        try:
-            '''start by disabling GCS failsafe, otherwise we immediately disarm
-            due to (apparently) not receiving traffic from the GCS for
-            too long.  This is probably a function of --speedup'''
-            self.set_parameter("FS_GCS_ENABLE", 0)
-
-            # setup mount parameters
-            self.setup_servo_mount()
-            self.reboot_sitl() # to handle MNT_TYPE changing
-
+    def mount_test_body(self, pitch_rc_neutral=1500, do_rate_tests=True, constrain_sysid_target=True):
+        '''Test Camera/Antenna Mount - assumes a camera is set up and ready to go'''
+        if True:
             # make sure we're getting gimbal device attitude status
-            self.assert_receive_message('GIMBAL_DEVICE_ATTITUDE_STATUS', timeout=5)
+            self.assert_receive_message('GIMBAL_DEVICE_ATTITUDE_STATUS', timeout=5, very_verbose=True)
 
             # change mount to neutral mode (point forward, not stabilising)
             self.set_mount_mode(mavutil.mavlink.MAV_MOUNT_MODE_NEUTRAL)
 
-            # test pitch is not stabilising
-            mount_roll_deg, mount_pitch_deg, mount_yaw_deg = self.get_mount_roll_pitch_yaw_deg()
+            # test pitch is not neutral to start with
+            mount_roll_deg, mount_pitch_deg, mount_yaw_deg, mount_yaw_is_absolute = self.get_mount_roll_pitch_yaw_deg()
             if mount_roll_deg != 0 or mount_pitch_deg != 0 or mount_yaw_deg != 0:
-                raise NotAchievedException("Mount stabilising when not requested")
+                raise NotAchievedException("Mount not neutral")
 
-            self.change_mode('GUIDED')
-            self.wait_ready_to_arm()
-            self.arm_vehicle()
-
-            self.user_takeoff()
+            self.takeoff(30, mode='GUIDED')
 
             # pitch vehicle back and confirm gimbal is still not stabilising
             despitch = 10
@@ -5478,13 +5452,13 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             self.wait_pitch(despitch, despitch_tolerance)
 
             # check gimbal is still not stabilising
-            mount_roll_deg, mount_pitch_deg, mount_yaw_deg = self.get_mount_roll_pitch_yaw_deg()
+            mount_roll_deg, mount_pitch_deg, mount_yaw_deg, mount_yaw_is_absolute = self.get_mount_roll_pitch_yaw_deg()
             if mount_roll_deg != 0 or mount_pitch_deg != 0 or mount_yaw_deg != 0:
                 raise NotAchievedException("Mount stabilising when not requested")
 
             # center RC tilt control and change mount to RC_TARGETING mode
             self.progress("Gimbal to RC Targetting mode")
-            self.set_rc(6, 1500)
+            self.set_rc(6, pitch_rc_neutral)
             self.set_mount_mode(mavutil.mavlink.MAV_MOUNT_MODE_RC_TARGETING)
 
             # pitch vehicle back and confirm gimbal is stabilising
@@ -5530,7 +5504,10 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             self.progress("Testing mount RC targetting")
 
             self.set_mount_mode(mavutil.mavlink.MAV_MOUNT_MODE_RC_TARGETING)
-            self.test_mount_rc_targetting()
+            self.test_mount_rc_targetting(
+                pitch_rc_neutral=pitch_rc_neutral,
+                do_rate_tests=do_rate_tests,
+            )
 
             self.progress("Testing mount ROI behaviour")
             self.test_mount_pitch(0, 0.1, mavutil.mavlink.MAV_MOUNT_MODE_RC_TARGETING)
@@ -5668,28 +5645,65 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 0, # vz
                 0 # heading
             )
-            self.test_mount_pitch(68, 5, mavutil.mavlink.MAV_MOUNT_MODE_SYSID_TARGET, hold=2)
+            self.test_mount_pitch(
+                68,
+                5,
+                mavutil.mavlink.MAV_MOUNT_MODE_SYSID_TARGET,
+                hold=2,
+                constrained=constrain_sysid_target,
+            )
 
             self.set_mount_mode(mavutil.mavlink.MAV_MOUNT_MODE_NEUTRAL)
             self.test_mount_pitch(0, 0.1, mavutil.mavlink.MAV_MOUNT_MODE_NEUTRAL)
 
-        except Exception as e:
-            self.print_exception_caught(e)
-            ex = e
+            self.disarm_vehicle(force=True)
 
-        self.mav.mav.srcSystem = old_srcSystem
-        self.disarm_vehicle(force=True)
+            self.test_mount_body_yaw()
 
-        self.context_pop()
+    def test_mount_body_yaw(self):
+        '''check reporting of yaw'''
+        # change mount to neutral mode (point forward, not stabilising)
+        self.takeoff(10, mode='GUIDED')
 
-        self.reboot_sitl() # to handle MNT1_TYPE changing
+        self.set_mount_mode(mavutil.mavlink.MAV_MOUNT_MODE_NEUTRAL)
 
-        if ex is not None:
-            raise ex
+        for heading in 30, 45, 150:
+            self.guided_achieve_heading(heading)
+
+            r, p , y, yaw_is_absolute = self.get_mount_roll_pitch_yaw_deg()
+
+            if yaw_is_absolute:
+                raise NotAchievedException("Expected a relative yaw")
+
+            if y > 1:
+                raise NotAchievedException("Bad yaw (y=%f)")
+
+        self.do_RTL()
+
+    def Mount(self):
+        '''test servo mount'''
+        self.setup_servo_mount()
+        self.reboot_sitl() # to handle MNT_TYPE changing
+        self.mount_test_body()
+
+    def MountSolo(self):
+        '''test type=2, a "Solo" mount'''
+        self.set_parameters({
+            "MNT1_TYPE": 2,
+            "RC6_OPTION": 213,  # MOUNT1_PITCH
+        })
+        self.customise_SITL_commandline([
+            "--gimbal" # connects on port 5762
+        ])
+        self.mount_test_body(
+            pitch_rc_neutral=1818,
+            do_rate_tests=False,  # solo can't do rate control (yet?)
+            constrain_sysid_target=False,  # not everything constrains all angles
+        )
 
     def assert_mount_rpy(self, r, p, y, tolerance=1):
         '''assert mount atttiude in degrees'''
-        got_r, got_p, got_y = self.get_mount_roll_pitch_yaw_deg()
+        got_r, got_p, got_y, yaw_is_absolute = self.get_mount_roll_pitch_yaw_deg()
         for (want, got, name) in (r, got_r, "roll"), (p, got_p, "pitch"), (y, got_y, "yaw"):
             if abs(want - got) > tolerance:
                 raise NotAchievedException("%s incorrect; want=%f got=%f" %
@@ -11630,6 +11644,58 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.wait_groundspeed(0, 0.1, minimum_duration=30, timeout=450)
         self.do_RTL()
 
+    def MissionRTLYawBehaviour(self):
+        '''check end-of-mission yaw behaviour'''
+        self.set_parameters({
+            "AUTO_OPTIONS": 3,
+        })
+
+        self.start_subtest("behaviour with WP_YAW_BEHAVE set to next-waypoint-except-RTL")
+        self.upload_simple_relhome_mission([
+            #                                      N   E  U
+            (mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,   0, 0, 10),
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 20, 0, 10),
+            (mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0),
+        ])
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+        original_heading = self.get_heading()
+        if abs(original_heading) < 5:
+            raise NotAchievedException(f"Bad original heading {original_heading}")
+        self.arm_vehicle()
+        self.wait_current_waypoint(3)
+        self.wait_rtl_complete()
+        self.wait_disarmed()
+        if abs(self.get_heading()) > 5:
+            raise NotAchievedException("Should have yaw zero without option")
+
+        # must change out of auto and back in again to reset state machine:
+        self.change_mode('LOITER')
+        self.change_mode('AUTO')
+
+        self.start_subtest("behaviour with WP_YAW_BEHAVE set to next-waypoint")
+        self.upload_simple_relhome_mission([
+            #                                      N   E  U
+            (mavutil.mavlink.MAV_CMD_NAV_TAKEOFF,   0, 0, 10),
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,  0, 20, 20),
+            (mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0),
+        ])
+        self.set_parameters({
+            "WP_YAW_BEHAVIOR": 1,  # look at next waypoint (including in RTL)
+        })
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+        original_heading = self.get_heading()
+        if abs(original_heading) > 1:
+            raise NotAchievedException("Bad original heading")
+        self.arm_vehicle()
+        self.wait_current_waypoint(3)
+        self.wait_rtl_complete()
+        self.wait_disarmed()
+        new_heading = self.get_heading()
+        if abs(new_heading - original_heading) > 5:
+            raise NotAchievedException(f"Should return to original heading want={original_heading} got={new_heading}")
+
     def tests2b(self):  # this block currently around 9.5mins here
         '''return list of all tests'''
         ret = ([
@@ -11688,6 +11754,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             self.TerrainDBPreArm,
             self.ThrottleGainBoost,
             self.ScriptMountPOI,
+            self.MountSolo,
             self.FlyMissionTwice,
             self.FlyMissionTwiceWithReset,
             self.MissionIndexValidity,
@@ -11724,6 +11791,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             self.GripperReleaseOnThrustLoss,
             self.REQUIRE_POSITION_FOR_ARMING,
             self.LoggingFormat,
+            self.MissionRTLYawBehaviour,
         ])
         return ret
 
