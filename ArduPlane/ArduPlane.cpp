@@ -306,12 +306,10 @@ void Plane::init_payload_control(void)
     // Position lights
     pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
     pos_lights->mode(HAL_GPIO_OUTPUT);
-    pos_lights->write(0);
 
     // Beacon Lights (Heartbeat Pattern)
     beacon_lights = hal.gpio->channel(HAL_GPIO_PIN_BCN_LIGHTS);
     beacon_lights->mode(HAL_GPIO_OUTPUT);
-    beacon_lights->write(0);
 
     // Parachute Release - Logic Reversed.
     chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
@@ -324,90 +322,19 @@ void Plane::init_payload_control(void)
     // HSTM Power
     hstm_pwr = hal.gpio->channel(HAL_GPIO_PIN_HSTM_POWER);
     hstm_pwr->mode(HAL_GPIO_OUTPUT);
-    hstm_pwr->write(0);
 
     // Analog Source Voltage Output (pin7 on AD&IO, analog 12)
     servo_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_SERV0);
     // Analog Source Vehicle Temperature Support Board (# pin6 on AD&IO, analog 13)
     board_temp_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_BOARD_TEMP);
 
-    // Wdog Tripped status
-    // hal.gpio->pinMode(HAL_GPIO_DRDY2_EXT_GPIO, HAL_GPIO_INPUT);
-
-    hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OUTPUT);
-    hal.gpio->write(HAL_GPIO_PIN_EXT_WDOG, 0);
-    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_OUTPUT);
-    hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 0);
-
-#if defined(HAL_GPIO_EXT_WDOG)
     // Watchdog Pins
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_STATUS, HAL_GPIO_INPUT);
+    hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OUTPUT);
     hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_OUTPUT);
-    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG, HAL_GPIO_OUTPUT);
-
-    // Register External Watchdog Service (1kHz / 1ms - timer callback)
-    //hal.scheduler->register_timer_process(FUNCTOR_BIND_MEMBER(&Plane::ext_watchdog_service, void));
-#endif
-    return;
-}
-
-#if defined(HAL_GPIO_EXT_WDOG)
-/*
-  External Watchdog Service
- */
-void Plane::ext_watchdog_service()
-{
-    // uint32_t tnow = AP_HAL::millis();
-
-    // /*************************************************************************
-    // * Watchdog - Generate the Watchdog output and reset the external watchdog
-    // *************************************************************************/
-    // if(watchdog_reset_done)
-    // {
-    //     // Generates pulse train for the external watchdog output.
-    //     if (time_to_toggle >= WATCHDOG_PULSE_TRAIN)
-    //     {
-    //         // If the time exceeds 60ms - reset timer
-    //         time_to_toggle = 0;
-    //         hal.gpio->write(HAL_GPIO_EXT_WDOG, 0);
-    //     }
-    //     else if (time_to_toggle >= (WATCHDOG_PULSE_TRAIN / 2))
-    //     {
-    //         // If the time exceeds 30ms - drive pin high for period of time.
-    //         hal.gpio->write(HAL_GPIO_EXT_WDOG, 1);
-    //     }
-    //     else
-    //     {
-    //         // If the time to toggle is greater than 0 and less than 30 milliseconds, drive pin high low
-    //         hal.gpio->write(HAL_GPIO_EXT_WDOG, 0);
-    //     }
-    // }
-    // else
-    // {
-    //     // Set our reset timer.
-    //     watchdog_reset_timer = WATCHDOG_RESET_TIMEOUT;
-    //     watchdog_reset_done = true;
-    // }
-
-    // // Check if the watchdog reset timer is active.
-    // if(0 != watchdog_reset_timer)
-    // {
-    //     // If the watchdog reset timer is active, decrement it and drive external watchdog reset pin low.
-    //     --watchdog_reset_timer;
-    //     hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 0);
-    // }
-    // else
-    // {
-    //     // If the watchdog reset timer is expired, drive external watchdog reset pin high
-    //     hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 1);
-    // }
-
-    // // Update time_to_toggle based on elapsed time since the last function call.
-    // time_to_toggle += (tnow - last_ext_watchdog_ms);
-    // last_ext_watchdog_ms = tnow;
 
     return;
 }
-#endif
 
 /*
   do 10Hz payload control

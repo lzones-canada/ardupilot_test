@@ -249,7 +249,7 @@ private:
     uint8_t get_beac_lights_status()  const { return beacon_light; };
     uint8_t get_hstm_status()         const { return hstm_pwr->read(); };
     uint8_t get_wing_limit_status()   const { return hal.gpio->read(HAL_GPIO_PIN_WING_LIMIT); };
-    //uint8_t get_watchdog_status()     const { return hal.gpio->read(HAL_GPIO_DRDY2_EXT_GPIO); };
+    uint8_t get_watchdog_status()     const { return hal.gpio->read(HAL_GPIO_EXT_WDOG_STATUS); };
 
     // Analog Input Source for monitoring.
     AP_HAL::AnalogSource *servo_analog_input;

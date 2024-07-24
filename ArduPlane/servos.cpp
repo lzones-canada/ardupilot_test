@@ -354,34 +354,48 @@ void Plane::airbrake_update(void)
  */
 void ModeAuto::wiggle_servos()
 {
-    // This is only active while in AUTO running NAV_ALTITUDE_WAIT with wiggle_time > 0
-    if (wiggle.last_ms == 0) {
-        return;
+    const int SCHED_LOOP_RATE = plane.scheduler.get_loop_rate_hz();  // Retrieve the current loop rate
+    const int MIN_LOOP_RATE   = 50;   // Minimum allowable Loop Rate
+    // Calculate scaling factor based on the loop rate
+    const int SCALE_FACTOR = (SCHED_LOOP_RATE / MIN_LOOP_RATE);
+    int16_t servo_valueElevator;
+    int16_t servo_valueAileronRudder;
+
+    // Wiggle the control surfaces in stages: elevators first, then rudders + ailerons, through the full range over 4 seconds
+    if (wiggle.stage != 0) {
+        wiggle.stage += 1;
     }
 
-    int16_t servo_value;
-    // move over full range for 2 seconds
-    if (wiggle.stage != 0) {
-        wiggle.stage += 2;
-    }
     if (wiggle.stage == 0) {
-        servo_value = 0;
-    } else if (wiggle.stage < 50) {
-        servo_value = wiggle.stage * (4500 / 50);
-    } else if (wiggle.stage < 100) {
-        servo_value = (100 - wiggle.stage) * (4500 / 50);        
-    } else if (wiggle.stage < 150) {
-        servo_value = (100 - wiggle.stage) * (4500 / 50);        
-    } else if (wiggle.stage < 200) {
-        servo_value = (wiggle.stage-200) * (4500 / 50);        
+        servo_valueElevator = 0;
+        servo_valueAileronRudder = 0;
+    } else if (wiggle.stage < (25 * SCALE_FACTOR)) { 
+        servo_valueElevator = wiggle.stage * (4500 / (25 * SCALE_FACTOR));
+        servo_valueAileronRudder = 0;
+    } else if (wiggle.stage < (75 * SCALE_FACTOR)) {
+        servo_valueElevator = ((50 * SCALE_FACTOR) - wiggle.stage) * (4500 / (25 * SCALE_FACTOR));
+        servo_valueAileronRudder = 0;
+    } else if (wiggle.stage < (100 * SCALE_FACTOR)) {
+        servo_valueElevator = (wiggle.stage - (100 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
+        servo_valueAileronRudder = 0;
+    } else if (wiggle.stage < (125 * SCALE_FACTOR)) {
+        servo_valueElevator = 0;
+        servo_valueAileronRudder = (wiggle.stage - (100 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
+    } else if (wiggle.stage < (175 * SCALE_FACTOR)) {
+        servo_valueElevator = 0;
+        servo_valueAileronRudder = ((150 * SCALE_FACTOR) - wiggle.stage) * (4500 / (25 * SCALE_FACTOR));
+    } else if (wiggle.stage < (200 * SCALE_FACTOR)) {
+        servo_valueElevator = 0;
+        servo_valueAileronRudder = (wiggle.stage - (200 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
     } else {
         wiggle.stage = 0;
-        servo_value = 0;
+        servo_valueElevator = 0;
+        servo_valueAileronRudder = 0;
     }
-    SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, servo_value);
-    SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, servo_value);
-    SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, servo_value);
-
+    // Set servo outputs
+    SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, servo_valueAileronRudder);
+    SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, servo_valueElevator);
+    SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, servo_valueAileronRudder);
 }
 
 

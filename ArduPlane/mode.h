@@ -254,7 +254,7 @@ private:
     // wiggle state and timer for NAV_ALTITUDE_WAIT
     void wiggle_servos();
     struct {
-        uint8_t stage;
+        uint16_t stage;
         uint32_t last_ms;
     } wiggle;
 };
