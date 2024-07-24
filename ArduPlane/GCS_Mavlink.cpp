@@ -573,7 +573,7 @@ void GCS_MAVLINK_Plane::send_payload_status()
         flags |= PAYLOAD_STATUS_FLAGS_WATCHDOG_STATUS;
     } else {
         flags &= ~PAYLOAD_STATUS_FLAGS_WATCHDOG_STATUS;
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "WATCHDOG TRIPPED");
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "WATCHDOG TRIPPED !!");
     }
 
     // Message Body.
