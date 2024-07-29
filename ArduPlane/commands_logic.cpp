@@ -144,21 +144,6 @@ bool Plane::start_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_DO_LAND_START:
         break;
 
-    case MAV_CMD_DO_FENCE_ENABLE:
-#if AP_FENCE_ENABLED
-        if (cmd.p1 == 0) { // disable fence
-            plane.fence.enable(false);
-            gcs().send_text(MAV_SEVERITY_INFO, "Fence disabled");
-        } else if (cmd.p1 == 1) { // enable fence
-            plane.fence.enable(true);
-            gcs().send_text(MAV_SEVERITY_INFO, "Fence enabled");
-        } else if (cmd.p1 == 2) { // disable fence floor only
-            plane.fence.disable_floor();
-            gcs().send_text(MAV_SEVERITY_INFO, "Fence floor disabled");
-        }
-#endif
-        break;
-
     case MAV_CMD_DO_AUTOTUNE_ENABLE:
         autotune_enable(cmd.p1);
         break;
@@ -391,7 +376,7 @@ void Plane::do_takeoff(const AP_Mission::Mission_Command& cmd)
     next_WP_loc.lat = home.lat + 10;
     next_WP_loc.lng = home.lng + 10;
     auto_state.takeoff_speed_time_ms = 0;
-    auto_state.takeoff_complete = false;                            // set flag to use gps ground course during TO.  IMU will be doing yaw drift correction
+    auto_state.takeoff_complete = false; // set flag to use gps ground course during TO. IMU will be doing yaw drift correction.
     auto_state.height_below_takeoff_to_level_off_cm = 0;
     // Flag also used to override "on the ground" throttle disable
 
@@ -434,10 +419,6 @@ void Plane::do_land(const AP_Mission::Mission_Command& cmd)
         // if we were in an abort we need to explicitly move out of the abort state, as it's sticky
         set_flight_stage(AP_FixedWing::FlightStage::LAND);
     }
-
-#if AP_FENCE_ENABLED
-    plane.fence.auto_disable_fence_for_landing();
-#endif
 }
 
 #if HAL_QUADPLANE_ENABLED

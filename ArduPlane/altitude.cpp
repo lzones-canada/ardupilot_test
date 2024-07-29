@@ -81,6 +81,13 @@ void Plane::setup_glide_slope(void)
         break;
 
     case Mode::Number::AUTO:
+
+        //climb without doing glide slope if option is enabled
+        if (!above_location_current(next_WP_loc) && plane.flight_option_enabled(FlightOptions::IMMEDIATE_CLIMB_IN_AUTO)) {
+            reset_offset_altitude();
+            break;
+        }
+
         // we only do glide slide handling in AUTO when above 20m or
         // when descending. The 20 meter threshold is arbitrary, and
         // is basically to prevent situations where we try to slowly
@@ -513,9 +520,9 @@ int32_t Plane::adjusted_altitude_cm(void)
 }
 
 /*
-  return home-relative altitude adjusted for ALT_OFFSET This is useful
+  return home-relative altitude adjusted for ALT_OFFSET. This is useful
   during long flights to account for barometer changes from the GCS,
-  or to adjust the flying height of a long mission
+  or to adjust the flying height of a long mission.
  */
 int32_t Plane::adjusted_relative_altitude_cm(void)
 {
