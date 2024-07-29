@@ -419,22 +419,31 @@ void Plane::analog_input_calcs()
  */
 void Plane::calculate_link_quality()
 {
+    // Const threshold values for link quality calculation
+    static const uint32_t LINK_QUALITY_LO_THRESHOLD = 360; // 360ms
+    static const uint32_t LINK_QUALITY_HI_THRESHOLD = 1000; // 1000ms
+    static const uint32_t LINK_QUALITY_MAX = 255; // 255 (100%)
+
     const uint32_t tnow_ms = millis();
     const uint32_t gcs_last_seen_ms = gcs().sysid_myggcs_last_seen_time_ms();
+    const uint32_t delta_diff_ms = tnow_ms - gcs_last_seen_ms;
     
-    if ((tnow_ms - gcs_last_seen_ms) < 360) {
-        link_calculation = 255;
-    } else if ((tnow_ms - gcs_last_seen_ms) > 1000) {
+    // Calculate the link quality based on the time since the last GCS message
+    if (delta_diff_ms < LINK_QUALITY_LO_THRESHOLD) {
+        link_calculation = LINK_QUALITY_MAX;
+    } else if (delta_diff_ms > LINK_QUALITY_HI_THRESHOLD) {
         link_calculation = 0;
     } else {
-        link_calculation = static_cast<uint8_t>(255 * (1.0f - (static_cast<float>((tnow_ms - gcs_last_seen_ms) - 360) / (1000 - 360))));
+        // Formula for link quality calculation
+        link_calculation = static_cast<uint8_t>(LINK_QUALITY_MAX * (1.0f - (static_cast<float>(delta_diff_ms - LINK_QUALITY_LO_THRESHOLD)
+                                            / (LINK_QUALITY_HI_THRESHOLD - LINK_QUALITY_LO_THRESHOLD))));
     }
 
     // Add new calulated link quality to the Average Link Quality Buffer
     link_quality = link_buffer.apply(link_calculation);
-
     return;
 }
+
 /*
   check for AFS failsafe check
  */
