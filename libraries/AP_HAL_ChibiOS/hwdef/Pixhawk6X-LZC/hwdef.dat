@@ -46,5 +46,3 @@ define RELAY5_PIN_DEFAULT           105
 # Analog Input Pins
 define HAL_ANALOG_PIN_SERV0          12
 define HAL_ANALOG_PIN_BOARD_TEMP     13
-
-#define AP_SIM_GLIDER_ENABLED        1
