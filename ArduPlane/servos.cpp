@@ -535,12 +535,10 @@ float Plane::apply_throttle_limits(float throttle_in)
 
     // Query the conditions where TKOFF_THR_MAX applies.
     const bool use_takeoff_throttle =
-#if HAL_QUADPLANE_ENABLED
-        quadplane.in_transition() ||
-#endif
         (flight_stage == AP_FixedWing::FlightStage::TAKEOFF) ||
         (flight_stage == AP_FixedWing::FlightStage::ABORT_LANDING);
 
+    // Handle throttle limits for takeoff conditions.
     if (use_takeoff_throttle) {
         if (aparm.takeoff_throttle_max != 0) {
             // Replace max throttle with the takeoff max throttle setting.
@@ -553,7 +551,11 @@ float Plane::apply_throttle_limits(float throttle_in)
         const bool use_throttle_range = (aparm.takeoff_options & (uint32_t)AP_FixedWing::TakeoffOption::THROTTLE_RANGE);
         if (!use_throttle_range || !ahrs.using_airspeed_sensor()) {
             // Use a constant max throttle throughout the takeoff or when airspeed readings are not available.
-            min_throttle = MAX(min_throttle, aparm.takeoff_throttle_max.get());
+            if (aparm.takeoff_throttle_max.get() == 0) {
+                min_throttle = MAX(min_throttle, aparm.throttle_max.get());
+            } else {
+                min_throttle = MAX(min_throttle, aparm.takeoff_throttle_max.get());
+            }
         } else if (use_throttle_range) { // Use a throttle range through the takeoff.
             if (aparm.takeoff_throttle_min.get() != 0) { // This is enabled by TKOFF_MODE==1.
                 min_throttle = MAX(min_throttle, aparm.takeoff_throttle_min.get());
@@ -564,6 +566,15 @@ float Plane::apply_throttle_limits(float throttle_in)
         // This is to allow the aircraft to bleed speed faster and land with a shut off thruster.
         min_throttle = 0;
     }
+
+    // Handle throttle limits for transition conditions.
+#if HAL_QUADPLANE_ENABLED
+    if (quadplane.in_transition()) {
+        if (aparm.takeoff_throttle_max != 0) {
+            max_throttle = aparm.takeoff_throttle_max.get();
+        }
+    }
+#endif
 
     // Compensate the limits for battery voltage drop.
     // This relaxes the limits when the battery is getting depleted.

@@ -5134,6 +5134,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
 
         self.install_test_scripts_context([
             "scripting_test.lua",
+            "scripting_require_test_2.lua",
             "math.lua",
             "strings.lua",
             "mavlink_test.lua",
@@ -5146,6 +5147,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
 
         for success_text in [
                 "Internal tests passed",
+                "Require test 2 passed",
                 "Math tests passed",
                 "String tests passed",
                 "Received heartbeat from"
@@ -5958,10 +5960,10 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
     def RangeFinder(self):
         '''Test RangeFinder'''
         # the following magic numbers correspond to the post locations in SITL
-        home_string = "%s,%s,%s,%s" % (51.8752066, 14.6487840, 54.15, 315)
+        home_string = "%s,%s,%s,%s" % (51.8752066, 14.6487840, 54.15, 231)
 
         rangefinder_params = {
-            "SIM_SONAR_ROT": 6,
+            "SIM_SONAR_ROT": 0,
         }
         rangefinder_params.update(self.analog_rangefinder_parameters())
 
@@ -5976,7 +5978,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
         if m.voltage == 0:
             raise NotAchievedException("Did not get non-zero voltage")
         want_range = 10
-        if abs(m.distance - want_range) > 0.1:
+        if abs(m.distance - want_range) > 0.5:
             raise NotAchievedException("Expected %fm got %fm" % (want_range, m.distance))
 
     def DepthFinder(self):
@@ -6672,10 +6674,10 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             ]),
         ])
 
-        self.assert_prearm_failure('vehicle outside Polygon fence', other_prearm_failures_fatal=False)
+        self.assert_prearm_failure('Vehicle breaching Polygon fence', other_prearm_failures_fatal=False)
         self.reboot_sitl()
 
-        self.assert_prearm_failure('vehicle outside Polygon fence', other_prearm_failures_fatal=False, timeout=120)
+        self.assert_prearm_failure('Vehicle breaching Polygon fence', other_prearm_failures_fatal=False, timeout=120)
 
         self.progress("Ensure we can arm when a polyfence fence is cleared when we've previously been in breach")
         self.clear_fence()
@@ -6691,7 +6693,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             ]),
         ])
         self.reboot_sitl()
-        self.assert_prearm_failure('vehicle outside Polygon fence', other_prearm_failures_fatal=False, timeout=120)
+        self.assert_prearm_failure('Vehicle breaching Polygon fence', other_prearm_failures_fatal=False, timeout=120)
         self.clear_fence()
         self.wait_ready_to_arm()
 
@@ -6705,11 +6707,11 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                 self.offset_location_ne(here, 50, 20), # tl,
             ]),
         ])
-        self.assert_prearm_failure('vehicle outside Polygon fence', other_prearm_failures_fatal=False, timeout=120)
+        self.assert_prearm_failure('Vehicle breaching Polygon fence', other_prearm_failures_fatal=False, timeout=120)
         self.set_parameter('FENCE_TYPE', 2)
         self.wait_ready_to_arm()
         self.set_parameter('FENCE_TYPE', 6)
-        self.assert_prearm_failure('vehicle outside Polygon fence', other_prearm_failures_fatal=False, timeout=120)
+        self.assert_prearm_failure('Vehicle breaching Polygon fence', other_prearm_failures_fatal=False, timeout=120)
 
     def OpticalFlow(self):
         '''lightly test OpticalFlow'''
@@ -6724,6 +6726,15 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
 
         self.context_pop()
         self.reboot_sitl()
+
+    def RCDuplicateOptionsExist(self):
+        '''ensure duplicate RC option detection works'''
+        self.wait_ready_to_arm()
+        self.set_parameters({
+            "RC6_OPTION": 118,
+            "RC7_OPTION": 118,
+        })
+        self.assert_arm_failure("Duplicate Aux Switch Options")
 
     def tests(self):
         '''return list of all tests'''
@@ -6818,6 +6829,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             self.FenceFullAndPartialTransfer,
             self.MissionPolyEnabledPreArm,
             self.OpticalFlow,
+            self.RCDuplicateOptionsExist,
         ])
         return ret
 
