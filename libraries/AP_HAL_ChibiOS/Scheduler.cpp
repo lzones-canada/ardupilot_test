@@ -803,10 +803,25 @@ void Scheduler::watchdog_pat(void)
 // toggle the external watchdog gpio pin
 void Scheduler::ext_watchdog_pat(uint32_t now_ms)
 {
-    // toggle watchdog GPIO every WDI_OUT_INTERVAL_TIME_MS
-    if ((now_ms - last_ext_watchdog_ms) >= EXT_WDOG_INTERVAL_MS) {
-        palToggleLine(HAL_GPIO_PIN_EXT_WDOG);
-        last_ext_watchdog_ms = now_ms;
+    /*************************************************************************
+    * Watchdog - Generate the Watchdog output and reset the external watchdog
+    *************************************************************************/
+    if(watchdog_reset_done)
+    {
+        // toggle watchdog GPIO every WDI_OUT_INTERVAL_TIME_MS
+        if ((now_ms - last_ext_watchdog_ms) >= EXT_WDOG_INTERVAL_MS) {
+            //palToggleLine(HAL_GPIO_LINE_GPIO56);
+            hal.gpio->toggle(HAL_GPIO_PIN_EXT_WDOG);
+            last_ext_watchdog_ms = now_ms;
+        }
+    } else {
+        // Hold off period for external watchdog reset
+        if (now_ms > EXT_WDOG_RESET_HOLD_OFF_MS) {
+            hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 1);
+            watchdog_reset_done = true;
+        } else {
+            hal.gpio->write(HAL_GPIO_EXT_WDOG_RESET, 0);
+        }
     }
 }
 #endif

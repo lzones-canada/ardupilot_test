@@ -144,6 +144,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if AC_PRECLAND_ENABLED
     SCHED_TASK(precland_update, 400, 50, 160),
 #endif
+    SCHED_TASK(update_payload_control, 10, 500, 200),
 };
 
 void Plane::get_scheduler_tasks(const AP_Scheduler::Task *&tasks,
@@ -301,6 +302,149 @@ void Plane::update_logging25(void)
 #endif  // HAL_LOGGING_ENABLED
 
 /*
+  init payload control
+ */
+void Plane::init_payload_control(void)
+{
+    // Position lights
+    pos_lights = hal.gpio->channel(HAL_GPIO_PIN_POS_LIGHTS);
+    pos_lights->mode(HAL_GPIO_OUTPUT);
+
+    // Beacon Lights (Heartbeat Pattern)
+    beacon_lights = hal.gpio->channel(HAL_GPIO_PIN_BCN_LIGHTS);
+    beacon_lights->mode(HAL_GPIO_OUTPUT);
+
+    // Parachute Release - Logic Reversed.
+    chute_release = hal.gpio->channel(HAL_GPIO_PIN_CHUTE_RELEASE);
+    chute_release->mode(HAL_GPIO_OUTPUT);
+
+    // Balloon Release - Logic Reversed.
+    balloon_release = hal.gpio->channel(HAL_GPIO_PIN_BLN_RELEASE);
+    balloon_release->mode(HAL_GPIO_OUTPUT);
+
+    // HSTM Power
+    hstm_pwr = hal.gpio->channel(HAL_GPIO_PIN_HSTM_POWER);
+    hstm_pwr->mode(HAL_GPIO_OUTPUT);
+
+    // Analog Source Voltage Output (pin7 on AD&IO, analog 12)
+    servo_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_SERV0);
+    // Analog Source Vehicle Temperature Support Board (# pin6 on AD&IO, analog 13)
+    board_temp_analog_input = hal.analogin->channel(HAL_ANALOG_PIN_BOARD_TEMP);
+
+    // Watchdog Pins
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_STATUS, HAL_GPIO_INPUT);
+    hal.gpio->pinMode(HAL_GPIO_PIN_EXT_WDOG, HAL_GPIO_OUTPUT);
+    hal.gpio->pinMode(HAL_GPIO_EXT_WDOG_RESET, HAL_GPIO_OUTPUT);
+
+    return;
+}
+
+/*
+  do 10Hz payload control
+ */
+void Plane::update_payload_control()
+{
+    beacon_lights_heartbeat();
+
+    analog_input_calcs();
+
+    return;
+} 
+
+/*
+  Beacon Lights Control (Heartbeat Pattern) @ 10Hz
+ */
+void Plane::beacon_lights_heartbeat()
+{
+    // Current time in milliseconds
+    uint32_t tnow = AP_HAL::millis();
+    static uint32_t last_update_time = 0;
+
+    // Duration for each part of the heartbeat cycle in milliseconds
+    static const uint32_t HEARTBEAT_PERIOD = 1400; // 1400ms (1.4 seconds) total period
+    static const uint32_t FIRST_ON_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.15); // 15% on
+    static const uint32_t OFF_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.1); // 10% off
+    static const uint32_t SECOND_ON_TIME = (uint32_t)round(HEARTBEAT_PERIOD * 0.2); // 20% on
+
+    // Calculate the elapsed time since the last update
+    uint32_t elapsed_time = tnow - last_update_time;
+
+    // Only turn on Nav Lights when commanded from GCS
+    if (beacon_light) {
+        if(FIRST_ON_TIME > elapsed_time) {
+            beacon_lights->write(1);
+        } else if ((FIRST_ON_TIME + OFF_TIME) > elapsed_time) {
+            beacon_lights->write(0);
+        } else if ((FIRST_ON_TIME + OFF_TIME + SECOND_ON_TIME) > elapsed_time) {
+            beacon_lights->write(1);
+        } else if (HEARTBEAT_PERIOD > elapsed_time) {
+            beacon_lights->write(0);
+        } else {
+            beacon_lights->write(0);
+            // Reset the last update time to start a new cycle
+            last_update_time = tnow;
+        }
+    } else {
+        beacon_lights->write(0);
+    }
+
+    return;
+}
+
+/*
+    Analog Input Calculations @ 10Hz
+ */
+void Plane::analog_input_calcs()
+{
+    // Servo Rail Voltage - multiply by 2 account for Divider.
+    servo_vcc = servo_analog_input->voltage_average() * 2.0;
+
+    // Support Board Temperature
+    double Vout = board_temp_analog_input->voltage_average();
+    // Define known values for Support board calculations.
+    double const A = -1481.96;
+    double const B = 2.1962e6;
+    double const C = 1.8639;
+    double const D = 3.88e-6;
+    // Analog Input Voltage
+
+    // Analog output of TMP20 over –55°C to +130°C temperature range corresponds to parabolic transfer function from datasheet.
+    board_temp = (A + sqrt(B + (C - Vout) / D));
+
+    return;
+}
+
+/*
+    Calculate Uplink Quality @ 3Hz
+ */
+void Plane::calculate_link_quality()
+{
+    // Const threshold values for link quality calculation
+    static const uint32_t LINK_QUALITY_LO_THRESHOLD = 360; // 360ms
+    static const uint32_t LINK_QUALITY_HI_THRESHOLD = 1000; // 1000ms
+    static const uint32_t LINK_QUALITY_MAX = 255; // 255 (100%)
+
+    const uint32_t tnow_ms = millis();
+    const uint32_t gcs_last_seen_ms = gcs().sysid_myggcs_last_seen_time_ms();
+    const uint32_t delta_diff_ms = tnow_ms - gcs_last_seen_ms;
+    
+    // Calculate the link quality based on the time since the last GCS message
+    if (delta_diff_ms < LINK_QUALITY_LO_THRESHOLD) {
+        link_calculation = LINK_QUALITY_MAX;
+    } else if (delta_diff_ms > LINK_QUALITY_HI_THRESHOLD) {
+        link_calculation = 0;
+    } else {
+        // Formula for link quality calculation
+        link_calculation = static_cast<uint8_t>(LINK_QUALITY_MAX * (1.0f - (static_cast<float>(delta_diff_ms - LINK_QUALITY_LO_THRESHOLD)
+                                            / (LINK_QUALITY_HI_THRESHOLD - LINK_QUALITY_LO_THRESHOLD))));
+    }
+
+    // Add new calulated link quality to the Average Link Quality Buffer
+    link_quality = link_buffer.apply(link_calculation);
+    return;
+}
+
+/*
   check for AFS failsafe check
  */
 #if AP_ADVANCEDFAILSAFE_ENABLED
@@ -386,6 +530,8 @@ void Plane::three_hz_loop()
 #if AP_FENCE_ENABLED
     fence_check();
 #endif
+    // Uplink time based calculations
+    calculate_link_quality();
 }
 
 void Plane::compass_save()

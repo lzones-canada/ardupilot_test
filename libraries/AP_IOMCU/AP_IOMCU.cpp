@@ -1377,6 +1377,21 @@ void AP_IOMCU::write_GPIO(uint8_t pin, bool value)
     trigger_event(IOEVENT_GPIO);
 }
 
+// read an output pin
+bool AP_IOMCU::read_GPIO(uint8_t pin)
+{
+    if (!convert_pin_number(pin)) {
+        // Return an appropriate value or throw an error, depending on your requirements.
+        return false;
+    }
+
+    // Check if the specified GPIO pin is high (1) or low (0).
+    bool isHigh = (GPIO.output_mask & (1U << pin)) != 0;
+
+    // Return the state of the GPIO pin (true for high, false for low).
+    return isHigh;
+}
+
 // toggle a output pin
 void AP_IOMCU::toggle_GPIO(uint8_t pin)
 {

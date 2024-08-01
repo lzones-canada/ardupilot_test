@@ -66,6 +66,7 @@
 #include <AP_KDECAN/AP_KDECAN.h>
 #include <AP_LandingGear/AP_LandingGear.h>
 #include <AP_Landing/AP_Landing_config.h>
+#include <AP_MAX14830/AP_MAX14830.h>
 
 #include "MissionItemProtocol_Waypoints.h"
 #include "MissionItemProtocol_Rally.h"
@@ -3910,6 +3911,12 @@ void GCS_MAVLINK::handle_adsb_message(const mavlink_message_t &msg)
     AP_ADSB *adsb = AP::ADSB();
     if (adsb != nullptr) {
         adsb->handle_message(chan, msg);
+    }
+
+    // Send out on our Custom Driver
+    AP_MAX14830 *max14830 = AP::MAX14830();
+    if (max14830 != nullptr) {
+        max14830->adsb.handle_message(chan, msg);
     }
 }
 #endif
