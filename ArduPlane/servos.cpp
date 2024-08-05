@@ -526,17 +526,17 @@ float Plane::apply_throttle_limits(float throttle_in)
         min_throttle = 0;
     }
 
-    const bool use_takeoff_throttle_max =
-#if HAL_QUADPLANE_ENABLED
-        quadplane.in_transition() ||
-#endif
+    // Handle throttle limits for takeoff conditions.
+    // Query the conditions where TKOFF_THR_MAX applies.
+    const bool use_takeoff_throttle =
         (flight_stage == AP_FixedWing::FlightStage::TAKEOFF) ||
         (flight_stage == AP_FixedWing::FlightStage::ABORT_LANDING);
 
-    if (use_takeoff_throttle_max) {
-        if (aparm.takeoff_throttle_max != 0) {
-            max_throttle = aparm.takeoff_throttle_max.get();
-        }
+    // Handle throttle limits for takeoff conditions.
+    if (use_takeoff_throttle) {
+        // Read from takeoff_state
+        max_throttle = takeoff_state.throttle_lim_max;
+        min_throttle = takeoff_state.throttle_lim_min;
     } else if (landing.is_flaring()) {
         min_throttle = 0;
     }
@@ -549,6 +549,13 @@ float Plane::apply_throttle_limits(float throttle_in)
     throttle_watt_limiter(min_throttle, max_throttle);
 #endif
 
+    // Do a sanity check on them. Constrain down if necessary.
+    min_throttle = MIN(min_throttle, max_throttle);
+
+    // Let TECS know about the updated throttle limits.
+    // These will be taken into account on the next iteration.
+    TECS_controller.set_throttle_min(0.01f*min_throttle);
+    TECS_controller.set_throttle_max(0.01f*max_throttle);
     return constrain_float(throttle_in, min_throttle, max_throttle);
 }
 
