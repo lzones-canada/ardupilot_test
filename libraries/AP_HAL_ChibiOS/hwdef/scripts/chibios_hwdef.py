@@ -38,6 +38,7 @@ class ChibiOSHWDef(object):
         self.signed_fw = signed_fw
         self.default_params_filepath = default_params_filepath
         self.quiet = quiet
+        self.have_defaults_file = False
 
         # if true then parameters will be appended in special apj-tool
         # section at end of binary:
@@ -2573,7 +2574,7 @@ Please run: Tools/scripts/build_bootloaders.py %s
         f = open(hwdat, 'w')
         f.write('\n'.join(self.all_lines))
         f.close()
-        if not self.is_periph_fw():
+        if not self.is_periph_fw() and not os.getenv("NO_ROMFS_HWDEF", False):
             self.romfs["hwdef.dat"] = hwdat
 
     def write_defaulting_define(self, f, name, value):
@@ -2643,6 +2644,13 @@ Please run: Tools/scripts/build_bootloaders.py %s
         self.write_AIRSPEED_config(f)
         self.write_board_validate_macro(f)
         self.write_check_firmware(f)
+
+        if self.have_defaults_file:
+            f.write('''
+#ifndef AP_FILESYSTEM_ROMFS_ENABLED
+#define AP_FILESYSTEM_ROMFS_ENABLED 1
+#endif
+''')
 
         self.write_peripheral_enable(f)
 
@@ -3277,6 +3285,7 @@ Please run: Tools/scripts/build_bootloaders.py %s
             return
 
         self.romfs_add('defaults.parm', filepath)
+        self.have_defaults_file = True
 
     def process_hwdefs(self):
         for fname in self.hwdef:

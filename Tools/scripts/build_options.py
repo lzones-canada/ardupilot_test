@@ -122,6 +122,8 @@ BUILD_OPTIONS = [
     Feature('ESC', 'PICCOLOCAN', 'HAL_PICCOLO_CAN_ENABLE', 'Enable PiccoloCAN', 0, None),
     Feature('ESC', 'TORQEEDO', 'HAL_TORQEEDO_ENABLED', 'Enable Torqeedo Motors', 0, None),
 
+    Feature('ESC', 'ESC_EXTENDED_TELM', 'AP_EXTENDED_ESC_TELEM_ENABLED', 'Enable Extended ESC Telem', 0, 'DroneCAN'),
+
     Feature('AP_Periph', 'LONG_TEXT', 'HAL_PERIPH_SUPPORT_LONG_CAN_PRINTF', 'Enable extended length text strings', 0, None),
 
     Feature('Camera', 'Camera', 'AP_CAMERA_ENABLED', 'Enable Camera Trigger support', 0, None),
@@ -144,6 +146,8 @@ BUILD_OPTIONS = [
     Feature('Copter', 'MODE_FLOWHOLD', 'MODE_FLOWHOLD_ENABLED', 'Enable Mode Flowhold', 0, "OPTICALFLOW"),
     Feature('Copter', 'MODE_FLIP', 'MODE_FLIP_ENABLED', 'Enable Mode Flip', 0, None),
     Feature('Copter', 'MODE_BRAKE', 'MODE_BRAKE_ENABLED', 'Enable Mode Brake', 0, None),
+
+    Feature('Rover', 'ROVER_ADVANCED_FAILSAFE', 'AP_ROVER_ADVANCED_FAILSAFE_ENABLED', 'Enable Advanced Failsafe', 0, None),
 
     Feature('Mission', 'MISSION_NAV_PAYLOAD_PLACE', 'AP_MISSION_NAV_PAYLOAD_PLACE_ENABLED', 'Enable handling of NAV_PAYLOAD_PLACE mission items', 0, None),  # noqa
     Feature('Copter', 'AC_PAYLOAD_PLACE_ENABLED', 'AC_PAYLOAD_PLACE_ENABLED', 'Enable Payload Place flight behaviour', 0, 'MISSION_NAV_PAYLOAD_PLACE'),  # noqa
@@ -205,6 +209,7 @@ BUILD_OPTIONS = [
     Feature('Plane', 'QAUTOTUNE', 'QAUTOTUNE_ENABLED', 'Enable QuadPlane Autotune mode', 0, "QUADPLANE"),
     Feature('Plane', 'PLANE_BLACKBOX', 'AP_PLANE_BLACKBOX_LOGGING', 'Enable blackbox logging', 0, None),
     Feature('Plane', 'AP_TX_TUNING', 'AP_TUNING_ENABLED', 'Enable TX-based tuning parameter adjustments', 0, None),
+    Feature('Plane', 'PLANE_GUIDED_SLEW', 'AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED', 'Enable offboard-guided slew commands', 0, None),  # noqa:401
 
     Feature('RC', 'RC_Protocol', 'AP_RCPROTOCOL_ENABLED', "Enable Serial RC Protocol support", 0, None),   # NOQA: E501
     Feature('RC', 'RC_CRSF', 'AP_RCPROTOCOL_CRSF_ENABLED', "Enable CRSF RC Protocol", 0, "RC_Protocol"),   # NOQA: E501

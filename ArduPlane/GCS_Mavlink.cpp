@@ -1037,12 +1037,11 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_do_reposition(const mavlink_com
     return MAV_RESULT_FAILED;
 }
 
+#if AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
 // these are GUIDED mode commands that are RATE or slew enabled, so you can have more powerful control than default controls.
 MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_guided_slew_commands(const mavlink_command_int_t &packet)
 {
   switch(packet.command) {
-    
-#if OFFBOARD_GUIDED == ENABLED
     case MAV_CMD_GUIDED_CHANGE_SPEED: {
         // command is only valid in guided mode
         if (plane.control_mode != &plane.mode_guided) {
@@ -1171,14 +1170,11 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_guided_slew_commands(const mavl
         plane.guided_state.target_heading_time_ms = AP_HAL::millis();
         return MAV_RESULT_ACCEPTED;
     }
-#endif // OFFBOARD_GUIDED == ENABLED
-
-
   }
   // anything else ...
   return MAV_RESULT_UNSUPPORTED;
-
 }
+#endif // AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
 
 MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_int_t &packet, const mavlink_message_t &msg)
 {
@@ -1190,11 +1186,13 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_in
     case MAV_CMD_DO_REPOSITION:
         return handle_command_int_do_reposition(packet);
 
+#if AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED
     // special 'slew-enabled' guided commands here... for speed,alt, and direction commands
     case MAV_CMD_GUIDED_CHANGE_SPEED:
     case MAV_CMD_GUIDED_CHANGE_ALTITUDE:
     case MAV_CMD_GUIDED_CHANGE_HEADING:
         return handle_command_int_guided_slew_commands(packet);
+#endif
 
 #if AP_SCRIPTING_ENABLED && AP_FOLLOW_ENABLED
     case MAV_CMD_DO_FOLLOW:
@@ -1217,7 +1215,7 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_in
     case MAV_CMD_DO_CHANGE_SPEED:
         return handle_command_DO_CHANGE_SPEED(packet);
 
-#if PARACHUTE == ENABLED
+#if HAL_PARACHUTE_ENABLED
     case MAV_CMD_DO_PARACHUTE:
         return handle_MAV_CMD_DO_PARACHUTE(packet);
 #endif
@@ -1345,7 +1343,7 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_MAV_CMD_DO_AUTOTUNE_ENABLE(const mavlink_co
         return MAV_RESULT_ACCEPTED;
 }
 
-#if PARACHUTE == ENABLED
+#if HAL_PARACHUTE_ENABLED
 MAV_RESULT GCS_MAVLINK_Plane::handle_MAV_CMD_DO_PARACHUTE(const mavlink_command_int_t &packet)
 {
         // configure or release parachute

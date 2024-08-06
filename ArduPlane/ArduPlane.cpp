@@ -31,7 +31,7 @@
 
   All entries in this table must be ordered by priority.
 
-  This table is interleaved with the table presnet in each of the
+  This table is interleaved with the table present in each of the
   vehicles to determine the order in which tasks are run.  Convenience
   methods SCHED_TASK and SCHED_TASK_CLASS are provided to build
   entries in this structure:
@@ -705,7 +705,7 @@ void Plane::update_alt()
 
     // low pass the sink rate to take some of the noise out
     auto_state.sink_rate = 0.8f * auto_state.sink_rate + 0.2f*sink_rate;
-#if PARACHUTE == ENABLED
+#if HAL_PARACHUTE_ENABLED
     parachute.set_sink_rate(auto_state.sink_rate);
 #endif
 

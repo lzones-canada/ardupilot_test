@@ -138,7 +138,7 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
             break;
         }
         if(g.fs_action_long == FS_ACTION_LONG_PARACHUTE) {
-#if PARACHUTE == ENABLED
+#if HAL_PARACHUTE_ENABLED
             parachute_release();
             // Extend the wings to slow the descent
             plane.volz_wing_deg_cmd(WING_MIN_DEGREES);
@@ -189,7 +189,7 @@ void Plane::failsafe_long_on_event(enum failsafe_state fstype, ModeReason reason
     case Mode::Number::GUIDED:
 
         if(g.fs_action_long == FS_ACTION_LONG_PARACHUTE) {
-#if PARACHUTE == ENABLED
+#if HAL_PARACHUTE_ENABLED
             parachute_release();
             // Extend the wings to slow the descent
             plane.volz_wing_deg_cmd(WING_MIN_DEGREES);
@@ -318,7 +318,7 @@ void Plane::handle_battery_failsafe(const char *type_str, const int8_t action)
             break;
 
         case Failsafe_Action_Parachute:
-#if PARACHUTE == ENABLED
+#if HAL_PARACHUTE_ENABLED
             parachute_release();
 #endif
             break;

@@ -62,6 +62,8 @@ class ExtractFeatures(object):
             ('HAL_EFI_ENABLED', 'AP_EFI::AP_EFI',),
             ('AP_EFI_{type}_ENABLED', 'AP_EFI_(?P<type>.*)::update',),
 
+            ('AP_EXTENDED_ESC_TELEM_ENABLED', r'AP_DroneCAN::handle_esc_ext_status\b',),
+
             ('AP_TEMPERATURE_SENSOR_ENABLED', 'AP_TemperatureSensor::AP_TemperatureSensor',),
             ('AP_TEMPERATURE_SENSOR_{type}_ENABLED', 'AP_TemperatureSensor_(?P<type>.*)::update',),
 
@@ -261,6 +263,10 @@ class ExtractFeatures(object):
             ('AP_MAVLINK_MSG_HIL_GPS_ENABLED', r'mavlink_msg_hil_gps_decode'),
             ('AP_BARO_PROBE_EXTERNAL_I2C_BUSES', r'AP_Compass::_probe_external_i2c_compasses'),
             ('AP_RSSI_ENABLED', r'AP_RSSI::init'),
+
+            ('AP_ROVER_ADVANCED_FAILSAFE_ENABLED', r'Rover::afs_fs_check'),
+
+            ('AP_PLANE_OFFBOARD_GUIDED_SLEW_ENABLED', r'GCS_MAVLINK_Plane::handle_command_int_guided_slew_commands'),
         ]
 
     def progress(self, msg):
