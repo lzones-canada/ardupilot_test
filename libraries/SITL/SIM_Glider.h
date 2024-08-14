@@ -58,107 +58,102 @@ protected:
      */
     const struct Model {
         // total vehicle mass
-        float mass = 9.07441; // kg
+        float mass = 4.595; // kg
 
         // reference area
-        float Sref = 0.92762; // m^2
+        float Sref = 0.089; // m^2
+        float refSpan = 1.04; // m
+        float refChord = 0.175; // m
 
-        float refSpan = 1.827411; // m
-        float refChord = 0.507614; // m
-        float IXX = 0.234; // kg-m^2
-        float IYY = 1.85; // kg-m^2
-        float IZZ = 2.04; // kg-m^2
+        float IXX = 0.01611; // kg-m^2
+        float IYY = 0.389; // kg-m^2
+        float IZZ = 0.4069; // kg-m^2
 
-        // CN is coefficients for forces on +Z axis
-        // quadratic in alpharad
-        float CN2 = -0.5771;
-        float CN1 = 3.9496;
-        float CN0 = 0;
+        // CN is the coefficients for forces on +Z axis
+        float CN0 = 0.12828;
+        float CN0s = -0.0020832;
+        float CN1 = 6.8696;
+        float CN1s = -0.0626288;
 
         // CA is the coefficients for forces on +X axis
-        // quadratic in alpharad
-        float CA2 = -1.6809;
-        float CA1 = -0.0057;
-        float CA0 = 0.0150;
+        float CA0 = 0.03305;
+        float CA0s = -0.000101;
+        float CA1 = 0.19234;
+        float CA1s = -0.0027254;
 
         // CY is the coefficients for forces on the +Y axis
-        // quadratic in alpharad, with betarad factor
-        float CY2 = -3.342;
-        float CY1 = 0.0227;
-        float CY0 = -0.4608;
+        float CY0 = -1.51541;
+        float CY0s = 0.0000766;
+
+        // ------------------------------------------------------------------------------
 
         // Cl is the coefficients for moments on X axis
-        // quadratic in alpharad, with betarad factor
-        float Cl2 = 0.2888;
-        float Cl1 = -0.8518;
-        float Cl0 = -0.0491;
+        float Clb = -0.01334;
+        float Clbs = -0.0000196;
 
         // Cm is the coefficients for moments on Y axis
-        // quadratic in alpharad
-        float Cm2 = 0.099;
-        float Cm1 = -0.6506;
-        float Cm0 = -0.0005;
+        float Cma = -0.82931;
+        float Cmas = -0.036174;
+
+        // Cm0 is the zero-alpha moment coefficient
+        float Cm0 = 0.05315;
+        float Cm0s = -0.002287; 
 
         // Cn is the coefficients for moments on Z axis
-        // quadratic in alpharad, with betarad factor
-        float Cn2 = 0.0057;
-        float Cn1 = -0.0101;
-        float Cn0 = 0.1744;
+        float Cnb = 0.77834;
+        float Cnbs = -0.0001104;
+
+        // ------------------------------------------------------------------------------
 
         // controls neutral dynamic derivatives
-        // p, q, r are gyro rates
-        float Cmq = -6.1866;
+        float Cmq = -33.27537;
+        float Cmqs = 0.272671;
 
-        float Clp2 = 0.156;
-        float Clp1 = 0.0129;
-        float Clp0 = -0.315;
+        float Clp = -0.62372;
+        float Clps = 0.0104838;
 
-        float Clr2 = -0.0284;
-        float Clr1 = 0.2641;
-        float Clr0 = 0.0343;
+        float Clr = 0.04076;
+        float Clrs = -0.0000606;
 
-        float Cnp2 = 0.0199;
-        float Cnp1 = -0.315;
-        float Cnp0 = -0.013;
+        float Cnp = -0.03912;
+        float Cnps = -0.0003038;
 
-        float Cnr2 = 0.1297;
-        float Cnr1 = 0.0343;
-        float Cnr0 = -0.264;
+        float Cnr = -0.89731;
+        float Cnrs = 0.0003424;
+
+        // ------------------------------------------------------------------------------
 
         // elevator
         float elevatorDeflectionLimitDeg = -12.5;
-        float deltaCNperRadianElev = -0.7;
-        float deltaCAperRadianElev = 0.12;
-        float deltaCmperRadianElev = 1.39;
-        float deltaCYperRadianElev = 0;
-        float deltaClperRadianElev = 0;
-        float deltaCnperRadianElev = 0;
+
+        float CNe = -0.50982; 
+        float CNes = -0.0001564;
+
+        float CAe = 0.01035;
+        float CAes = -0.0001742;
+
+        float Cmde = 1.66008; 
+        float Cmdes = -0.008633;
 
         // rudder
         float rudderDeflectionLimitDeg = 18.0;
-        float deltaCNperRadianRud = 0;
-        float deltaCAperRadianRud = 0.058;
-        float deltaCmperRadianRud = 0;
-        float deltaCYperRadianRud = 0.31;
-        float deltaClperRadianRud = 0.038;
-        float deltaCnperRadianRud = -0.174;
+
+        float Cldr = 0.01246;
+        float Cldrs = 0.0001178;
+
+        float Cndr = -0.28013;
+        float Cndrs = 0.0000516;
 
         // aileron
         float aileronDeflectionLimitDeg = 15.5;
-        float deltaCNperRadianAil = 0;
-        float deltaCAperRadianAil = 0.016;
-        float deltaCmperRadianAil = 0;
-        float deltaCYperRadianAil = -0.015;
 
-        // quadratic in alpharad
-        float deltaClperRadianAil0 = 0.09191;
-        float deltaClperRadianAil1 = 0.0001;
-        float deltaClperRadianAil2 = -0.08645;
+        float Clda = 0.03676;
+        float Cldas = 0.0000024;
 
-        // quadratic in alpharad
-        float deltaCnperRadianAil0 = 0.00789;
-        float deltaCnperRadianAil1 = 0.00773;
-        float deltaCnperRadianAil2 = -0.01162;
+        float Cnda = 0.00514; //-0.00514;
+        float Cndas = 0.0000816; //-0.0000816
+
+        float swingWingDeflectionLimitDeg = 75.0; // starting at 10 deg, +75 is 85 degrees total
 
         // Forces in the +X direction are –CA * q * Sref
         // Forces in the +Y direction are  +CY * q * Sref
@@ -177,8 +172,8 @@ protected:
 
     } model;
 
-    Vector3f getForce(float inputAileron, float inputElevator, float inputRudder);
-    Vector3f getTorque(float inputAileron, float inputElevator, float inputRudder, const Vector3f &force) const;
+    Vector3f getForce(float inputAileron, float inputElevator, float inputRudder, float wing_pos_deg);
+    Vector3f getTorque(float inputAileron, float inputElevator, float inputRudder, float wing_pos_deg, const Vector3f &force) const;
     bool update_balloon(float balloon, Vector3f &force, Vector3f &rot_accel);
     void calculate_forces(const struct sitl_input &input, Vector3f &rot_accel, Vector3f &body_accel);
 

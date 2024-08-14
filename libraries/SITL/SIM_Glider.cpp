@@ -14,26 +14,6 @@
  */
 /*
   glider model for high altitude balloon drop
-
-  controls:
-    - servo6: balloon lift, 1000 for no lift, 2000 for maximum lift
-    - servo10: balloon cut, this cuts away the balloon when high
-
-  Note that the glider starts off in a lifted by tail pose, with pitch
-  -80 degrees. The balloon then lifts the glider above the ground. The
-  balloon automatically bursts at a height of SIM_GLD_BLN_BRST meters,
-  or can be cut away early with servo10.
-
-  The maximum rate of the balloon lift is in SIM_GLD_BLN_RATE, in m/s
-
-  To perform a takeoff first arm on the ground then use
-    servo set 6 2000
-  to release the ground hold. Use this to cut away the balloon:
-    servo set 10 2000
-
-  For an automatic mission, NAV_ALTITUDE_WAIT should be used to wait
-  for a desired altitude under balloon lift. Then a DO_SET_SERVO with
-  servo 10 and a value of 2000 to cut away the balloon.
  */
 
 #include "SIM_Glider.h"
@@ -77,7 +57,7 @@ Glider::Glider(const char *frame_str) :
 
 
 // Torque calculation function
-Vector3f Glider::getTorque(float inputAileron, float inputElevator, float inputRudder, const Vector3f &force) const
+Vector3f Glider::getTorque(float inputAileron, float inputElevator, float inputRudder, float wing_swp, const Vector3f &force) const
 {
     // Calculate dynamic pressure
     const auto &m = model;
@@ -87,27 +67,29 @@ Vector3f Glider::getTorque(float inputAileron, float inputElevator, float inputR
     const float rudder_rad = inputRudder * radians(m.rudderDeflectionLimitDeg);
     const float tas = MAX(airspeed * AP::ahrs().get_EAS2TAS(), 1);
 
-    float Cl = (m.Cl2 * sq(alpharad) + m.Cl1 * alpharad + m.Cl0) * betarad;
-    float Cm = m.Cm2 * sq(alpharad) + m.Cm1 * alpharad + m.Cm0;
-    float Cn = (m.Cn2 * sq(alpharad) + m.Cn1 * alpharad + m.Cn0) * betarad;
+    float Cl = (m.Clb + (m.Clbs * wing_swp)) * betarad;
+    float Cm = (m.Cm0 + (m.Cm0s * wing_swp)) + ((m.Cma + (m.Cmas * wing_swp)) * alpharad);
+    float Cn = (m.Cnb + (m.Cnbs * wing_swp)) * betarad;
 
-    Cl += m.deltaClperRadianElev * elevator_rad;
-    Cm += m.deltaCmperRadianElev * elevator_rad;
-    Cn += m.deltaCnperRadianElev * elevator_rad;
+    Cl += (m.Cldr + (m.Cldrs * wing_swp)) * rudder_rad;
+    Cn += (m.Cndr + (m.Cndrs * wing_swp)) * rudder_rad;
 
-    Cl += m.deltaClperRadianRud * rudder_rad;
-    Cm += m.deltaCmperRadianRud * rudder_rad;
-    Cn += m.deltaCnperRadianRud * rudder_rad;
+    Cm += (m.Cmde + (m.Cmdes * wing_swp)) * elevator_rad;
 
-    Cl += (m.deltaClperRadianAil2 * sq(alpharad) + m.deltaClperRadianAil1 * alpharad + m.deltaClperRadianAil0) * aileron_rad;
-    Cm += m.deltaCmperRadianAil * aileron_rad;
-    Cn += (m.deltaCnperRadianAil2 * sq(alpharad) + m.deltaCnperRadianAil1 * alpharad + m.deltaCnperRadianAil0) * aileron_rad;
+    Cl += (m.Clda + (m.Cldas * wing_swp)) * aileron_rad;
+    Cn += (m.Cnda + (m.Cndas * wing_swp)) * aileron_rad;
 
     // derivatives
-    float Clp = m.Clp2 * sq(alpharad) + m.Clp1 * alpharad + m.Clp0;
-    float Clr = m.Clr2 * sq(alpharad) + m.Clr1 * alpharad + m.Clr0;
-    float Cnp = m.Cnp2 * sq(alpharad) + m.Cnp1 * alpharad + m.Cnp0;
-    float Cnr = m.Cnr2 * sq(alpharad) + m.Cnr1 * alpharad + m.Cnr0;
+//    float Clp = (m.Clp * alpharad) + (m.Clps * wing_swp_deg);
+ //   float Clr = (m.Clr * alpharad) + (m.Clrs * wing_swp_deg);
+ //   float Cnp = (m.Cnp * alpharad) + (m.Cnps * wing_swp_deg);
+ //   float Cnr = (m.Cnr * alpharad) + (m.Cnrs * wing_swp_deg);
+
+    float Clp = m.Clp + (m.Clps * wing_swp);
+    float Clr = m.Clr + (m.Clrs * wing_swp);
+    float Cnp = m.Cnp + (m.Cnps * wing_swp);
+    float Cnr = m.Cnr + (m.Cnrs * wing_swp);
+
 
     // normalise gyro rates
     Vector3f pqr_norm = gyro;
@@ -120,7 +102,7 @@ Vector3f Glider::getTorque(float inputAileron, float inputElevator, float inputR
     Cn += pqr_norm.x * Cnp;
     Cn += pqr_norm.z * Cnr;
 
-    Cm += pqr_norm.y * m.Cmq;
+    Cm += pqr_norm.y * (m.Cmq + (m.Cmq * wing_swp));
 
     float Mx = Cl * qPa * m.Sref * m.refSpan;
     float My = Cm * qPa * m.Sref * m.refChord;
@@ -139,7 +121,7 @@ Vector3f Glider::getTorque(float inputAileron, float inputElevator, float inputR
 }
 
 // Force calculation, return vector in Newtons
-Vector3f Glider::getForce(float inputAileron, float inputElevator, float inputRudder)
+Vector3f Glider::getForce(float inputAileron, float inputElevator, float inputRudder, float wing_swp)
 {
     const auto &m = model;
     const float aileron_rad = inputAileron * radians(m.aileronDeflectionLimitDeg);
@@ -149,21 +131,12 @@ Vector3f Glider::getForce(float inputAileron, float inputElevator, float inputRu
     // dynamic pressure
     double qPa = 0.5*air_density*sq(velocity_air_bf.length());
 
-    float CA = m.CA2 * sq(alpharad) + m.CA1 * alpharad + m.CA0;
-    float CY = (m.CY2 * sq(alpharad) + m.CY1 * alpharad + m.CY0) * betarad;
-    float CN = m.CN2 * sq(alpharad) + m.CN1 * alpharad + m.CN0;
+    float CA = (m.CA0 + (m.CA0s * wing_swp)) + ((m.CA1 + (m.CA1s * wing_swp)) * alpharad);
+    float CY = (m.CY0 + (m.CY0s * wing_swp)) * betarad;
+    float CN = (m.CN0 + (m.CN0s * wing_swp)) + ((m.CN1 + (m.CN1s * wing_swp)) * alpharad);
 
-    CN += m.deltaCNperRadianElev * elevator_rad;
-    CA += m.deltaCAperRadianElev * elevator_rad;
-    CY += m.deltaCYperRadianElev * elevator_rad;
-
-    CN += m.deltaCNperRadianRud * rudder_rad;
-    CA += m.deltaCAperRadianRud * rudder_rad;
-    CY += m.deltaCYperRadianRud * rudder_rad;
-
-    CN += m.deltaCNperRadianAil * aileron_rad;
-    CA += m.deltaCAperRadianAil * aileron_rad;
-    CY += m.deltaCYperRadianAil * aileron_rad;
+    CN += (m.CNe + (m.CNes * wing_swp)) * elevator_rad;
+    CA += (m.CAe + (m.CAes * wing_swp)) * elevator_rad;
     
     float Fx = -CA * qPa * m.Sref;
     float Fy =  CY * qPa * m.Sref;
@@ -223,16 +196,29 @@ Vector3f Glider::getForce(float inputAileron, float inputElevator, float inputRu
 
 void Glider::calculate_forces(const struct sitl_input &input, Vector3f &rot_accel, Vector3f &body_accel)
 {
-    filtered_servo_setup(1, 1100, 1900, model.aileronDeflectionLimitDeg);
-    filtered_servo_setup(4, 1100, 1900, model.aileronDeflectionLimitDeg);
-    filtered_servo_setup(2, 1100, 1900, model.elevatorDeflectionLimitDeg);
-    filtered_servo_setup(3, 1100, 1900, model.rudderDeflectionLimitDeg);
+    filtered_servo_setup(8, 1100, 1900, 20.0); //assuming max elevon deflection is 20 degrees
+    filtered_servo_setup(9, 1100, 1900, 20.0);
+    filtered_servo_setup(10, 1100, 1900, model.rudderDeflectionLimitDeg);
+    filtered_servo_setup(11, 1100, 1900, model.rudderDeflectionLimitDeg);
     
-    float aileron  = 0.5*(filtered_servo_angle(input, 1) + filtered_servo_angle(input, 4));
-    float elevator = filtered_servo_angle(input, 2);
-    float rudder   = filtered_servo_angle(input, 3);
-    float balloon  = MAX(0.0f, filtered_servo_range(input, 5)); // Don't let the balloon receive downwards commands.
-    float balloon_cut = filtered_servo_range(input, 9);
+    filtered_servo_setup(13, 1100, 1900, 40.0);  // swing wing +- 40 degrees, from 8 to 88 deg. So 48 deg is centre. 1900-1100 = 800 us, for 80 degrees = 0.1 deg / us
+    float wing_sweep_deg  = (filtered_servo_angle(input, 13) * 40.0) + 48.0; // returns -40 to 40, so shift it by 48.0
+    float wing_sweep_offset = (wing_sweep_deg - 10); // offsetting so this value is 0.0 when wing_sweep_deg is 10.0, because that is what my aerodynamic model requires
+
+    float ch9  = filtered_servo_angle(input, 8);
+    float ch10  = filtered_servo_angle(input, 9);
+    float ch11  = filtered_servo_angle(input, 10);
+    float ch12  = filtered_servo_angle(input, 11);
+
+    float aileron = (ch10 + ch9)/2.0f;
+    float elevator = -(ch10 - ch9)/2.0f;
+    float rudder = -(-ch11 + ch12)/2.0f;
+    
+    float balloon  = 0.5*(filtered_servo_range(input, 5) + 1);
+    float balloon_cut = 0.5*(filtered_servo_range(input, 6) + 1);
+
+    //GCS_SEND_TEXT(MAV_SEVERITY_INFO,"Aileron: %.1f elevator: %.1f rudder: %.1f\n", aileron, elevator, rudder);
+    //GCS_SEND_TEXT(MAV_SEVERITY_INFO,"wing_sweep_offset: %.1f\n", wing_sweep_offset);
 
     // Move balloon upwards using balloon velocity from channel 6
     // Aircraft is released from ground constraint when channel 6 PWM > 1010
@@ -241,7 +227,7 @@ void Glider::calculate_forces(const struct sitl_input &input, Vector3f &rot_acce
         balloon_velocity = Vector3f(-wind_ef.x, -wind_ef.y, -wind_ef.z -balloon_rate * balloon);
         balloon_position += balloon_velocity * (1.0e-6 * (float)frame_time_us);
         const float height_AMSL = 0.01f * (float)home.alt - position.z;
-        // release at burst height or when balloon cut output goes high
+        // release at burst height or when channel 9 goes high
         if (hal.scheduler->is_system_initialized() &&
             (height_AMSL > balloon_burst_amsl || balloon_cut > 0.8)) {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "pre-release at %i m AMSL\n", (int)height_AMSL);
@@ -272,8 +258,8 @@ void Glider::calculate_forces(const struct sitl_input &input, Vector3f &rot_acce
     Vector3f force;
 
     if (!update_balloon(balloon, force, rot_accel)) {
-        force = getForce(aileron, elevator, rudder);
-        rot_accel = getTorque(aileron, elevator, rudder, force);
+        force = getForce(aileron, elevator, rudder, wing_sweep_offset);
+        rot_accel = getTorque(aileron, elevator, rudder, wing_sweep_offset, force);
     }
 
     accel_body = force / model.mass;
@@ -380,7 +366,7 @@ bool Glider::update_balloon(float balloon, Vector3f &force, Vector3f &rot_accel)
     // NED unit vector pointing from tether attachment on plane to attachment on balloon
     Vector3f tether_unit_vec_ef = relative_position.normalized();
 
-    // NED velocity of attachment point on plane
+    // NED velocity of attahment point on plane
     Vector3f attachment_velocity_ef = velocity_ef + dcm * (gyro % tether_pos_bf);
 
     // NED velocity of attachment point on balloon as seen by observer on attachemnt point on plane
