@@ -358,6 +358,9 @@ public:
     // returns true when the yaw angle has been aligned
     bool yawAlignmentComplete(void) const;
 
+    // return error score for currently active lane
+    float errorScore(void) const;
+
     // returns true when the state estimates are significantly
     // degraded by vibration
     bool isVibrationAffected() const;

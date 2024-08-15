@@ -298,6 +298,14 @@ public:
     // Writes the default equivalent airspeed in m/s to be used in forward flight if a measured airspeed is required and not available.
     void writeDefaultAirSpeed(float airspeed);
 
+
+    // log debug data for yaw estimator
+    // return false if data not available
+    bool getDataEKFGSF(int8_t instance, float &yaw_composite, float &yaw_composite_variance, float yaw[N_MODELS_EKFGSF], float innov_VN[N_MODELS_EKFGSF], float innov_VE[N_MODELS_EKFGSF], float weight[N_MODELS_EKFGSF]) const;
+
+    // return error score for currently active lane
+    float errorScore(void) const;
+
     // get a yaw estimator instance
     const EKFGSF_yaw *get_yawEstimator(void) const;
     

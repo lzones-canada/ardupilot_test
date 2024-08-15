@@ -46,3 +46,13 @@ define RELAY5_PIN_DEFAULT           105
 # Analog Input Pins
 define HAL_ANALOG_PIN_SERV0          12
 define HAL_ANALOG_PIN_BOARD_TEMP     13
+
+# Saving space for flash (Enabling EKF2)
+define AP_RANGEFINDER_ENABLED   0
+define HAL_MOUNT_ENABLED 0
+deinfe AP_OPTICALFLOW_ENABLED 0
+define OSD_ENABLED 0
+define HAL_WITH_MSP_DISPLAYPORT 0
+define HAL_OSD_SIDEBAR_ENABLE 0
+define OSD_PARAM_ENABLED 0
+define AP_CAMERA_ENABLED 0

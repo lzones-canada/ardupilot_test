@@ -797,8 +797,6 @@ static const ap_message STREAM_EXTRA1_msgs[] = {
 #if AP_AIRSPEED_HYGROMETER_ENABLE
     MSG_HYGROMETER,
 #endif
-    MSG_PAYLOAD_STATUS,
-    MSG_STATION_STATUS,
 };
 static const ap_message STREAM_EXTRA2_msgs[] = {
     MSG_VFR_HUD
@@ -829,6 +827,8 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #endif
     MSG_EKF_STATUS_REPORT,
     MSG_VIBRATION,
+    MSG_PAYLOAD_STATUS,
+    MSG_STATION_STATUS,
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM

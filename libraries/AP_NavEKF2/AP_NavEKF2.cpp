@@ -1576,6 +1576,12 @@ void NavEKF2::writeExtNavVelData(const Vector3f &vel, float err, uint32_t timeSt
     }
 }
 
+// return error score for currently active lane
+float NavEKF2::errorScore(void) const
+{
+    return core[primary].errorScore();
+}
+
 // get yaw estimator instance
 const EKFGSF_yaw *NavEKF2::get_yawEstimator(void) const
 {
