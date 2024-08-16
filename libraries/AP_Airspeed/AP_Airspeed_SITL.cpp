@@ -39,4 +39,19 @@ bool AP_Airspeed_SITL::get_temperature(float &temperature)
     return true;
 }
 
+// read the from the sensor
+bool AP_Airspeed_SITL::get_airspeed(float &airspeed)
+{
+
+    const uint8_t _instance = get_instance();
+
+    if (_instance >= AIRSPEED_MAX_SENSORS) {
+        return false;
+    }
+
+    airspeed = AP::sitl()->state.airspeed;
+
+    return true;
+}
+
 #endif // AP_AIRSPEED_SITL_ENABLED

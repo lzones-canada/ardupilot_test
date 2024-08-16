@@ -46,3 +46,44 @@ define RELAY5_PIN_DEFAULT           105
 # Analog Input Pins
 define HAL_ANALOG_PIN_SERV0          12
 define HAL_ANALOG_PIN_BOARD_TEMP     13
+
+## Simulate save some_flash_file as it does not exists...
+define AC_OAPATHPLANNER_ENABLED 0
+define AC_PRECLAND_ENABLED 0
+define AP_ICENGINE_ENABLED 0
+define AP_OPTICALFLOW_ENABLED 0
+//define HAL_BARO_WIND_COMP_ENABLED 0
+define HAL_GENERATOR_ENABLED 0
+
+
+# Saving space for flash (Enabling EKF2)
+# disable rangefinder
+define AP_RANGEFINDER_BACKEND_DEFAULT_ENABLED 0
+//define AP_RANGEFINDER_MAVLINK_ENABLED 1
+
+# disable camera
+define AP_CAMERA_BACKEND_DEFAULT_ENABLED 0
+//define AP_CAMERA_MAVLINK_ENABLED 1
+
+// disable sprayer
+define HAL_SPRAYER_ENABLED 0
+
+// disable OSD on SkyViper
+define OSD_ENABLED 0
+define OSD_PARAM_ENABLED 0
+
+// disable MSP
+define HAL_WITH_MSP_DISPLAYPORT 0
+define HAL_MSP_ENABLED 0
+
+// disable camera mount
+define HAL_MOUNT_ENABLED 0
+
+// disable RPM sensors
+define AP_RPM_ENABLED 0
+
+// disable gripper
+define AP_GRIPPER_ENABLED 0
+
+// disable winch
+define AP_WINCH_ENABLED 0
