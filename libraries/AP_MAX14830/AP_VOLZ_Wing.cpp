@@ -95,6 +95,9 @@ void AP_VOLZ_Wing::init()
     // Init state machine.
     machine_state = INIT_REQUEST;
 
+    // Initialize the last wing log time
+    last_wing_log_ms = AP_HAL::millis();
+
     return;
 }
 
@@ -410,7 +413,8 @@ int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_po
 {
     // calculate the error between the current and target position    
     int error = target_pos - current_pos;
-    int16_t command = 0; // Initialize command to zero
+    // Initialize command to zero
+    int16_t command = 0;
 
     // apply saturation filter to clamp the max command speed
     if (error > THRESHOLD_POSITION)
@@ -537,6 +541,19 @@ void AP_VOLZ_Wing::update_position()
 {
     sweep_angle_limit.new_value(wing_status_degree(total_position));
     volz_state.set_sweep_angle(sweep_angle_limit.get());
+
+#if HAL_LOGGING_ENABLED
+    // Current Timestamps
+    uint32_t now = AP_HAL::millis();
+    // Log the wing position every 500ms
+    if (now - last_wing_log_ms > 500) {
+        AP::logger().WriteStreaming("WING", "TimeUS,DesPos,Pos", "QBf",
+                                    AP_HAL::micros64(),
+                                    volz_state.get_target_command(),
+                                    volz_state.get_sweep_angle());
+        last_wing_log_ms = now;
+    }
+#endif
 
     return;
 }
