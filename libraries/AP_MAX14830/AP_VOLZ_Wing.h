@@ -132,6 +132,8 @@ private:
     // current servo command
     int16_t servo_cmd;
 
+    uint32_t last_wing_log_ms;
+
     // variable to store current command in degrees
     uint8_t target_command;
     // variable to store the previous position
