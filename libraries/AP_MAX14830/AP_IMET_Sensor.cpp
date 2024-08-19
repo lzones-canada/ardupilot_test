@@ -28,18 +28,16 @@ static const uint8_t MESSAGE_BUFFER_LENGTH = 255;
 static uint8_t rx_fifo_buffer[MESSAGE_BUFFER_LENGTH];
 
 //------------------------------------------------------------------------------
-// Static buffer to store the message to be converted in.
-//------------------------------------------------------------------------------
-
-static uint8_t rx_buffer[MESSAGE_BUFFER_LENGTH];
-
-
-//------------------------------------------------------------------------------
 // Static pointer to control access to the contents of message_buffer.
 //------------------------------------------------------------------------------
 
-static uint8_t *rx_buffer_ptr = rx_buffer;
-static uint8_t  rx_buffer_len = 0;
+static uint8_t *rx_buffer_ptr;
+
+//------------------------------------------------------------------------------
+// Message buffer for accumulated data for partial storing.
+//------------------------------------------------------------------------------
+static char    _message_buffer[MESSAGE_BUFFER_LENGTH];
+static uint8_t _message_buffer_length;
 
 //------------------------------------------------------------------------------
 // Constructor
@@ -47,21 +45,15 @@ static uint8_t  rx_buffer_len = 0;
 AP_IMET_Sensor::AP_IMET_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
     _max14830(std::move(max14830))
 {
+    rx_buffer_ptr = rx_fifo_buffer;
+    _message_buffer_length = 0;
+    parse_state = PARSE_STATE::NO_SYNC;
 }
 
 /* ************************************************************************* */
 
 void AP_IMET_Sensor::handle_imet_uart2_interrupt()
 {
-    //---------------------------------------------------------------------------
-	// Enumerated data type to define the states of parsing buffer and copying message
-	//---------------------------------------------------------------------------
-    static enum
-	{
-		WAIT_FOR_STOP_SYNC_1,		// Carriage return (0x0D).
-		WAIT_FOR_STOP_SYNC_2		// Line feed (0x0A).
-	} parse_state = WAIT_FOR_STOP_SYNC_1;
-
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
     _max14830->set_uart_address(UART::ADDR_2);
     rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
@@ -69,107 +61,130 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
     _max14830->clear_interrupts();
 
     // Pointer to the start of FIFO buffer.
-    const uint8_t *byte_ptr = &rx_fifo_buffer[0];
-    // Byte length to track the number of bytes parsed.
-    uint8_t byte_count = 0;
+    rx_buffer_ptr = &rx_fifo_buffer[0];
 
-    // Parse the data in buffer.
-    while(true)
+    // For loop to iterate over all the recieve data
+    for(int i=0; i<rxbuf_fifo_len; i++)
     {
-        if((rx_buffer + MESSAGE_BUFFER_LENGTH) <= rx_buffer_ptr)
-		{
-			// If the message won't all fit in the message buffer, it indicates
-			//  an error.  Reset and start looking for a new message.
-			rx_buffer_ptr = rx_buffer;
-			rx_buffer_len = 0;
-			parse_state = WAIT_FOR_STOP_SYNC_1;
-		}
+        // Temporary copy for readability.
+        char character = *rx_buffer_ptr;
 
-        // Parse all data until the end of the fifo buffer.
-        if(rxbuf_fifo_len == byte_count) {
-            // Finished converting all new data.
-            break;
-        }
-
-        // Copy data over to rx buffer.
-        *rx_buffer_ptr = *byte_ptr;
-        // Increment length of our buffer.
-        rx_buffer_len++;
-
-        // Track length of total message.
-        byte_count++;
+        // Accumulate data into the message buffer for partial storage.
+        _message_buffer[_message_buffer_length++] = character;
 
         // Wait for a stop sync to be received.
         switch(parse_state)
-		{
-			case(WAIT_FOR_STOP_SYNC_1):
-			{
+        {
+            case(PARSE_STATE::NO_SYNC):
+            {
                 // Carriage Return '\r' (0x0D).
-				if('\r' == *byte_ptr)
-				{
-					parse_state = WAIT_FOR_STOP_SYNC_2;
-				}
-				// This if statement has no else, as this will be normal while the
-				//  contents of the message are being copied to the message buffer.
-				break;
-			}
-			case(WAIT_FOR_STOP_SYNC_2):
-			{
+                if('0' == character)
+                {
+                    parse_state = PARSE_STATE::START_SYNC_0;
+                }
+                // This if statement has no else, as this will be normal while the
+                //  contents of the message are being copied to the message buffer.
+                break;
+            }
+            case(PARSE_STATE::START_SYNC_0):
+            {
+                if(',' == character)
+                {
+                    parse_state = PARSE_STATE::START_SYNC_1;
+                } 
+                else
+                {
+                    // Reset as there was no sync
+                    parse_state = PARSE_STATE::NO_SYNC;
+                }
+                break;
+            }
+            case(PARSE_STATE::START_SYNC_1):
+            {
+                if('+' == character)
+                {
+                    parse_state = PARSE_STATE::WAIT_FOR_STOP_SYNC_1;
+                }
+                else
+                {
+                    // Reset as there was no sync
+                    parse_state = PARSE_STATE::NO_SYNC;
+                }
+                break;
+            }
+            case(PARSE_STATE::WAIT_FOR_STOP_SYNC_1):
+            {
+                // Carriage Return '\r' (0x0D).
+                if('\r' == character)
+                {
+                    parse_state = PARSE_STATE::WAIT_FOR_STOP_SYNC_2;
+                }
+                // This if statement has no else, as this will be normal while the
+                //  contents of the message are being copied to the message buffer.
+                break;
+            }
+            case(PARSE_STATE::WAIT_FOR_STOP_SYNC_2):
+            {
                 // Line Feed '\n' (0x0A).
-				if('\n' == *byte_ptr)
-				{
-                    // Full messaged received... Process it.
-                    handle_complete_imet_msg(rx_buffer_len);
-				}
-				// Reset to the start of the message buffer and start looking for a new message.
-                rx_buffer_ptr = rx_buffer;
-                rx_buffer_len = 0;
-				parse_state = WAIT_FOR_STOP_SYNC_1;
-				break;
-			}
-			default:
-			{
-				// This should never happen.
-				// Reset to the start of the message buffer and start looking for a new message.
-				rx_buffer_ptr = rx_buffer;
-                rx_buffer_len = 0;
-				parse_state = WAIT_FOR_STOP_SYNC_1;
-				break;
-			}
-		}
+                if('\n' == character)
+                {
+                    // Reset as the last stop sync byte has been received and message
+                    //  has ended.
+                    parse_state = PARSE_STATE::WAIT_FOR_STOP_SYNC_1;
+                    // Full message received... Process it.
+                    handle_complete_imet_msg(_message_buffer, _message_buffer_length);
+                    // Reset buffer length
+                    _message_buffer_length = 0;
+                }
+                break;
+            }
+            default:
+            {
+                // This should never happen.
+                parse_state = PARSE_STATE::NO_SYNC;
+                break;
+            }
+        }
 
-        // Increment our buffer indices.
-        byte_ptr++;
-        rx_buffer_ptr++;
+        // increment our byte
+        ++rx_buffer_ptr;
     }
 
     return;
 }
 
-/* ************************************************************************* */
 
-void AP_IMET_Sensor::handle_complete_imet_msg(const uint8_t ptr_len)
+
+void AP_IMET_Sensor::handle_complete_imet_msg(const char* message, const uint8_t message_length)
 {
-    // Copy over into Working Buffer
-    //  point buffer back to start of message. 
-    const uint8_t *rx_work_buffer = (rx_buffer_ptr - (ptr_len - 1));
-
     // Mavlink packet for sending out data.
     mavlink_imet_sensor_raw_t imet_pkt{};
+    
+    // Set the time since boot in milliseconds.
+    imet_pkt.time_boot_ms = AP_HAL::millis();
 
-    // for loop to iterate over complete message.
-    for(int i=0; i<ptr_len; i++)
-    {
-        uint8_t curr_char = *rx_work_buffer;
-        // Only add data to the packet if it is not a carriage return or line feed.
-        if(curr_char != '\r' && curr_char != '\n') {
-            // Copy data into mavlink packet, Save the length.
-            imet_pkt.data[imet_pkt.data_length++] = curr_char;
+    // Clear the imet_pkt.data buffer before copying.
+    memset(imet_pkt.data, 0, sizeof(imet_pkt.data));
+
+    // Index for filtered data.
+    uint8_t data_index = 0;
+
+    // Filter out '\n' and '\r' characters.
+    for (uint8_t i = 0; i < message_length; i++) {
+        if (message[i] != '\n' && message[i] != '\r') {
+            if (data_index < sizeof(imet_pkt.data)) {
+                imet_pkt.data[data_index++] = message[i];
+            } else {
+                // If we exceed the buffer size, break to prevent overflow.
+                break;
+            }
         }
-        rx_work_buffer++;
     }
 
-    // Send out Mavlink Message
+    // Set the data length after filtering.
+    imet_pkt.data_length = data_index;
+
+    // Send out Mavlink Message.
     gcs().send_to_active_channels(MAVLINK_MSG_ID_IMET_SENSOR_RAW, (const char *)&imet_pkt);
 
     return;
