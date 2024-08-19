@@ -48,6 +48,9 @@ public:
     // Expose ability to clear interrupt in Driver.
     void clear_interrupts(void);
 
+    // Expose ability to reset FIFOs in Driver.
+    void fifo_reset(void);
+
     // Expose write function to our attached sensors
     void tx_write(uint8_t *buf, uint8_t len);
 

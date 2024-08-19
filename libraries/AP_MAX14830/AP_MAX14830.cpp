@@ -165,6 +165,14 @@ void AP_MAX14830::tx_write(uint8_t *buf, uint8_t len)
 
 /* ************************************************************************* */
 
+void AP_MAX14830::fifo_reset()
+{
+    driver->fifo_reset();
+    return;
+}
+
+/* ************************************************************************* */
+
 void AP_MAX14830::set_RTS_state(bool state)
 {
     driver->set_RTS_state(state);

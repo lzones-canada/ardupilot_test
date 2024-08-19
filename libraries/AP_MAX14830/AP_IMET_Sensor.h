@@ -49,7 +49,7 @@ public:
     void handle_imet_uart2_interrupt(void);
 
     // Handle complete IMET message.
-    void handle_complete_imet_msg(const uint8_t len);
+    void handle_complete_imet_msg(const char* message, const uint8_t message_length);
 
     // Length of bytes to read - returned from Max14830 FIFO.
     uint8_t rxbuf_fifo_len;
@@ -57,6 +57,25 @@ public:
 private:
     // Pointer to MAX14830 object
     AP_HAL::OwnPtr<AP_MAX14830> _max14830;
+    
+    //------------------------------------------------------------------------------
+    // Parser state for the IMET Messages
+    //------------------------------------------------------------------------------
+    struct PARSE_STATE
+    {
+        enum value
+        {
+            NO_SYNC,                    // Waiting for '0'
+            START_SYNC_0,               // Reserved for ','
+            START_SYNC_1,               // Reserved for '+'
+            WAIT_FOR_STOP_SYNC_1,       // Carriage return (0x0D).
+            WAIT_FOR_STOP_SYNC_2        // Line feed (0x0A).
+        };
+    };
+
+    // Keeps track of the parsing state of the start sync and stop sync
+    PARSE_STATE::value parse_state;
+
 };
 
 #endif // AP_IMET_SENSOR_H
