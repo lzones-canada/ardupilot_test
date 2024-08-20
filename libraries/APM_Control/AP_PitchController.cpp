@@ -158,6 +158,32 @@ const AP_Param::GroupInfo AP_PitchController::var_info[] = {
 
     AP_SUBGROUPINFO(rate_pid, "_RATE_", 11, AP_PitchController, AC_PID),
 
+    // @Param: NGLIM
+    // @DisplayName: Normal load factor limit
+    // @Description: This limits the demanded pitch rate to a value that limits g loading to the value specified in the + and - direction. This limit is additional to that specified by PTCH2SRV_RMAX_UP and PTCH2SRV_RMAX_DN.
+    // @Range: 1.5 10.0
+    // @Increment: 0.5
+    // @User: Advanced
+    AP_GROUPINFO("NGLIM", 12, AP_PitchController, _ng_limit, 2.0f),
+
+    // @Param: MGTC
+    // @DisplayName: Manoeuvre g time constant
+    // @Description: This sets the time constant used by the g limiter to compensate for the lag from pitch rate to normal acceleration when flying at IAS = SCALING_SPEED.
+    // @Units: s
+    // @Range: 0.0 1.0
+    // @Increment: 0.05
+    // @User: Advanced
+    AP_GROUPINFO("MGTC", 13, AP_PitchController, _manoeuvre_tconst, 0.5f),
+
+    // @Param: VSTALL
+    // @DisplayName: Stall speed
+    // @Description: IAS at which the vehicle stalls at 1g load factor. This is used to limit the pitch rate demand as a function of IAS such that the AoA limit is not exceeded. Set to 0 if not known and the AoA will not be limited. Setting to a value above stall causes AoA to be limited to a lower value and vice-versa.
+    // @Units: m/s
+    // @Range: 0.0 100.0
+    // @Increment: 0.5
+    // @User: Advanced
+    AP_GROUPINFO("VSTALL", 14, AP_PitchController, _stall_speed, 0.0f),
+
     AP_GROUPEND
 };
 
@@ -173,6 +199,9 @@ AP_PitchController::AP_PitchController(const AP_FixedWing &parms)
 */
 float AP_PitchController::_get_rate_out(float desired_rate, float scaler, bool disable_integrator, float aspeed, bool ground_mode)
 {
+    // FIXME:pass by refernce??
+    desired_rate = _limit_desired_rate(desired_rate, scaler, aspeed);
+
     const float dt = AP::scheduler().get_loop_period_s();
 
     const AP_AHRS &_ahrs = AP::ahrs();
@@ -241,6 +270,52 @@ float AP_PitchController::_get_rate_out(float desired_rate, float scaler, bool d
 
     // output is scaled to notional centidegrees of deflection
     return constrain_float(out * 100, -4500, 4500);
+}
+
+/*
+  AC_PID based rate controller
+*/
+float AP_PitchController::_limit_desired_rate(float desired_rate, float scaler, float aspeed)
+{
+    // apply pitch rate limits that prevent specified normal g loading being exceeded
+    const auto &ahrs = AP::ahrs();
+    float VTAS = aspeed * ahrs.get_EAS2TAS();
+    const float VTAS_dot = ahrs.get_accel().x + GRAVITY_MSS * ahrs.get_DCM_rotation_body_to_ned().c.x;
+	if (is_positive(_manoeuvre_tconst)) {
+		const float tconst_adj = _manoeuvre_tconst * sq(scaler);
+		VTAS += VTAS_dot * tconst_adj;
+	}
+    const float g_div_vtas = GRAVITY_MSS / MAX(VTAS,0.1);
+    const float zero_ng_pitch_rate = - g_div_vtas * ahrs.get_DCM_rotation_body_to_ned().c.z;
+    float load_factor_limit = MAX(_ng_limit, 1.5);
+
+	// custom hack to adjust maximum AoA protection for Reynolds number effects
+    const float air_density_ratio = 1.0f / sq(ahrs.get_EAS2TAS());
+	const float density_ratio_bp[2]     = {0.15220f, 0.02092f}; // must be montonically decreasing
+	const float stall_speed_ratio_bp[2] = {1.00000f, 1.21771f};
+	float max_aoa_speed = _stall_speed;
+	if (air_density_ratio > density_ratio_bp[0]) {
+		max_aoa_speed *= stall_speed_ratio_bp[0];
+	} else if (air_density_ratio > density_ratio_bp[1]) {
+		const float weighting = (air_density_ratio - density_ratio_bp[1]) / (density_ratio_bp[0] - density_ratio_bp[1]);
+		max_aoa_speed *= (stall_speed_ratio_bp[0] * weighting + stall_speed_ratio_bp[1] * (1.0f - weighting));
+	} else {
+		max_aoa_speed *= stall_speed_ratio_bp[1];
+	}
+
+	const float maneouvre_speed = max_aoa_speed * sqrtf(load_factor_limit);
+	if (is_positive(_stall_speed) && aspeed <  maneouvre_speed) {
+		// adjust load factor limit to prevent AoA exceedancee with a small margin above
+		// 1.0 to prevent a failed airspeed sensor causing loss of pitch control
+		load_factor_limit *= sq(aspeed/maneouvre_speed);
+		load_factor_limit = MAX(load_factor_limit, 1.1f);
+	}
+    const float ng_pitch_rate = g_div_vtas * load_factor_limit;
+    const float max_pitch_rate_dps = degrees(zero_ng_pitch_rate + ng_pitch_rate);
+    const float min_pitch_rate_dps = degrees(zero_ng_pitch_rate - ng_pitch_rate);
+    desired_rate = constrain_float(desired_rate, min_pitch_rate_dps, max_pitch_rate_dps);
+
+    return desired_rate;
 }
 
 /*

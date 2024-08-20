@@ -104,7 +104,7 @@ void ModeAuto::update()
         plane.nav_pitch_cd = ahrs.pitch_sensor;
         SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, plane.nav_scripting.throttle_pct);
 #endif
-    } else {
+    } else if (!plane.in_pullup()) {
         // we are doing normal AUTO flight, the special cases
         // are for takeoff and landing
         if (nav_cmd_id != MAV_CMD_NAV_CONTINUE_AND_CHANGE_ALT) {
