@@ -228,6 +228,12 @@ public:
         float p3;
     };
 
+    struct PACKED User_Command {
+        float param1;
+        float param2;
+        float param3;
+    };
+
 #if AP_SCRIPTING_ENABLED
     // Scripting NAV command old version of storage format
     struct PACKED nav_script_time_Command_tag0 {
@@ -403,6 +409,9 @@ public:
 
         // MAV_CMD_VIDEO_STOP_CAPTURE support
         video_stop_capture_Command video_stop_capture;
+
+        // user commands, for custom code
+        User_Command user_command;
 
         // location
         Location location{};      // Waypoint location

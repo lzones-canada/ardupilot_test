@@ -1004,6 +1004,10 @@ const AP_Param::Info Plane::var_info[] = {
     // @Path: ../libraries/AP_Vehicle/AP_Vehicle.cpp
     PARAM_VEHICLE_INFO,
 
+    // @Group:
+    // @Path: Attitude.cpp
+    { "", (const void *)&AP_PARAM_VEHICLE_NAME, {group_info : Plane::var_pullup}, 0, Parameters::k_param_pullup, AP_PARAM_GROUP },
+
     AP_VAREND
 };
 
