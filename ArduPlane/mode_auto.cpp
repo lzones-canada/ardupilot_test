@@ -103,7 +103,7 @@ void ModeAuto::update()
         plane.nav_roll_cd = ahrs.roll_sensor;
         plane.nav_pitch_cd = ahrs.pitch_sensor;
 #endif
-    } else {
+    } else if (!plane.in_pullup()) {
         // we are doing normal AUTO flight, the special cases
         // are for takeoff and landing
         if (nav_cmd_id != MAV_CMD_NAV_CONTINUE_AND_CHANGE_ALT) {

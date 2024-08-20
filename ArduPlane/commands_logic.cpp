@@ -259,7 +259,7 @@ bool Plane::verify_command(const AP_Mission::Mission_Command& cmd)        // Ret
         return verify_loiter_turns(cmd);
 
     case MAV_CMD_NAV_LOITER_TIME:
-        return verify_loiter_time();
+        return verify_loiter_time(cmd);
 
     case MAV_CMD_NAV_LOITER_TO_ALT:
         return verify_loiter_to_alt(cmd);
@@ -677,7 +677,7 @@ bool Plane::verify_loiter_unlim(const AP_Mission::Mission_Command &cmd)
     return false;
 }
 
-bool Plane::verify_loiter_time()
+bool Plane::verify_loiter_time(const AP_Mission::Mission_Command &cmd)
 {
     bool result = false;
     // mission radius is always aparm.loiter_radius
@@ -700,8 +700,13 @@ bool Plane::verify_loiter_time()
         result = verify_loiter_heading(false);
     }
 
+    // additional check for altitude target, even if blown off course
+    if (current_loc.alt < cmd.content.location.alt) {
+        result = true;
+    }
+
     if (result) {
-        gcs().send_text(MAV_SEVERITY_INFO,"Loiter time complete");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO,"Loiter time complete");
         auto_state.vtol_loiter = false;
     }
     return result;
