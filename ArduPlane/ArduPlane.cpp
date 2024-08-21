@@ -210,7 +210,8 @@ void Plane::ahrs_update()
  */
 void Plane::update_speed_height(void)
 {
-    bool should_run_tecs = control_mode->does_auto_throttle();
+    bool idle_mode = (plane.mission.get_current_nav_cmd().id == MAV_CMD_NAV_ALTITUDE_WAIT);
+    bool should_run_tecs = control_mode->does_auto_throttle() && !idle_mode && !in_pullup();
 #if HAL_QUADPLANE_ENABLED
     if (quadplane.should_disable_TECS()) {
         should_run_tecs = false;
@@ -511,13 +512,15 @@ void Plane::update_fly_forward(void)
         return;
     }
 #endif
-
-    if (flight_stage == AP_FixedWing::FlightStage::LAND) {
-        ahrs.set_fly_forward(landing.is_flying_forward());
-        return;
+    if(plane.mission.get_current_nav_cmd().id == MAV_CMD_NAV_ALTITUDE_WAIT) {
+        // don't fuse airspeed when in balloon lift
+        ahrs.set_fly_forward(false);
     }
-
-    ahrs.set_fly_forward(true);
+    else if (flight_stage == AP_FixedWing::FlightStage::LAND) {
+        ahrs.set_fly_forward(landing.is_flying_forward());
+    } else {
+        ahrs.set_fly_forward(true);
+    }
 }
 
 /*
@@ -571,8 +574,8 @@ void Plane::update_alt()
         return;
     }
 #endif
-
-    bool should_run_tecs = control_mode->does_auto_throttle();
+    bool idle_mode = (plane.mission.get_current_nav_cmd().id == MAV_CMD_NAV_ALTITUDE_WAIT);
+    bool should_run_tecs = control_mode->does_auto_throttle() && !idle_mode && !in_pullup();
 #if HAL_QUADPLANE_ENABLED
     if (quadplane.should_disable_TECS()) {
         should_run_tecs = false;

@@ -935,7 +935,7 @@ private:
     void do_RTL(int32_t alt);
     bool verify_takeoff();
     bool verify_loiter_unlim(const AP_Mission::Mission_Command &cmd);
-    bool verify_loiter_time();
+    bool verify_loiter_time(const AP_Mission::Mission_Command& cmd);
     bool verify_loiter_turns(const AP_Mission::Mission_Command &cmd);
     bool verify_loiter_to_alt(const AP_Mission::Mission_Command &cmd);
     bool verify_RTL();
@@ -973,6 +973,30 @@ private:
     bool start_command_callback(const AP_Mission::Mission_Command &cmd);
     bool verify_command_callback(const AP_Mission::Mission_Command& cmd);
     float get_wp_radius() const;
+
+    bool in_pullup() const;
+    void do_pullup(const AP_Mission::Mission_Command &cmd);
+    bool verify_pullup(const AP_Mission::Mission_Command &cmd);
+    void stabilize_pullup();
+
+    enum class PullupStage {
+        NONE,
+        WAIT_AIRSPEED,
+        WAIT_PITCH,
+        WAIT_LEVEL,
+        PUSH_NOSE_DOWN
+    };
+
+    static const struct AP_Param::GroupInfo var_pullup[];
+
+    struct {
+        PullupStage stage;
+        AP_Float elev_offset; // fraction of full elevator applied during WAIT_AIRSPEED and released during WAIT_PITCH
+        AP_Float ng_limit;
+        AP_Float ng_jerk_limit;
+        AP_Int16 pitch_dem_cd;
+        float ng_demand;
+    } pullup;
 
     bool is_land_command(uint16_t cmd) const;
 
