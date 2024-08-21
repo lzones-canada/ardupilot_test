@@ -94,6 +94,10 @@ bool Plane::start_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_NAV_ALTITUDE_WAIT:
         break;
 
+    case MAV_CMD_USER_1:
+        do_pullup(cmd);
+        break;
+
 #if HAL_QUADPLANE_ENABLED
     case MAV_CMD_NAV_VTOL_TAKEOFF:
         crash_state.is_crashed = false;
@@ -286,6 +290,9 @@ bool Plane::verify_command(const AP_Mission::Mission_Command& cmd)        // Ret
     case MAV_CMD_NAV_ALTITUDE_WAIT:
         return verify_altitude_wait(cmd);
 
+    case MAV_CMD_USER_1:
+        return verify_pullup(cmd);
+        
 #if HAL_QUADPLANE_ENABLED
     case MAV_CMD_NAV_VTOL_TAKEOFF:
         return quadplane.verify_vtol_takeoff(cmd);
