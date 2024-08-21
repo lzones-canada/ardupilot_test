@@ -1353,9 +1353,8 @@ bool Plane::verify_pullup(const AP_Mission::Mission_Command &cmd)
         bool pitchup_complete = ahrs.pitch_sensor > MIN(0, aparm.pitch_limit_min * 100);
 
         float aspeed;
-        float aspeed_target = aparm.airspeed_cruise;
+        float aspeed_target = aparm.airspeed_max;
         bool airspeed_low = ahrs.airspeed_estimate(aspeed) ? aspeed < aspeed_target : true;
-        gcs().send_text(MAV_SEVERITY_INFO, "Pullup aspeed_pred %.1f aspeed_target %.1f param3 %.1f", aspeed, aspeed_target, cmd.content.user_command.param3);
 
         bool roll_control_lost = labs(ahrs.roll_sensor) > aparm.roll_limit*100;
         if (pitchup_complete && airspeed_low && !roll_control_lost) {
