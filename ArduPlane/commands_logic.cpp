@@ -1355,12 +1355,13 @@ bool Plane::verify_pullup(const AP_Mission::Mission_Command &cmd)
         float aspeed;
         const float aspeed_derivative = (ahrs.get_accel().x + GRAVITY_MSS * ahrs.get_DCM_rotation_body_to_ned().c.x) / ahrs.get_EAS2TAS();
 
-        float aspeed_pred = aspeed + aspeed_derivative * pitch_lag_time;
-        float aspeed_target = cmd.content.user_command.param3;
-        // print aspeed_pred, aspeed_target in GCS for debugging
-        gcs().send_text(MAV_SEVERITY_INFO, "Pullup aspeed_pred %.1f aspeed_target %.1f", aspeed_pred, aspeed_target);
 
         bool airspeed_low = ahrs.airspeed_estimate(aspeed) ? (aspeed + aspeed_derivative * pitch_lag_time) < (float)cmd.content.user_command.param3 : true;
+
+        float aspeed_pred = aspeed + aspeed_derivative * pitch_lag_time;
+        float aspeed_target = cmd.content.user_command.param3;
+        gcs().send_text(MAV_SEVERITY_INFO, "Pullup aspeed_pred %.1f aspeed_target %.1f", aspeed_pred, aspeed_target);
+
         bool roll_control_lost = labs(ahrs.roll_sensor) > aparm.roll_limit*100;
         if (pitchup_complete && airspeed_low && !roll_control_lost) {
                 gcs().send_text(MAV_SEVERITY_INFO, "Pullup level airspeed %.1fm/s r=%.1f p=%.1f alt %.1fm AMSL",
