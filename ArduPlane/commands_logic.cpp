@@ -1354,12 +1354,12 @@ bool Plane::verify_pullup(const AP_Mission::Mission_Command &cmd)
         const float pitch_lag_time = 1.0f * sqrtf(ahrs.get_EAS2TAS());
         float aspeed;
         const float aspeed_derivative = (ahrs.get_accel().x + GRAVITY_MSS * ahrs.get_DCM_rotation_body_to_ned().c.x) / ahrs.get_EAS2TAS();
-        bool airspeed_low = ahrs.airspeed_estimate(aspeed) ? (aspeed + aspeed_derivative * pitch_lag_time) < 0.01f * (float)target_airspeed_cm : true;
-        bool roll_control_lost = labs(ahrs.roll_sensor) > aparm.roll_limit * 100;
+        bool airspeed_low = ahrs.airspeed_estimate(aspeed) ? (aspeed + aspeed_derivative * pitch_lag_time) < (float)cmd.content.user_command.param3 : true;
+        bool roll_control_lost = labs(ahrs.roll_sensor) > aparm.roll_limit*100;
         if (pitchup_complete && airspeed_low && !roll_control_lost) {
-                gcs().send_text(MAV_SEVERITY_INFO, "Pullup level r=%.1f p=%.1f alt %.1fm AMSL",
-                                ahrs.roll_sensor*0.01, ahrs.pitch_sensor*0.01, current_loc.alt*0.01);
-            pullup.stage = PullupStage::NONE;
+                gcs().send_text(MAV_SEVERITY_INFO, "Pullup level airspeed %.1fm/s r=%.1f p=%.1f alt %.1fm AMSL",
+                aspeed, ahrs.roll_sensor*0.01, ahrs.pitch_sensor*0.01, current_loc.alt*0.01);
+                pullup.stage = PullupStage::NONE;
         } else if (pitchup_complete && roll_control_lost) {
             // push nose down and wait to get roll control back
                 gcs().send_text(MAV_SEVERITY_ALERT, "Pullup level roll bad r=%.1f p=%.1f",
