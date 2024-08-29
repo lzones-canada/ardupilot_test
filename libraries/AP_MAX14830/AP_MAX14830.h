@@ -29,6 +29,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <utility>
 #include <stdio.h>
+#include "AP_MAX14830_config.h"
 #include "AP_IMET_Sensor.h"
 #include "AP_ADSB_Sensor.h"
 #include "AP_VOLZ_Wing.h"
