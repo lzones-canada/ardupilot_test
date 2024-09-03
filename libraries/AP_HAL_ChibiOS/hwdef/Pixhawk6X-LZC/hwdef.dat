@@ -50,6 +50,9 @@ define RELAY5_PIN_DEFAULT           105
 define HAL_ANALOG_PIN_SERV0          12
 define HAL_ANALOG_PIN_BOARD_TEMP     13
 
+# Enable Glider Pullup Mode
+define AP_PLANE_GLIDER_PULLUP_ENABLED 1
+
 # Saving space for flash (Enabling EKF2)
 # disable rangefinder
 define AP_RANGEFINDER_BACKEND_DEFAULT_ENABLED 0
