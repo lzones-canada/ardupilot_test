@@ -125,6 +125,7 @@
 #include "avoidance_adsb.h"
 #endif
 #include "AP_Arming.h"
+#include "pullup.h"
 
 /*
   main APM:Plane class
@@ -177,6 +178,9 @@ public:
 
 #if AP_EXTERNAL_CONTROL_ENABLED
     friend class AP_ExternalControl_Plane;
+#endif
+#if AP_PLANE_GLIDER_PULLUP_ENABLED
+    friend class GliderPullup;
 #endif
 
     Plane(void);
@@ -553,10 +557,6 @@ private:
         // Minimum pitch to hold during takeoff command execution.  Hundredths of a degree
         int16_t takeoff_pitch_cd;
 
-        // used to 'wiggle' servos in idle mode to prevent them freezing
-        // at high altitudes
-        uint16_t idle_wiggle_stage;
-
         // Flag for using gps ground course instead of INS yaw.  Set false when takeoff command in process.
         bool takeoff_complete;
 
@@ -577,6 +577,11 @@ private:
 
         // have we checked for an auto-land?
         bool checked_for_autoland;
+
+        // Altitude threshold to complete a takeoff command in autonomous modes.  Centimeters
+        // are we in idle mode? used for balloon launch to stop servo
+        // movement until altitude is reached
+        bool idle_mode;
 
         // are we in VTOL mode in AUTO?
         bool vtol_mode;
@@ -1012,6 +1017,7 @@ private:
     void do_loiter_turns(const AP_Mission::Mission_Command& cmd);
     void do_loiter_time(const AP_Mission::Mission_Command& cmd);
     void do_continue_and_change_alt(const AP_Mission::Mission_Command& cmd);
+    void do_altitude_wait(const AP_Mission::Mission_Command& cmd);
     void do_loiter_to_alt(const AP_Mission::Mission_Command& cmd);
     void do_vtol_takeoff(const AP_Mission::Mission_Command& cmd);
     void do_vtol_land(const AP_Mission::Mission_Command& cmd);
@@ -1178,7 +1184,6 @@ private:
     void avoidance_adsb_update(void);
 
     // servos.cpp
-    void set_servos_idle(void);
     void set_servos();
     float apply_throttle_limits(float throttle_in);
     void set_throttle(void);
@@ -1335,6 +1340,10 @@ private:
 
     // last target alt we passed to tecs
     int32_t tecs_target_alt_cm;
+
+#if AP_PLANE_GLIDER_PULLUP_ENABLED
+    GliderPullup pullup;
+#endif // AP_PLANE_GLIDER_PULLUP_ENABLED
 
 public:
     void failsafe_check(void);

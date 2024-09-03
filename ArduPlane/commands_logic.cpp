@@ -27,6 +27,9 @@ bool Plane::start_command(const AP_Mission::Mission_Command& cmd)
 
         nav_controller->set_data_is_stale();
 
+        // start non-idle
+        auto_state.idle_mode = false;
+
         // reset loiter start time. New command is a new loiter
         loiter.start_time_ms = 0;
 
@@ -92,6 +95,7 @@ bool Plane::start_command(const AP_Mission::Mission_Command& cmd)
         break;
 
     case MAV_CMD_NAV_ALTITUDE_WAIT:
+        do_altitude_wait(cmd);
         break;
 
 #if HAL_QUADPLANE_ENABLED
@@ -284,7 +288,7 @@ bool Plane::verify_command(const AP_Mission::Mission_Command& cmd)        // Ret
         return verify_continue_and_change_alt();
 
     case MAV_CMD_NAV_ALTITUDE_WAIT:
-        return verify_altitude_wait(cmd);
+        return mode_auto.verify_altitude_wait(cmd);
 
 #if HAL_QUADPLANE_ENABLED
     case MAV_CMD_NAV_VTOL_TAKEOFF:
@@ -519,6 +523,15 @@ void Plane::do_continue_and_change_alt(const AP_Mission::Mission_Command& cmd)
     next_WP_loc.alt = cmd.content.location.alt + home.alt;
     condition_value = cmd.p1;
     reset_offset_altitude();
+}
+
+void Plane::do_altitude_wait(const AP_Mission::Mission_Command& cmd)
+{
+    // set all servos to trim until we reach altitude or descent speed
+    auto_state.idle_mode = true;
+#if AP_PLANE_GLIDER_PULLUP_ENABLED
+    pullup.reset();
+#endif
 }
 
 void Plane::do_loiter_to_alt(const AP_Mission::Mission_Command& cmd)
@@ -800,6 +813,11 @@ bool Plane::verify_loiter_to_alt(const AP_Mission::Mission_Command &cmd)
         result = verify_loiter_heading(false);
     }
 
+    // additional check for altitude target, even if blown off course
+    if (current_loc.alt < cmd.content.location.alt) {
+        result = true;
+    }
+    
     if (result) {
         gcs().send_text(MAV_SEVERITY_INFO,"Loiter to alt complete");
     }
@@ -863,26 +881,46 @@ bool Plane::verify_continue_and_change_alt()
 /*
   see if we have reached altitude or descent speed
  */
-bool Plane::verify_altitude_wait(const AP_Mission::Mission_Command &cmd)
+bool ModeAuto::verify_altitude_wait(const AP_Mission::Mission_Command &cmd)
 {
-    if (current_loc.alt > cmd.content.altitude_wait.altitude*100.0f) {
-        gcs().send_text(MAV_SEVERITY_INFO,"Reached altitude");
-        return true;
+#if AP_PLANE_GLIDER_PULLUP_ENABLED
+    if (plane.pullup.in_pullup()) {
+        return plane.pullup.verify_pullup();
     }
-    if (auto_state.sink_rate > cmd.content.altitude_wait.descent_rate) {
-        gcs().send_text(MAV_SEVERITY_INFO, "Reached descent rate %.1f m/s", (double)auto_state.sink_rate);
-        return true;        
+#endif
+
+    const float alt_diff = plane.current_loc.alt - cmd.content.altitude_wait.altitude*100.0f;
+    bool completed = false;
+    if (alt_diff > 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO,"Reached altitude");
+        completed = true;
+    } else if (cmd.content.altitude_wait.descent_rate > 0 &&
+        plane.auto_state.sink_rate > cmd.content.altitude_wait.descent_rate) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Reached descent rate %.1f m/s", (double)plane.auto_state.sink_rate);
+        completed = true;
     }
 
-    // if requested, wiggle servos
-    if (cmd.content.altitude_wait.wiggle_time != 0) {
-        static uint32_t last_wiggle_ms;
-        if (auto_state.idle_wiggle_stage == 0 &&
-            AP_HAL::millis() - last_wiggle_ms > cmd.content.altitude_wait.wiggle_time*1000) {
-            auto_state.idle_wiggle_stage = 1;
-            last_wiggle_ms = AP_HAL::millis();
+    if (completed) {
+#if AP_PLANE_GLIDER_PULLUP_ENABLED
+        if (plane.pullup.pullup_start()) {
+            // we are doing a pullup, ALTITUDE_WAIT not complete until pullup is done
+            return false;
         }
-        // idle_wiggle_stage is updated in set_servos_idle()
+#endif
+        return true;
+    }
+
+    const float time_to_alt = alt_diff / MIN(plane.auto_state.sink_rate, -0.01);
+
+    // if requested, wiggle servos
+    if (cmd.content.altitude_wait.wiggle_time != 0 &&
+        (plane.auto_state.sink_rate > 0 || time_to_alt > cmd.content.altitude_wait.wiggle_time*5)) {
+        if (wiggle.stage == 0 &&
+            AP_HAL::millis() - wiggle.last_ms > cmd.content.altitude_wait.wiggle_time*1000) {
+            wiggle.stage = 1;
+            wiggle.last_ms = AP_HAL::millis();
+            // idle_wiggle_stage is updated in wiggle_servos()
+        }
     }
 
     return false;

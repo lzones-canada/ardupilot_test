@@ -343,13 +343,13 @@ void Plane::airbrake_update(void)
 }
 
 /*
-  setup servos for idle mode
+  setup servos for idle wiggle mode
   Idle mode is used during balloon launch to keep servos still, apart
   from occasional wiggle to prevent freezing up
  */
-void Plane::set_servos_idle(void)
+void ModeAuto::wiggle_servos()
 {
-    const int SCHED_LOOP_RATE = 200;  // Example: Set to desired loop rate like 50Hz, 100Hz, etc.
+    const int SCHED_LOOP_RATE = plane.scheduler.get_loop_rate_hz();  // Retrieve the current loop rate
     const int MIN_LOOP_RATE   = 50;   // Minimum allowable Loop Rate
     // Calculate scaling factor based on the loop rate
     const int SCALE_FACTOR = (SCHED_LOOP_RATE / MIN_LOOP_RATE);
@@ -357,32 +357,33 @@ void Plane::set_servos_idle(void)
     int16_t servo_valueAileronRudder;
 
     // Wiggle the control surfaces in stages: elevators first, then rudders + ailerons, through the full range over 4 seconds
-    if (auto_state.idle_wiggle_stage != 0) {
-        auto_state.idle_wiggle_stage += 1;
+    if (wiggle.stage != 0) {
+        wiggle.stage += 1;
     }
-    if (auto_state.idle_wiggle_stage == 0) {
+
+    if (wiggle.stage == 0) {
         servo_valueElevator = 0;
         servo_valueAileronRudder = 0;
-    } else if (auto_state.idle_wiggle_stage < (25 * SCALE_FACTOR)) { 
-        servo_valueElevator = auto_state.idle_wiggle_stage * (4500 / (25 * SCALE_FACTOR));
+    } else if (wiggle.stage < (25 * SCALE_FACTOR)) { 
+        servo_valueElevator = wiggle.stage * (4500 / (25 * SCALE_FACTOR));
         servo_valueAileronRudder = 0;
-    } else if (auto_state.idle_wiggle_stage < (75 * SCALE_FACTOR)) {
-        servo_valueElevator = ((50 * SCALE_FACTOR) - auto_state.idle_wiggle_stage) * (4500 / (25 * SCALE_FACTOR));
+    } else if (wiggle.stage < (75 * SCALE_FACTOR)) {
+        servo_valueElevator = ((50 * SCALE_FACTOR) - wiggle.stage) * (4500 / (25 * SCALE_FACTOR));
         servo_valueAileronRudder = 0;
-    } else if (auto_state.idle_wiggle_stage < (100 * SCALE_FACTOR)) {
-        servo_valueElevator = (auto_state.idle_wiggle_stage - (100 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
+    } else if (wiggle.stage < (100 * SCALE_FACTOR)) {
+        servo_valueElevator = (wiggle.stage - (100 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
         servo_valueAileronRudder = 0;
-    } else if (auto_state.idle_wiggle_stage < (125 * SCALE_FACTOR)) {
+    } else if (wiggle.stage < (125 * SCALE_FACTOR)) {
         servo_valueElevator = 0;
-        servo_valueAileronRudder = (auto_state.idle_wiggle_stage - (100 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
-    } else if (auto_state.idle_wiggle_stage < (175 * SCALE_FACTOR)) {
+        servo_valueAileronRudder = (wiggle.stage - (100 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
+    } else if (wiggle.stage < (175 * SCALE_FACTOR)) {
         servo_valueElevator = 0;
-        servo_valueAileronRudder = ((150 * SCALE_FACTOR) - auto_state.idle_wiggle_stage) * (4500 / (25 * SCALE_FACTOR));
-    } else if (auto_state.idle_wiggle_stage < (200 * SCALE_FACTOR)) {
+        servo_valueAileronRudder = ((150 * SCALE_FACTOR) - wiggle.stage) * (4500 / (25 * SCALE_FACTOR));
+    } else if (wiggle.stage < (200 * SCALE_FACTOR)) {
         servo_valueElevator = 0;
-        servo_valueAileronRudder = (auto_state.idle_wiggle_stage - (200 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
+        servo_valueAileronRudder = (wiggle.stage - (200 * SCALE_FACTOR)) * (4500 / (25 * SCALE_FACTOR));
     } else {
-        auto_state.idle_wiggle_stage = 0;
+        wiggle.stage = 0;
         servo_valueElevator = 0;
         servo_valueAileronRudder = 0;
     }
@@ -390,15 +391,6 @@ void Plane::set_servos_idle(void)
     SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, servo_valueAileronRudder);
     SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, servo_valueElevator);
     SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, servo_valueAileronRudder);
-
-    SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, 0.0);
-    SRV_Channels::set_output_scaled(SRV_Channel::k_throttleLeft, 0.0);
-    SRV_Channels::set_output_scaled(SRV_Channel::k_throttleRight, 0.0);
-
-    SRV_Channels::set_output_to_trim(SRV_Channel::k_throttle);
-    SRV_Channels::set_output_to_trim(SRV_Channel::k_throttleLeft);
-    SRV_Channels::set_output_to_trim(SRV_Channel::k_throttleRight);
-
 }
 
 

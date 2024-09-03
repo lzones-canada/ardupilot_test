@@ -228,7 +228,10 @@ public:
     bool is_landing() const override;
 
     void do_nav_delay(const AP_Mission::Mission_Command& cmd);
+
     bool verify_nav_delay(const AP_Mission::Mission_Command& cmd);
+    
+    bool verify_altitude_wait(const AP_Mission::Mission_Command& cmd);
 
     void run() override;
 
@@ -245,6 +248,14 @@ private:
         uint32_t time_max_ms;
         uint32_t time_start_ms;
     } nav_delay;
+
+    // wiggle state and timer for NAV_ALTITUDE_WAIT
+    //  used to 'wiggle' servos in idle mode to prevent them freezing at high altitudes
+    void wiggle_servos();
+    struct {
+        uint8_t stage;
+        uint32_t last_ms;
+    } wiggle;
 
 };
 
