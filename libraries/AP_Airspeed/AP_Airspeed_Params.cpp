@@ -66,12 +66,13 @@ const AP_Param::GroupInfo AP_Airspeed_Params::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("OFFSET", 3, AP_Airspeed_Params, offset, 0),
 
-    // @Param: RATIO
-    // @DisplayName: Airspeed ratio
-    // @Description: Calibrates pitot tube pressure to velocity. Increasing this value will indicate a higher airspeed at any given dynamic pressure.
+    // 4 was used by ratio
+    // @Param: _PCORRECT
+    // @DisplayName: Pitot pressure correction
+    // @Description: Calibrates pitot tube pressure to velocity. Increasing this value will indicate a higher airspeed at any given dynamic pressure. A value of 1.0 is correct for an ideal pitot tube.
     // @Increment: 0.1
     // @User: Advanced
-    AP_GROUPINFO("RATIO", 4, AP_Airspeed_Params, ratio, 2),
+    AP_GROUPINFO("PCORRECT", 24, AP_Airspeed_Params, pcorrect, 1.0),
 
     // @Param: PIN
     // @DisplayName: Airspeed pin

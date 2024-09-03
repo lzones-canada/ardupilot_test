@@ -74,6 +74,10 @@
 #define HAL_BARO_ALLOW_INIT_NO_BARO
 #endif
 
+#ifndef AP_FIELD_ELEVATION_ENABLED
+#define AP_FIELD_ELEVATION_ENABLED !defined(HAL_BUILD_AP_PERIPH) && !APM_BUILD_TYPE(APM_BUILD_ArduSub)
+#endif
+
 extern const AP_HAL::HAL& hal;
 
 // table of user settable parameters
@@ -219,7 +223,9 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // @Path: AP_Baro_Wind.cpp
     AP_SUBGROUPINFO(sensors[2].wind_coeff, "3_WCF_", 20, AP_Baro, WindCoeff),
 #endif
-#ifndef HAL_BUILD_AP_PERIPH
+#endif  // HAL_BARO_WIND_COMP_ENABLED
+
+#if AP_FIELD_ELEVATION_ENABLED
     // @Param: _FIELD_ELV
     // @DisplayName: field elevation
     // @Description: User provided field elevation in meters. This is used to improve the calculation of the altitude the vehicle is at. This parameter is not persistent and will be reset to 0 every time the vehicle is rebooted. Changes to this parameter will only be used when disarmed. A value of 0 means the EKF origin height is used for takeoff height above sea level.
@@ -228,7 +234,6 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
     // @Volatile: True
     // @User: Advanced
     AP_GROUPINFO("_FIELD_ELV", 22, AP_Baro, _field_elevation, 0),
-#endif
 #endif
 
 #if APM_BUILD_COPTER_OR_HELI || APM_BUILD_TYPE(APM_BUILD_ArduPlane)
@@ -255,12 +260,6 @@ const AP_Param::GroupInfo AP_Baro::var_info[] = {
 // singleton instance
 AP_Baro *AP_Baro::_singleton;
 
-#if HAL_GCS_ENABLED
-#define BARO_SEND_TEXT(severity, format, args...) gcs().send_text(severity, format, ##args)
-#else
-#define BARO_SEND_TEXT(severity, format, args...)
-#endif
-
 /*
   AP_Baro constructor
  */
@@ -283,7 +282,7 @@ void AP_Baro::calibrate(bool save)
     }
 
     if (hal.util->was_watchdog_reset()) {
-        BARO_SEND_TEXT(MAV_SEVERITY_INFO, "Baro: skipping calibration after WDG reset");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Baro: skipping calibration after WDG reset");
         return;
     }
 
@@ -295,12 +294,12 @@ void AP_Baro::calibrate(bool save)
 
     #ifdef HAL_BARO_ALLOW_INIT_NO_BARO
     if (_num_drivers == 0 || _num_sensors == 0 || drivers[0] == nullptr) {
-            BARO_SEND_TEXT(MAV_SEVERITY_INFO, "Baro: no sensors found, skipping calibration");
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Baro: no sensors found, skipping calibration");
             return;
     }
     #endif
     
-    BARO_SEND_TEXT(MAV_SEVERITY_INFO, "Calibrating barometer");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Calibrating barometer");
 
     // reset the altitude offset when we calibrate. The altitude
     // offset is supposed to be for within a flight
@@ -347,7 +346,7 @@ void AP_Baro::calibrate(bool save)
             sensors[i].calibrated = false;
         } else {
             if (save) {
-                float p0_sealevel = get_sealevel_pressure(sum_pressure[i] / count[i]);
+                float p0_sealevel = get_sealevel_pressure(sum_pressure[i] / count[i], _field_elevation_active);
                 sensors[i].ground_pressure.set_and_save(p0_sealevel);
             }
         }
@@ -359,7 +358,7 @@ void AP_Baro::calibrate(bool save)
     uint8_t num_calibrated = 0;
     for (uint8_t i=0; i<_num_sensors; i++) {
         if (sensors[i].calibrated) {
-            BARO_SEND_TEXT(MAV_SEVERITY_INFO, "Barometer %u calibration complete", i+1);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Barometer %u calibration complete", i+1);
             num_calibrated++;
         }
     }
@@ -383,7 +382,7 @@ void AP_Baro::update_calibration()
     }
     for (uint8_t i=0; i<_num_sensors; i++) {
         if (healthy(i)) {
-            float corrected_pressure = get_sealevel_pressure(get_pressure(i) + sensors[i].p_correction);
+            float corrected_pressure = get_sealevel_pressure(get_pressure(i) + sensors[i].p_correction, _field_elevation_active);
             sensors[i].ground_pressure.set(corrected_pressure);
         }
 
@@ -396,70 +395,12 @@ void AP_Baro::update_calibration()
     // always update the guessed ground temp
     _guessed_ground_temperature = get_external_temperature();
 
-    // force EAS2TAS to recalculate
-    _EAS2TAS = 0;
-}
-
-// return altitude difference in meters between current pressure and a
-// given base_pressure in Pascal
-float AP_Baro::get_altitude_difference(float base_pressure, float pressure) const
-{
-    float temp    = C_TO_KELVIN(get_ground_temperature());
-    float scaling = pressure / base_pressure;
-
-    // This is an exact calculation that is within +-2.5m of the standard
-    // atmosphere tables in the troposphere (up to 11,000 m amsl).
-    return 153.8462f * temp * (1.0f - expf(0.190259f * logf(scaling)))-_field_elevation_active;
-}
-
-// return sea level pressure where in which the current measured pressure
-// at field elevation returns the same altitude under the
-// 1976 standard atmospheric model
-float AP_Baro::get_sealevel_pressure(float pressure) const
-{
-    float temp    = C_TO_KELVIN(get_ground_temperature());
-    float p0_sealevel;
-    // This is an exact calculation that is within +-2.5m of the standard
-    // atmosphere tables in the troposphere (up to 11,000 m amsl).
-    p0_sealevel = 8.651154799255761e30f*pressure*powF((769231.0f-(5000.0f*_field_elevation_active)/temp),-5.255993146184937f);
-
-    return p0_sealevel;
-}
-
-
-// return current scale factor that converts from equivalent to true airspeed
-// valid for altitudes up to 10km AMSL
-// assumes standard atmosphere lapse rate
-float AP_Baro::get_EAS2TAS(void)
-{
-    float altitude = get_altitude();
-    if ((fabsf(altitude - _last_altitude_EAS2TAS) < 25.0f) && !is_zero(_EAS2TAS)) {
-        // not enough change to require re-calculating
-        return _EAS2TAS;
-    }
-
-    float pressure = get_pressure();
-    if (is_zero(pressure)) {
-        return 1.0f;
-    }
-
-    // only estimate lapse rate for the difference from the ground location
-    // provides a more consistent reading then trying to estimate a complete
-    // ISA model atmosphere
-    float tempK = C_TO_KELVIN(get_ground_temperature()) - ISA_LAPSE_RATE * altitude;
-    const float eas2tas_squared = SSL_AIR_DENSITY / (pressure / (ISA_GAS_CONSTANT * tempK));
-    if (!is_positive(eas2tas_squared)) {
-        return 1.0f;
-    }
-    _EAS2TAS = sqrtf(eas2tas_squared);
-    _last_altitude_EAS2TAS = altitude;
-    return _EAS2TAS;
 }
 
 // return air density / sea level density - decreases as altitude climbs
-float AP_Baro::get_air_density_ratio(void)
+float AP_Baro::_get_air_density_ratio(void)
 {
-    const float eas2tas = get_EAS2TAS();
+    const float eas2tas = _get_EAS2TAS();
     if (eas2tas > 0.0f) {
         return 1.0f/(sq(eas2tas));
     } else {
@@ -928,6 +869,8 @@ void AP_Baro::update(void)
                 corrected_pressure -= wind_pressure_correction(i);
 #endif
                 altitude = get_altitude_difference(sensors[i].ground_pressure, corrected_pressure);
+                 // the ground pressure is references against the field elevation
+                altitude -= _field_elevation_active;
             } else if (sensors[i].type == BARO_TYPE_WATER) {
                 //101325Pa is sea level air pressure, 9800 Pascal/ m depth in water.
                 //No temperature or depth compensation for density of water.
@@ -958,7 +901,7 @@ void AP_Baro::update(void)
             }
         }
     }
-#ifndef HAL_BUILD_AP_PERIPH
+#ifndef AP_FIELD_ELEVATION_ENABLED
     update_field_elevation();
 #endif
 
@@ -1004,6 +947,7 @@ bool AP_Baro::healthy(uint8_t instance) const {
  */
 void AP_Baro::update_field_elevation(void)
 {
+#if AP_FIELD_ELEVATION_ENABLED
     const uint32_t now_ms = AP_HAL::millis();
     bool new_field_elev = false;
     const bool armed = hal.util->get_soft_armed();
@@ -1025,7 +969,7 @@ void AP_Baro::update_field_elevation(void)
             } else {
                 _field_elevation.set(_field_elevation_active);
                 _field_elevation.notify();
-                BARO_SEND_TEXT(MAV_SEVERITY_ALERT, "Failed to Set Field Elevation: Armed");
+                GCS_SEND_TEXT(MAV_SEVERITY_ALERT, "Failed to Set Field Elevation: Armed");
             }
         }
     }
@@ -1033,9 +977,10 @@ void AP_Baro::update_field_elevation(void)
         _field_elevation_last_ms = now_ms;
         AP::ahrs().resetHeightDatum();
         update_calibration();
-        BARO_SEND_TEXT(MAV_SEVERITY_INFO, "Field Elevation Set: %.0fm", _field_elevation_active);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Field Elevation Set: %.0fm", _field_elevation_active);
     }
 }
+#endif
 
 /*
   call accumulate on all drivers
@@ -1130,7 +1075,7 @@ bool AP_Baro::arming_checks(size_t buflen, char *buffer) const
     if (_alt_error_max > 0 && gps.status() >= AP_GPS::GPS_Status::GPS_OK_FIX_3D) {
         const float alt_amsl = gps.location().alt*0.01;
         // note the addition of _field_elevation_active as this is subtracted in get_altitude_difference()
-        const float alt_pressure = get_altitude_difference(SSL_AIR_PRESSURE, get_pressure()) + _field_elevation_active;
+        const float alt_pressure = get_altitude_difference(SSL_AIR_PRESSURE, get_pressure());
         const float error = fabsf(alt_amsl - alt_pressure);
         if (error > _alt_error_max) {
             hal.util->snprintf(buffer, buflen, "GPS alt error %.0fm (see BARO_ALTERR_MAX)", error);

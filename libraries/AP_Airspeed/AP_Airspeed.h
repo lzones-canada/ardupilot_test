@@ -25,7 +25,7 @@ public:
     AP_Int32 bus_id;
 #ifndef HAL_BUILD_AP_PERIPH
     AP_Float offset;
-    AP_Float ratio;
+    AP_Float pcorrect;
 #endif
     AP_Float psi_range;
 #ifndef HAL_BUILD_AP_PERIPH
@@ -106,7 +106,7 @@ public:
     // return the current airspeed ratio (dimensionless)
     float get_airspeed_ratio(uint8_t i) const {
 #ifndef HAL_BUILD_AP_PERIPH
-        return param[i].ratio;
+        return param[i].pcorrect*correction_to_ratio;
 #else
         return 0.0;
 #endif
@@ -116,14 +116,6 @@ public:
     // get temperature if available
     bool get_temperature(uint8_t i, float &temperature);
     bool get_temperature(float &temperature) { return get_temperature(primary, temperature); }
-
-    // set the airspeed ratio (dimensionless)
-#ifndef HAL_BUILD_AP_PERIPH
-    void set_airspeed_ratio(uint8_t i, float ratio) {
-        param[i].ratio.set(ratio);
-    }
-    void set_airspeed_ratio(float ratio) { set_airspeed_ratio(primary, ratio); }
-#endif
 
     // return true if airspeed is enabled, and airspeed use is set
     bool use(uint8_t i) const;
@@ -215,6 +207,9 @@ public:
 #if AP_AIRSPEED_EXTERNAL_ENABLED
     void handle_external(const AP_ExternalAHRS::airspeed_data_message_t &pkt);
 #endif
+
+    // convert pitot differential pressure to EAS
+    static float calc_EAS(float diff_pressure, float static_pressure);
     
     enum class CalibrationState {
         NOT_STARTED,
@@ -262,7 +257,7 @@ private:
 
 #if AP_AIRSPEED_AUTOCAL_ENABLE
         Airspeed_Calibration calibration;
-        float last_saved_ratio;
+        float last_saved_pcorrect;
         uint8_t counter;
 #endif // AP_AIRSPEED_AUTOCAL_ENABLE
 
@@ -336,6 +331,20 @@ private:
     const AP_FixedWing *fixed_wing_parameters;
 
     void convert_per_instance();
+
+    // convert pitot differential pressure to EAS, applying corrections
+    float calc_corrected_EAS(uint8_t sensor, float diff_pressure);
+
+    /*
+      this converts between an old-style ratio and a pressure correction factor. It comes from a nominal 20m/s
+      with this formula
+      EAS=20
+      (pow(EAS**2 / ((1 / SSL_AIR_DENSITY ) * 7 * SSL_AIR_PRESSURE)+1,7/2)-1) * SSL_AIR_PRESSURE / (EAS**2)
+      It is quite insensitive to the conversion EAS, with a difference of 1% between 20m/s and 100m/s
+      This fixes our old airspeed EAS calculation, which was: EAS = sqrt(differential_pressure * ratio)
+     */
+    const float ratio_to_correction = 0.53411955733862;
+    const float correction_to_ratio = 1.8722399999407286;
 
 };
 
