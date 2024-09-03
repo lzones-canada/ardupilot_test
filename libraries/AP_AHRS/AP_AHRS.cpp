@@ -432,11 +432,11 @@ void AP_AHRS::update(bool skip_ins_update)
         EKF3.getFilterStatus(filt_state3);
         //DEV_PRINTF("EKF2_Score %.1f EKF3_Score %.1f\n", score2, score3);
         if (_ekf_type == 3 && score2 > 0 && filt_state2.flags.using_gps && ((score2+0.2) < 0.5 * score3 || !filt_state3.flags.using_gps)) {
-            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Switching to EKF2 %.1f %.1f", score2, score3);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Switching to EKF2 %.1f %.1f", score2, score3);
             _ekf_type.set_and_notify(2);
         }
         if (_ekf_type == 2 && score3 > 0 && filt_state3.flags.using_gps && ((score3+0.2) < 0.5 * score2 || !filt_state2.flags.using_gps)) {
-            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Switching to EKF3 %.1f %.1f", score2, score3);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Switching to EKF3 %.1f %.1f", score2, score3);
             _ekf_type.set_and_notify(3);
         }
     }
