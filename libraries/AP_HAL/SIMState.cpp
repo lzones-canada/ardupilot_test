@@ -12,6 +12,7 @@
 #include <SITL/SIM_Helicopter.h>
 #include <SITL/SIM_SingleCopter.h>
 #include <SITL/SIM_Plane.h>
+#include <SITL/SIM_Glider.h>
 #include <SITL/SIM_QuadPlane.h>
 #include <SITL/SIM_Rover.h>
 #include <SITL/SIM_BalanceBot.h>
@@ -63,6 +64,8 @@ using namespace AP_HAL;
 #define AP_SIM_FRAME_STRING "blimp"
 #elif APM_BUILD_TYPE(APM_BUILD_ArduSub)
 #define AP_SIM_FRAME_STRING "sub"
+#else
+#define AP_SIM_FRAME_STRING ""
 #endif
 #endif
 

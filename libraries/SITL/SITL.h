@@ -46,7 +46,8 @@ struct float_array {
     uint16_t length;
     float *data;
 };
-    
+
+class Glider;
 
 struct sitl_fdm {
     // this is the structure passed between FDM models and the main SITL code
@@ -181,7 +182,6 @@ public:
     AP_Int8 mag_orient[HAL_COMPASS_MAX_SENSORS];   // external compass orientation
     AP_Int8 mag_fail[HAL_COMPASS_MAX_SENSORS];   // fail magnetometer, 1 for no data, 2 for freeze
     AP_Int8 mag_save_ids;
-    AP_Float servo_speed; // servo speed in seconds
 
     AP_Float sonar_glitch;// probability between 0-1 that any given sonar sample will read as max distance
     AP_Float sonar_noise; // in metres
@@ -294,6 +294,32 @@ public:
         AP_Int8  signflip;
     };
     AirspeedParm airspeed[AIRSPEED_MAX_SENSORS];
+
+    // Servo Model Parameters
+    class ServoParams {
+    public:
+        ServoParams(void) {
+            AP_Param::setup_object_defaults(this, var_info);
+        }
+        static const struct AP_Param::GroupInfo var_info[];
+        AP_Float servo_speed; // servo speed in seconds per 60 degrees
+        AP_Float servo_delay; // servo delay in seconds
+        AP_Float servo_filter; // servo 2p filter in Hz
+    };
+    ServoParams servo;
+    
+    // physics model parameters
+    class ModelParm {
+    public:
+        static const struct AP_Param::GroupInfo var_info[];
+#if AP_SIM_SHIP_ENABLED
+        ShipSim shipsim;
+#endif
+#if AP_SIM_GLIDER_ENABLED
+        Glider *glider_ptr;
+#endif
+    };
+    ModelParm models;
     
     // EFI type
     enum EFIType {
@@ -442,11 +468,6 @@ public:
 
     Sprayer sprayer_sim;
 
-    // simulated ship takeoffs
-#if AP_SIM_SHIP_ENABLED
-    ShipSim shipsim;
-#endif
-
     Gripper_Servo gripper_sim;
     Gripper_EPM gripper_epm_sim;
 
@@ -537,6 +558,11 @@ public:
     AP_Int8 gyro_file_rw;
     AP_Int8 accel_file_rw;
 #endif
+
+    // Allow inhibiting of SITL only sim state messages over MAVLink
+    // This gives more realistic data rates for testing links
+    void set_stop_MAVLink_sim_state() { stop_MAVLink_sim_state = true; }
+    bool stop_MAVLink_sim_state;
 };
 
 } // namespace SITL
