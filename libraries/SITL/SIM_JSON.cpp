@@ -333,6 +333,9 @@ void JSON::recv_fdm(const struct sitl_input &input)
         airspeed_pitot = constrain_float(velocity_air_bf * Vector3f(1.0f, 0.0f, 0.0f), 0.0f, 120.0f);
     }
 
+    // airspeed
+    update_eas_airspeed();
+
     // Convert from a meters from origin physics to a lat long alt
     update_position();
 

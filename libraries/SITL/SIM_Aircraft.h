@@ -37,6 +37,7 @@
 #include "SIM_Battery.h"
 #include <Filter/Filter.h>
 #include "SIM_JSON_Master.h"
+#include "ServoModel.h"
 
 #ifndef USE_PICOJSON
 #define USE_PICOJSON (CONFIG_HAL_BOARD == HAL_BOARD_SITL || CONFIG_HAL_BOARD == HAL_BOARD_LINUX)
@@ -179,20 +180,27 @@ protected:
     Matrix3f dcm;                        // rotation matrix, APM conventions, from body to earth
     Vector3f gyro;                       // rad/s
     Vector3f velocity_ef;                // m/s, earth frame
-    Vector3f wind_ef;                    // m/s, earth frame
-    Vector3f velocity_air_ef;            // velocity relative to airmass, earth frame
-    Vector3f velocity_air_bf;            // velocity relative to airmass, body frame
+    Vector3f wind_ef;                    // reciprocal velocity vector of air mass, m/s, earth frame
+    Vector3f velocity_air_ef;            // velocity relative to airmass, earth frame, TAS
+    Vector3f velocity_air_bf;            // velocity relative to airmass, body frame, TAS
     Vector3d position;                   // meters, NED from origin
     float mass;                          // kg
     float external_payload_mass;         // kg
     Vector3f accel_body{0.0f, 0.0f, -GRAVITY_MSS}; // m/s/s NED, body frame
-    float airspeed;                      // m/s, apparent airspeed
-    float airspeed_pitot;                // m/s, apparent airspeed, as seen by fwd pitot tube
+    float airspeed;                      // m/s, EAS airspeed
+    float airspeed_pitot;                // m/s, EAS airspeed, as seen by fwd pitot tube
     float battery_voltage = 0.0f;
     float battery_current;
     float local_ground_level;            // ground level at local position
     bool lock_step_scheduled;
     uint32_t last_one_hz_ms;
+
+    Vector3d balloon_velocity;           // balloon velocity NED
+    Vector3d balloon_position{0.0f, 0.0f, -51.5f}; // balloon position NED from origin
+    bool plane_ground_release; // true when the plane is released from its ground constraint
+    bool plane_air_release;    // true when plane has separated from the airborne launching platform
+    float eas2tas = 1.0;
+    float air_density = SSL_AIR_DENSITY;
 
     // battery model
     Battery battery;
@@ -258,9 +266,12 @@ protected:
         GROUND_BEHAVIOR_NO_MOVEMENT,
         GROUND_BEHAVIOR_FWD_ONLY,
         GROUND_BEHAVIOR_TAILSITTER,
+        GROUND_BEHAVIOUR_NOSESITTER,
     } ground_behavior;
 
     bool use_smoothing;
+
+    bool disable_origin_movement;
 
     float ground_height_difference() const;
 
@@ -301,9 +312,13 @@ protected:
     void update_wind(const struct sitl_input &input);
 
     // return filtered servo input as -1 to 1 range
-    float filtered_idx(float v, uint8_t idx);
-    float filtered_servo_angle(const struct sitl_input &input, uint8_t idx);
+    float filtered_servo_angle(const struct sitl_input &input, uint8_t idx, uint16_t range=500);
+
+    // return filtered servo input as 0 to 1 range
     float filtered_servo_range(const struct sitl_input &input, uint8_t idx);
+
+    // setup filtering for servo
+    void filtered_servo_setup(uint8_t idx, uint16_t pwm_min, uint16_t pwm_max, float deflection_deg);
 
     // extrapolate sensors by a given delta time in seconds
     void extrapolate_sensors(float delta_time);
@@ -317,6 +332,8 @@ protected:
     // get local thermal updraft
     float get_local_updraft(const Vector3d &currentPos);
 
+    // update EAS speeds
+    void update_eas_airspeed();
 private:
     uint64_t last_time_us;
     uint32_t frame_counter;
@@ -337,7 +354,7 @@ private:
         Location location;
     } smoothing;
 
-    LowPassFilterFloat servo_filter[5];
+    ServoModel servo_filter[16];
 
     Buzzer *buzzer;
     Sprayer *sprayer;
