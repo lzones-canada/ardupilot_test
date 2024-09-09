@@ -80,7 +80,7 @@ void ModeAuto::update()
 #endif
 
 #if AP_PLANE_GLIDER_PULLUP_ENABLED
-    if (plane.pullup.in_pullup()) {
+    if (pullup.in_pullup()) {
         return;
     }
 #endif
@@ -174,8 +174,8 @@ bool ModeAuto::is_landing() const
 void ModeAuto::run()
 {
 #if AP_PLANE_GLIDER_PULLUP_ENABLED
-    if (plane.pullup.in_pullup()) {
-        plane.pullup.stabilize_pullup();
+    if (pullup.in_pullup()) {
+        pullup.stabilize_pullup();
         return;
     }
 #endif

@@ -1,4 +1,4 @@
-#include "Plane.h"
+#pragma once
 
 /*
   support for pullup after NAV_ALTITUDE_WAIT for gliders

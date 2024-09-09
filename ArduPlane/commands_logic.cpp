@@ -430,8 +430,10 @@ void Plane::do_land(const AP_Mission::Mission_Command& cmd)
         auto_state.takeoff_pitch_cd = 1000;
     }
 
+#if AP_RANGEFINDER_ENABLED
     // zero rangefinder state, start to accumulate good samples now
     memset(&rangefinder_state, 0, sizeof(rangefinder_state));
+#endif
 
     landing.do_land(cmd, relative_altitude);
 
@@ -530,7 +532,7 @@ void Plane::do_altitude_wait(const AP_Mission::Mission_Command& cmd)
     // set all servos to trim until we reach altitude or descent speed
     auto_state.idle_mode = true;
 #if AP_PLANE_GLIDER_PULLUP_ENABLED
-    pullup.reset();
+    mode_auto.pullup.reset();
 #endif
 }
 
@@ -813,11 +815,6 @@ bool Plane::verify_loiter_to_alt(const AP_Mission::Mission_Command &cmd)
         result = verify_loiter_heading(false);
     }
 
-    // additional check for altitude target, even if blown off course
-    if (current_loc.alt < cmd.content.location.alt) {
-        result = true;
-    }
-    
     if (result) {
         gcs().send_text(MAV_SEVERITY_INFO,"Loiter to alt complete");
     }
@@ -884,12 +881,13 @@ bool Plane::verify_continue_and_change_alt()
 bool ModeAuto::verify_altitude_wait(const AP_Mission::Mission_Command &cmd)
 {
 #if AP_PLANE_GLIDER_PULLUP_ENABLED
-    if (plane.pullup.in_pullup()) {
-        return plane.pullup.verify_pullup();
+    if (pullup.in_pullup()) {
+        return pullup.verify_pullup();
     }
 #endif
 
-    const float alt_diff = plane.current_loc.alt - cmd.content.altitude_wait.altitude*100.0f;
+    //  the target altitude in param1 is always AMSL
+    const float alt_diff = plane.current_loc.alt*0.01 - cmd.content.altitude_wait.altitude;
     bool completed = false;
     if (alt_diff > 0) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO,"Reached altitude");
@@ -902,7 +900,7 @@ bool ModeAuto::verify_altitude_wait(const AP_Mission::Mission_Command &cmd)
 
     if (completed) {
 #if AP_PLANE_GLIDER_PULLUP_ENABLED
-        if (plane.pullup.pullup_start()) {
+        if (pullup.pullup_start()) {
             // we are doing a pullup, ALTITUDE_WAIT not complete until pullup is done
             return false;
         }
@@ -912,7 +910,12 @@ bool ModeAuto::verify_altitude_wait(const AP_Mission::Mission_Command &cmd)
 
     const float time_to_alt = alt_diff / MIN(plane.auto_state.sink_rate, -0.01);
 
-    // if requested, wiggle servos
+    /*
+      if requested, wiggle servos
+
+      we don't start a wiggle if we expect to release soon as we don't
+      want the servos to be off trim at the time of release
+    */
     if (cmd.content.altitude_wait.wiggle_time != 0 &&
         (plane.auto_state.sink_rate > 0 || time_to_alt > cmd.content.altitude_wait.wiggle_time*5)) {
         if (wiggle.stage == 0 &&

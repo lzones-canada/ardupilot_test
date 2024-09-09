@@ -57,7 +57,7 @@ const AP_Param::GroupInfo GliderPullup::var_info[] = {
     // @DisplayName: Pullup target pitch
     // @Description: Target pitch for initial pullup
     // @Units: deg
-    // @Range: -90 0
+    // @Range: -80 0
     // @User: Advanced
     AP_GROUPINFO("PITCH_START", 7, GliderPullup,  pitch_start, -60),
     
@@ -179,18 +179,13 @@ void GliderPullup::stabilize_pullup(void)
     const float speed_scaler = plane.get_speed_scaler();
     switch (stage) {
     case Stage::WAIT_AIRSPEED: {
+        plane.pitchController.reset_I();
+        plane.yawController.reset_I();
         SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elev_offset*4500);
         SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, 0);
         plane.nav_pitch_cd = 0;
         plane.nav_roll_cd = 0;
-        uint32_t now = AP_HAL::millis();
-        if (now - plane.last_stabilize_ms > 1000) {
-            plane.pitchController.reset_I();
-            plane.yawController.reset_I();
-        }
-        plane.last_stabilize_ms = now;
         SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, plane.rollController.get_rate_out(0, speed_scaler));
-        plane.logger.Write_PID(LOG_PIDR_MSG, plane.rollController.get_pid_info());
         ng_demand = 0.0;
         break;
     }
@@ -198,7 +193,6 @@ void GliderPullup::stabilize_pullup(void)
         plane.yawController.reset_I();
         plane.nav_roll_cd = 0;
         plane.nav_pitch_cd = 0;
-        plane.last_stabilize_ms = AP_HAL::millis();
         SRV_Channels::set_output_scaled(SRV_Channel::k_rudder, 0);
         SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, plane.rollController.get_rate_out(0, speed_scaler));
         float aspeed;
@@ -212,14 +206,13 @@ void GliderPullup::stabilize_pullup(void)
             const float demanded_rate_dps = degrees(pullup_accel / VTAS_ref);
             const uint32_t elev_trim_offset_cd = 4500.0f * elev_offset * (1.0f - ng_demand / ng_limit);
             SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elev_trim_offset_cd + plane.pitchController.get_rate_out(demanded_rate_dps, speed_scaler));
-            plane.logger.Write_PID(LOG_PIDP_MSG, plane.pitchController.get_pid_info());
-            plane.logger.Write_PID(LOG_PIDR_MSG, plane.rollController.get_pid_info());
+        } else {
+            SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elev_offset*4500);
         }
         break;
     }
     case Stage::PUSH_NOSE_DOWN: {
         plane.nav_pitch_cd = plane.aparm.pitch_limit_min*100;
-        plane.last_stabilize_ms = AP_HAL::millis();
         plane.stabilize_pitch();
         plane.nav_roll_cd = 0;
         plane.stabilize_roll();
@@ -229,7 +222,6 @@ void GliderPullup::stabilize_pullup(void)
     }
     case Stage::WAIT_LEVEL:
         plane.nav_pitch_cd = MAX((plane.aparm.pitch_limit_min + 5), pitch_dem)*100;
-        plane.last_stabilize_ms = AP_HAL::millis();
         plane.stabilize_pitch();
         plane.nav_roll_cd = 0;
         plane.stabilize_roll();
@@ -239,6 +231,9 @@ void GliderPullup::stabilize_pullup(void)
     case Stage::NONE:
         break;
     }
+
+    // we have done stabilisation
+    plane.last_stabilize_ms = AP_HAL::millis();
 }
 
 #endif // AP_PLANE_GLIDER_PULLUP_ENABLED

@@ -1003,7 +1003,7 @@ const AP_Param::Info Plane::var_info[] = {
 #if AP_PLANE_GLIDER_PULLUP_ENABLED
     // @Group: PUP_
     // @Path: pullup.cpp
-    GOBJECT(pullup, "PUP_", GliderPullup),
+    GOBJECTN(mode_auto.pullup, pullup, "PUP_", GliderPullup),
 #endif
 
     // @Group:

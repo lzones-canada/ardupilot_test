@@ -1341,10 +1341,6 @@ private:
     // last target alt we passed to tecs
     int32_t tecs_target_alt_cm;
 
-#if AP_PLANE_GLIDER_PULLUP_ENABLED
-    GliderPullup pullup;
-#endif // AP_PLANE_GLIDER_PULLUP_ENABLED
-
 public:
     void failsafe_check(void);
     bool is_landing() const override;
