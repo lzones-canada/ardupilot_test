@@ -67,7 +67,7 @@ const AP_Param::GroupInfo Glider::var_info[] = {
     // @DisplayName: balloon climb rate
     // @Description: balloon climb rate
     // @Units: m/s
-    AP_GROUPINFO("BLN_RATE",  2, Glider, balloon_rate, 6.0),
+    AP_GROUPINFO("BLN_RATE",  2, Glider, balloon_rate, 9.5),
 
     AP_GROUPEND
 };
@@ -256,7 +256,7 @@ void Glider::calculate_forces(const struct sitl_input &input, Vector3f &rot_acce
     float balloon  = MAX(0.0f, filtered_servo_range(input, 5)); // SERVO6
 
 #if AP_HITL_GLIDER_ENABLED
-    float balloon_cut = static_cast<float>(hal.gpio->read(HAL_GPIO_PIN_BLN_RELEASE));
+    float balloon_cut = 1.0f - static_cast<float>(hal.gpio->read(HAL_GPIO_PIN_BLN_RELEASE));
 #else
     float balloon_cut = 0.5*(filtered_servo_range(input, 6) + 1); // SERVO7
 #endif

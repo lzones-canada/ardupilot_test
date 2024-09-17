@@ -67,6 +67,10 @@ const AP_Param::GroupInfo SIM::var_info[] = {
     
     AP_GROUPINFO("DRIFT_SPEED",    5, SIM,  drift_speed, 0.05f),
     AP_GROUPINFO("DRIFT_TIME",     6, SIM,  drift_time,  5),
+    // @Param: ENGINE_MUL
+    // @DisplayName: Engine failure thrust scaler
+    // @Description: Thrust from Motors in SIM_ENGINE_FAIL will be multiplied by this factor
+    // @Units: ms
     AP_GROUPINFO("ENGINE_MUL",     8, SIM,  engine_mul,  1),
     // @Param: WIND_SPD
     // @DisplayName: Simulated Wind speed
@@ -80,15 +84,25 @@ const AP_Param::GroupInfo SIM::var_info[] = {
     // @Units: deg
     // @User: Advanced
     AP_GROUPINFO("WIND_DIR",      10, SIM,  wind_direction,  180),
+
     // @Param: WIND_TURB
     // @DisplayName: Simulated Wind variation
     // @Description: Allows you to emulate random wind variations in sim
     // @Units: m/s
     // @User: Advanced
     AP_GROUPINFO("WIND_TURB",     11, SIM,  wind_turbulance,  0),
+
+    // @Param: WIND_TC
+    // @DisplayName: Wind variation time constant
+    // @Description: this controls the time over which wind changes take effect
+    // @Units: s
+    // @User: Advanced
+    AP_GROUPINFO("WIND_TC",       12, SIM,  wind_change_tc,  5),
+
     // @Group: SERVO_
     // @Path: ./ServoModel.cpp
     AP_SUBGROUPINFO(servo, "SERVO_", 16, SIM, ServoParams),
+
     AP_GROUPINFO("SONAR_ROT",     17, SIM,  sonar_rot, Rotation::ROTATION_PITCH_270),
     // @Param: BATT_VOLTAGE
     // @DisplayName: Simulated battery voltage

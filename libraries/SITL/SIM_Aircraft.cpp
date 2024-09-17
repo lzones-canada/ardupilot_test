@@ -22,12 +22,6 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#if defined(__CYGWIN__) || defined(__CYGWIN64__)
-#include <windows.h>
-#include <time.h>
-#include <mmsystem.h>
-#endif
-
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Logger/AP_Logger.h>
 #include <AP_Param/AP_Param.h>
@@ -39,10 +33,17 @@
 #include "picojson.h"
 #include <AP_Filesystem/AP_Filesystem.h>
 #endif
+#include <AP_AHRS/AP_AHRS.h>
+#include <AP_HAL_SITL/HAL_SITL_Class.h>
 
 using namespace SITL;
 
 extern const AP_HAL::HAL& hal;
+
+// the SITL HAL can add information about pausing the simulation and its effect on the UART.  Not present when we're compiling for simulation-on-hardware
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+extern const HAL_SITL& hal_sitl;
+#endif
 
 /*
   parent class for all simulator types
@@ -182,7 +183,7 @@ void Aircraft::update_position(void)
         uint32_t now = AP_HAL::millis();
         if (now - last_one_hz_ms >= 1000) {
             // shift origin of position at 1Hz to current location
-            // this prevents sperical errors building up in the GPS data
+            // this prevents spherical errors building up in the GPS data
             last_one_hz_ms = now;
             Vector2d diffNE = origin.get_distance_NE_double(location);
             position.xy() -= diffNE;
@@ -459,6 +460,14 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
     }
 
 #if HAL_LOGGING_ENABLED
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    // the SITL HAL can add information about pausing the simulation
+    // and its effect on the UART.  Not present when we're compiling
+    // for simulation-on-hardware
+    const uint32_t full_count = hal_sitl.get_uart_output_full_queue_count();
+#else
+    const uint32_t full_count = 0;
+#endif
     // for EKF comparison log relhome pos and velocity at loop rate
     static uint16_t last_ticks;
     uint16_t ticks = AP::scheduler().ticks();
@@ -475,15 +484,20 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
 // @Field: VD: Velocity down
 // @Field: As: Airspeed
 // @Field: ASpdU: Achieved simulation speedup value
+// @Field: UFC: Number of times simulation paused for serial0 output
         Vector3d pos = get_position_relhome();
         Vector3f vel = get_velocity_ef();
-        AP::logger().WriteStreaming("SIM2", "TimeUS,PN,PE,PD,VN,VE,VD,As,ASpdU",
-                                    "Qdddfffff",
-                                    AP_HAL::micros64(),
-                                    pos.x, pos.y, pos.z,
-                                    vel.x, vel.y, vel.z,
-                                    airspeed_pitot,
-                                    achieved_rate_hz/rate_hz);
+        AP::logger().WriteStreaming(
+            "SIM2",
+            "TimeUS,PN,PE,PD,VN,VE,VD,As,ASpdU,UFC",
+            "QdddfffffI",
+            AP_HAL::micros64(),
+            pos.x, pos.y, pos.z,
+            vel.x, vel.y, vel.z,
+            airspeed_pitot,
+            achieved_rate_hz/rate_hz,
+            full_count
+        );
     }
 #endif
 }
@@ -562,18 +576,22 @@ float Aircraft::rangefinder_range() const
     return altitude;
 }
 
+#if defined(__CYGWIN__) || defined(__CYGWIN64__)
+extern "C" { uint32_t timeGetTime(); }
+#endif
+
 
 // potentially replace this with a call to AP_HAL::Util::get_hw_rtc
 uint64_t Aircraft::get_wall_time_us() const
 {
 #if defined(__CYGWIN__) || defined(__CYGWIN64__)
-    static DWORD tPrev;
+    static uint32_t tPrev;
     static uint64_t last_ret_us;
     if (tPrev == 0) {
         tPrev = timeGetTime();
         return 0;
     }
-    DWORD now = timeGetTime();
+    uint32_t now = timeGetTime();
     last_ret_us += (uint64_t)((now - tPrev)*1000UL);
     tPrev = now;
     return last_ret_us;
@@ -618,11 +636,22 @@ void Aircraft::update_model(const struct sitl_input &input)
     }
 }
 
+void Aircraft::update_air_density()
+{
+    air_density = AP_Baro::get_air_density_for_alt_amsl(location.alt*0.01);
+}
+
 /*
   update the simulation attitude and relative position
  */
 void Aircraft::update_dynamics(const Vector3f &rot_accel)
 {
+    // update eas2tas and air density
+#if AP_AHRS_ENABLED
+    eas2tas = AP::ahrs().get_EAS2TAS();
+#endif
+    air_density = SSL_AIR_DENSITY / sq(eas2tas);
+
     const float delta_time = frame_time_us * 1.0e-6f;
 
     // update eas2tas and air density
@@ -635,6 +664,12 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     gyro.x = constrain_float(gyro.x, -radians(2000.0f), radians(2000.0f));
     gyro.y = constrain_float(gyro.y, -radians(2000.0f), radians(2000.0f));
     gyro.z = constrain_float(gyro.z, -radians(2000.0f), radians(2000.0f));
+
+    // limit body accel to 64G
+    const float accel_limit = 64*GRAVITY_MSS;
+    accel_body.x = constrain_float(accel_body.x, -accel_limit, accel_limit);
+    accel_body.y = constrain_float(accel_body.y, -accel_limit, accel_limit);
+    accel_body.z = constrain_float(accel_body.z, -accel_limit, accel_limit);
 
     // update attitude
     dcm.rotate(gyro * delta_time);
@@ -763,23 +798,6 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
             }
             gyro.zero();
             gyro.x = yaw_rate;
-            use_smoothing = true;
-            break;
-        }
-        case GROUND_BEHAVIOUR_NOSESITTER: {
-            // point straight up
-            float r, p, y;
-            dcm.to_euler(&r, &p, &y);
-            y = y + yaw_rate * delta_time;
-            dcm.from_euler(0.0f, radians(-90), y);
-            // no movement
-            if (accel_earth.z > -1.1*GRAVITY_MSS) {
-                velocity_ef.zero();
-            }
-            // X, Y movement tracks ground movement
-            velocity_ef.x = gnd_movement.x;
-            velocity_ef.y = gnd_movement.y;
-            gyro.zero();
             use_smoothing = true;
             break;
         }
@@ -920,9 +938,9 @@ void Aircraft::smooth_sensors(void)
 
 /*
   return a filtered servo input as a value from -1 to 1
-  servo is assumed to be 1500-range to 1500+range, trim at 1500
+  servo is assumed to be 1000 to 2000, trim at 1500
  */
-float Aircraft::filtered_servo_angle(const struct sitl_input &input, uint8_t idx, uint16_t pwm_range)
+float Aircraft::filtered_servo_angle(const struct sitl_input &input, uint8_t idx)
 {
     return servo_filter[idx].filter_angle(input.servos[idx], frame_time_us * 1.0e-6);
 }
@@ -959,7 +977,7 @@ void Aircraft::extrapolate_sensors(float delta_time)
     // new velocity and position vectors
     velocity_ef += accel_earth * delta_time;
     position += (velocity_ef * delta_time).todouble();
-    velocity_air_ef = (velocity_ef + wind_ef) / eas2tas;
+    velocity_air_ef = velocity_ef - wind_ef;
     velocity_air_bf = dcm.transposed() * velocity_air_ef;
 }
 
@@ -1005,6 +1023,30 @@ void Aircraft::update_external_payload(const struct sitl_input &input)
     if (parachute && parachute->is_enabled()) {
         parachute->update(input);
         // TODO: add drag to vehicle, presumably proportional to velocity
+        if(parachute->is_deployed()) {
+            // Get the airspeed relative to the ground or air (use velocity_air_ef if accounting for wind)
+            // Vector3f velocity = velocity_air_ef;
+
+            // // Define constants for drag computation
+            // const float p = air_density; // air density (can be treated as constant or vary with altitude).
+            // const float Cd = 1.5f;    // drag coefficient for a parachute (can be tuned)
+            // const float A = 10.0f;    // effective area of the parachute (m^2)
+
+            // // Calculate the magnitude of velocity (speed)
+            // float speed = velocity.length(); // magnitude of velocity vector
+
+            // // Calculate drag force (Fd = 1/2 * p * Cd * A * v^2)
+            // float drag_magnitude = 0.5f * p * Cd * A * sq(speed);
+
+            // // Normalize the velocity vector and apply drag in the opposite direction
+            // Vector3f drag_force = velocity.normalized() * -drag_magnitude;
+
+            // // Apply drag force to the vehicle's acceleration (F = ma => a = F/m)
+            // Vector3f drag_acceleration = drag_force / mass;
+
+            // // Update the velocity by subtracting drag acceleration
+            // velocity_ef += drag_acceleration * (frame_time_us * 1.0e-6f); // apply the drag
+        }
     }
 
     if (precland && precland->is_enabled()) {
@@ -1175,6 +1217,12 @@ Vector3d Aircraft::get_position_relhome() const
     return pos;
 }
 
+// get air density in kg/m^3
+float Aircraft::get_air_density(float alt_amsl) const
+{
+    return AP_Baro::get_air_density_for_alt_amsl(alt_amsl);
+}
+
 /*
   update EAS airspeed and pitot speed
  */
@@ -1201,8 +1249,4 @@ void Aircraft::update_eas_airspeed()
         const float gain_factor = M_PI_2 / (radians(90) - max_pitot_aoa);
         airspeed_pitot *= cosf((pitot_aoa - max_pitot_aoa) * gain_factor);
     }
-
-    // limit to speed common pitot setups can measure
-    const float airspeed_eas_max = 120.0;
-    airspeed_pitot = constrain_float(airspeed_pitot, 0.0f, airspeed_eas_max);
 }
