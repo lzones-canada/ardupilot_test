@@ -259,7 +259,7 @@ private:
     //  used to 'wiggle' servos in idle mode to prevent them freezing at high altitudes
     void wiggle_servos();
     struct {
-        uint8_t stage;
+        uint16_t stage;
         uint32_t last_ms;
     } wiggle;
 

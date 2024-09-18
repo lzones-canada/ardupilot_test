@@ -1,4 +1,9 @@
 #include "Plane.h"
+
+#if AP_SIM_ENABLED
+#include <SITL/SITL.h>
+#endif
+
 /*
   support for pullup after an alitude wait. Used for high altitude gliders
  */
@@ -91,7 +96,12 @@ bool GliderPullup::pullup_start(void)
     }
 
     // release balloon
+#if AP_MAX14830_ENABLED
+    // Custom action to release from balloon
+    plane.balloon_release->write(0);
+#elif AP_SIM_ENABLED
     SRV_Channels::set_output_scaled(SRV_Channel::k_lift_release, 100);
+#endif
 
     stage = Stage::WAIT_AIRSPEED;
     plane.auto_state.idle_mode = false;

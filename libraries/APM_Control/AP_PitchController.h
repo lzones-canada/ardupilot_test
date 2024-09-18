@@ -52,6 +52,8 @@ public:
     AP_Float &tau(void) { return gains.tau; }
 
     void convert_pid();
+    
+    float get_ng_limit(void) { return _ng_limit; }
 
 private:
     const AP_FixedWing &aparm;
@@ -68,5 +70,9 @@ private:
     AP_PIDInfo _pid_info;
 
     float _get_rate_out(float desired_rate, float scaler, bool disable_integrator, float aspeed, bool ground_mode);
+    float _limit_desired_rate(float desired_rate, float scaler, float aspeed);
     float _get_coordination_rate_offset(float &aspeed, bool &inverted) const;
+    AP_Float _ng_limit;                     // normal load factor limit in the + and - direction
+    AP_Float _manoeuvre_tconst;             // Time contant from demanded pitch rate to normal acceleration (sec)
+    AP_Float _stall_speed;                  // IAS at which the vehicle stalls at a load factor of 1 (m/sec)
 };

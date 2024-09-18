@@ -107,6 +107,7 @@ public:
         return velocity_ef;
     }
 
+    // return TAS airspeed in earth frame
     const Vector3f &get_velocity_air_ef(void) const {
         return velocity_air_ef;
     }
@@ -132,6 +133,9 @@ public:
 
     // get position relative to home
     Vector3d get_position_relhome() const;
+
+    // get air density in kg/m^3
+    float get_air_density(float alt_amsl) const;
 
     // distance the rangefinder is perceiving
     float rangefinder_range() const;
@@ -180,27 +184,20 @@ protected:
     Matrix3f dcm;                        // rotation matrix, APM conventions, from body to earth
     Vector3f gyro;                       // rad/s
     Vector3f velocity_ef;                // m/s, earth frame
-    Vector3f wind_ef;                    // reciprocal velocity vector of air mass, m/s, earth frame
-    Vector3f velocity_air_ef;            // velocity relative to airmass, earth frame, TAS
-    Vector3f velocity_air_bf;            // velocity relative to airmass, body frame, TAS
+    Vector3f wind_ef;                    // m/s, earth frame
+    Vector3f velocity_air_ef;            // velocity relative to airmass, earth frame (true airspeed)
+    Vector3f velocity_air_bf;            // velocity relative to airmass, body frame
     Vector3d position;                   // meters, NED from origin
     float mass;                          // kg
     float external_payload_mass;         // kg
     Vector3f accel_body{0.0f, 0.0f, -GRAVITY_MSS}; // m/s/s NED, body frame
     float airspeed;                      // m/s, EAS airspeed
     float airspeed_pitot;                // m/s, EAS airspeed, as seen by fwd pitot tube
-    float battery_voltage = 0.0f;
+    float battery_voltage;
     float battery_current;
     float local_ground_level;            // ground level at local position
     bool lock_step_scheduled;
     uint32_t last_one_hz_ms;
-
-    Vector3d balloon_velocity;           // balloon velocity NED
-    Vector3d balloon_position{0.0f, 0.0f, -51.5f}; // balloon position NED from origin
-    bool plane_ground_release; // true when the plane is released from its ground constraint
-    bool plane_air_release;    // true when plane has separated from the airborne launching platform
-    float eas2tas = 1.0;
-    float air_density = SSL_AIR_DENSITY;
 
     // battery model
     Battery battery;
@@ -253,6 +250,8 @@ protected:
     bool use_time_sync = true;
     float last_speedup = -1.0f;
     const char *config_ = "";
+    float eas2tas = 1.0;
+    float air_density = SSL_AIR_DENSITY;
 
     // allow for AHRS_ORIENTATION
     AP_Int8 *ahrs_orientation;
@@ -266,7 +265,6 @@ protected:
         GROUND_BEHAVIOR_NO_MOVEMENT,
         GROUND_BEHAVIOR_FWD_ONLY,
         GROUND_BEHAVIOR_TAILSITTER,
-        GROUND_BEHAVIOUR_NOSESITTER,
     } ground_behavior;
 
     bool use_smoothing;
@@ -312,7 +310,7 @@ protected:
     void update_wind(const struct sitl_input &input);
 
     // return filtered servo input as -1 to 1 range
-    float filtered_servo_angle(const struct sitl_input &input, uint8_t idx, uint16_t range=500);
+    float filtered_servo_angle(const struct sitl_input &input, uint8_t idx);
 
     // return filtered servo input as 0 to 1 range
     float filtered_servo_range(const struct sitl_input &input, uint8_t idx);
