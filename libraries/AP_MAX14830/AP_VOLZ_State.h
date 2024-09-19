@@ -20,37 +20,46 @@
 
 #pragma once
 
-#ifndef AP_VOLZ_STATE_H
-#define AP_VOLZ_STATE_H
-
 // Define the wing limits
 #define WING_MIN_DEGREES   (8.0)  // Fully Open (angled measured from vertical, dont' ask me why)
 #define WING_MAX_DEGREES   (88.0) // Fully Closed (angled measured from vertical, dont' ask me why)
 
 // Stores the current state read by system
 // All backends are required to fill in this state structure
-struct Volz_State {
-
+class AP_VOLZ_State {
 public:
+    // Getter for the singleton instance
+    static AP_VOLZ_State& get_singleton() {
+        static AP_VOLZ_State _singleton; // Guaranteed to be lazy-initialized and thread-safe
+        return _singleton;
+    }
+
+    // Delete the copy constructor and assignment operator to prevent copying
+    AP_VOLZ_State(const AP_VOLZ_State&) = delete;
+    AP_VOLZ_State& operator=(const AP_VOLZ_State&) = delete;
+
     // Setter for target percent command.
-    void set_target_command(uint8_t value) { _target_command = value;}
+    void set_target_command(uint8_t value) { _target_command = value; }
 
     // Getter for target percent command.
-    uint8_t get_target_command() { return _target_command;}
+    uint8_t get_target_command() const { return _target_command; }
 
     // Setter for wing calibrate flag.
     void set_calibrate(bool value) { _wing_calibrate = value; }
 
     // Getter for wing calibrate flag.
-    bool get_calibrate() { return _wing_calibrate; }
+    bool get_calibrate() const { return _wing_calibrate; }
 
     // Setter for sweep wing angle.
-    void set_sweep_angle(float value) { _sweep_angle = value;}
+    void set_sweep_angle(float value) { _sweep_angle = value; }
 
     // Getter for sweep wing angle.
-    float get_sweep_angle() { return _sweep_angle; }
+    float get_sweep_angle() const { return _sweep_angle; }
 
 private:
+    // Private constructor to prevent instantiation
+    AP_VOLZ_State() : _target_command(0), _sweep_angle(0.0), _wing_calibrate(false) {}
+
     // Target percent command.
     uint8_t _target_command;
 
@@ -58,10 +67,5 @@ private:
     float _sweep_angle;
 
     // Flag to calibrate wing.
-    bool  _wing_calibrate;
+    bool _wing_calibrate;
 };
-
-// Define the global instance of Volz_State
-extern Volz_State volz_state;
-
-#endif // AP_VOLZ_STATE_H

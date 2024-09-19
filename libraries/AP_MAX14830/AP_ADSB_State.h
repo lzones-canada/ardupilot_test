@@ -20,26 +20,30 @@
 
 #pragma once
 
-#ifndef AP_ADSB_STATE_H
-#define AP_ADSB_STATE_H
-
 // Stores the current state read by system
 // All backends are required to fill in this state structure
-struct ADSB_State {
-
+class AP_ADSB_State {
 public:
-    // Setter for wing calibrate flag.
+    // Getter for the singleton instance
+    static AP_ADSB_State& get_singleton() {
+        static AP_ADSB_State _singleton;  // Guaranteed to be lazy-initialized and thread-safe
+        return _singleton;
+    }
+
+    // Delete the copy constructor and assignment operator to prevent copying
+    AP_ADSB_State(const AP_ADSB_State&) = delete;
+    AP_ADSB_State& operator=(const AP_ADSB_State&) = delete;
+
+    // Setter for ADSB failsafe flag
     void set_adsb_failsafe(bool value) { _adsb_failsafe = value; }
 
-    // Getter for wing calibrate flag.
-    bool get_adsb_failsafe() { return _adsb_failsafe; }
+    // Getter for ADSB failsafe flag
+    bool get_adsb_failsafe() const { return _adsb_failsafe; }
 
 private:
-    // Flag to indicate ADSB failsafe.
+    // Private constructor to prevent direct instantiation
+    AP_ADSB_State() : _adsb_failsafe(false) {}
+
+    // Flag to indicate ADSB failsafe
     bool _adsb_failsafe;
 };
-
-// Define the global instance of ADSB_State
-extern ADSB_State adsb_state;
-
-#endif // AP_ADSB_STATE_H

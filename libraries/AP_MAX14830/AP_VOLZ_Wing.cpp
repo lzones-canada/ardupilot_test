@@ -44,11 +44,6 @@ static uint8_t rx_buffer[MESSAGE_BUFFER_LENGTH];
 static uint8_t *rx_buffer_ptr = rx_buffer;
 
 
-
-extern const AP_HAL::HAL& hal;
-// Reference to the global instance of Volz_State
-Volz_State volz_state;
-
 #define SCALING_FACTOR     (360.0 / 4096.0)
 #define TOTAL_REVS         (8.6)
 #define TICKS_PER_REV      (4096)
@@ -64,7 +59,8 @@ Volz_State volz_state;
 //------------------------------------------------------------------------------
 AP_VOLZ_Wing::AP_VOLZ_Wing(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
     _max14830(std::move(max14830)),
-    sweep_angle_limit(WING_MAX_DEGREES, WING_MIN_DEGREES)
+    sweep_angle_limit(WING_MAX_DEGREES, WING_MIN_DEGREES),
+    volz_state(AP_VOLZ_State::get_singleton())
 {
 }
 
@@ -144,7 +140,7 @@ void AP_VOLZ_Wing::update()
 
     // -----------------------------------------------
 
-    // Retrieve the target percentage from the ground station
+    // Retrieve the target command from the ground station
     target_command = volz_state.get_target_command();
     // Check if the target deviates more than 1% from our previous target 
     if (prev_target_command != target_command) {

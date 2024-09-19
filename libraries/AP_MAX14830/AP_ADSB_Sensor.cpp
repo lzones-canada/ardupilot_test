@@ -60,15 +60,14 @@ static uint8_t tx_cs_msg[CS_MSG_LENGTH];
 static const uint8_t VFR_MSG_LENGTH = 12;
 static uint8_t tx_vfr_msg[VFR_MSG_LENGTH];
 
-// Reference to the global instance of Volz_State
-ADSB_State adsb_state;
 
 
 //------------------------------------------------------------------------------
 // Constructor
 //------------------------------------------------------------------------------
 AP_ADSB_Sensor::AP_ADSB_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
-    _max14830(std::move(max14830))
+    _max14830(std::move(max14830)),
+    adsb_state(AP_ADSB_State::get_singleton())
 {
 }
 

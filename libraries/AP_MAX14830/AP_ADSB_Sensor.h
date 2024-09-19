@@ -20,9 +20,6 @@
 
 #pragma once
 
-#ifndef AP_ADSB_SENSOR_H
-#define AP_ADSB_SENSOR_H
-
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/Semaphores.h>
@@ -204,8 +201,9 @@ private:
     // Pointer to MAX14830 object
     AP_HAL::OwnPtr<AP_MAX14830> _max14830;
 
+    // Structure for ADSB State as need frequent access
+    AP_ADSB_State& adsb_state;
+
     // Write Function for ADSB out.
     bool _tx_write(uint8_t *buffer, uint16_t length);
 };
-
-#endif // AP_ADSB_SENSOR_H

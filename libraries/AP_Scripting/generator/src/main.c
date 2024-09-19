@@ -1334,8 +1334,16 @@ void emit_singleton_checkers(void) {
   while (node) {
     if (!(node->flags & UD_FLAG_LITERAL) && (node->methods != NULL)) {
       start_dependency(source, node->dependency);
-      fprintf(source, "%s * check_%s(lua_State *L) {\n", node->name, node->sanatized_name);
-      fprintf(source, "    %s * ud = %s::get_singleton();\n", node->name, node->name);
+      // Special case for AP_VOLZ_State
+      if (strcmp(node->name, "AP_VOLZ_State") == 0) {
+          // Here we use a reference and get the address (&)
+          fprintf(source, "%s * check_%s(lua_State *L) {\n", node->name, node->sanatized_name);
+          fprintf(source, "    %s * ud = &%s::get_singleton();\n", node->name, node->name);
+      // The standard case
+      } else {
+          fprintf(source, "%s * check_%s(lua_State *L) {\n", node->name, node->sanatized_name);
+          fprintf(source, "    %s * ud = %s::get_singleton();\n", node->name, node->name);
+      }
       fprintf(source, "    if (ud == nullptr) {\n");
       fprintf(source, "        // This error will never return, so there is no danger of returning a nullptr\n");
       fprintf(source, "        not_supported_error(L, 1, \"%s\");\n", node->rename ? node->rename : node->name);

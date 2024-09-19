@@ -3440,3 +3440,15 @@ function visual_odom:healthy() end
 -- visual odometry quality as a percentage from 1 to 100 or 0 if unknown
 ---@return integer
 function visual_odom:quality() end
+
+-- desc
+---@class volz
+volz = {}
+
+-- desc
+---@param param1 integer
+function volz:set_target_command(param1) end
+
+-- desc
+---@return number
+function volz:get_sweep_angle() end
