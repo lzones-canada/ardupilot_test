@@ -20,9 +20,8 @@
 
 
 #include "AP_MAX14830_Driver.h"
-
-
-extern const AP_HAL::HAL& hal;
+/*=========================================================================*/
+#define HAL_MAX14830_SPI_NAME "max14830"
 
 
 /*=========================================================================*/
@@ -66,11 +65,7 @@ extern const AP_HAL::HAL& hal;
 #define MAX14830R_TRGT_DIVLSB    (0x01)
 #define MAX14830_WRITE_FLAG      (0x80)
 #define MAX14830_READ_FLAG       (0x7F)
-
 /*=========================================================================*/
-
-extern const AP_HAL::HAL &hal;
-#define HAL_MAX14830_SPI_NAME "max14830"
 
 AP_MAX14830_Driver::AP_MAX14830_Driver() :
     _dev(nullptr)

@@ -20,8 +20,6 @@
 
 #include "AP_MAX14830.h"
 
-extern const AP_HAL::HAL &hal;
-
 /* ************************************************************************* */
 
 AP_MAX14830 *AP_MAX14830::_singleton;       // Singleton Pattern

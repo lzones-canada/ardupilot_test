@@ -20,9 +20,6 @@
 
 #pragma once
 
-#ifndef AP_VOLZ_WING_H
-#define AP_VOLZ_WING_H
-
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/Semaphores.h>
@@ -83,6 +80,9 @@ private:
     // Pointer to MAX14830 object
     AP_HAL::OwnPtr<AP_MAX14830> _max14830;
 
+    // Structure for Volz State as need frequent access
+    AP_VOLZ_State& volz_state;
+
     // Private functors
     void send_command(uint8_t data[VOLZ_DATA_FRAME_SIZE]);
     void handle_volz_message(uint8_t* rx_work_buffer);
@@ -123,7 +123,7 @@ private:
     uint16_t offset;
     // variable to track total position of the wing 
     int32_t total_position;
-    // variable to store target position from a percentage
+    // variable to store target position
     uint16_t target_position;
     // variable to store the raw position value from the servo
     uint16_t raw_position;
@@ -139,5 +139,3 @@ private:
     // variable to store the previous position
     uint8_t prev_target_command;
 };
-
-#endif // AP_VOLZ_Wing

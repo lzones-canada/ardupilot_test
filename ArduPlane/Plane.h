@@ -294,14 +294,28 @@ private:
 
     // Volz Protocol support for sharing values
     // Set the target percent command for Volz Loop from GCS
-    void volz_wing_deg_cmd (uint8_t value) { volz_state.set_target_command(value); }
+    void volz_wing_deg_cmd (uint8_t value) {
+        // Access singleton instance and set the target command
+        AP_VOLZ_State::get_singleton().set_target_command(value);
+    }
+
     // Calibrate flag for Volz Loop from GCS
-    void volz_wing_calibrate (bool calibr) { volz_state.set_calibrate(calibr); }
-    // Get the sweet angle to send GCS.
-    float get_volz_sweep_wing ()  const { return volz_state.get_sweep_angle(); };
+    void volz_wing_calibrate (bool calibr) {
+        // Access singleton instance and set the calibration flag
+        AP_VOLZ_State::get_singleton().set_calibrate(calibr);
+    }
+
+    // Get the sweep angle to send to GCS.
+    float get_volz_sweep_wing () const {
+        // Access singleton instance and get the sweep angle
+        return AP_VOLZ_State::get_singleton().get_sweep_angle();
+    }
 
     // ADSB support for sharing values (Turn off ADSB transponder)
-    void adsb_transponder_failsafe (bool flag) { adsb_state.set_adsb_failsafe(flag); }
+    void adsb_transponder_failsafe (bool flag) { 
+            // Access singleton instance and set the ADSB failsafe
+            AP_ADSB_State::get_singleton().set_adsb_failsafe(flag); 
+    }
 
     // IMET sensor
     AP_MAX14830 max14830;

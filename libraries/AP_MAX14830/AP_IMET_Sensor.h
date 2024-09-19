@@ -18,9 +18,6 @@
  *      Author: Kyle Fruson
  */
 
-#ifndef AP_IMET_SENSOR_H
-#define AP_IMET_SENSOR_H
-
 #pragma once
 
 #include <AP_Common/AP_Common.h>
@@ -77,5 +74,3 @@ private:
     PARSE_STATE::value parse_state;
 
 };
-
-#endif // AP_IMET_SENSOR_H

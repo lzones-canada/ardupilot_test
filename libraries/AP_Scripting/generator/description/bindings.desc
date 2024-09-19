@@ -1028,3 +1028,10 @@ include AP_TemperatureSensor/AP_TemperatureSensor.h
 singleton AP_TemperatureSensor depends AP_TEMPERATURE_SENSOR_ENABLED
 singleton AP_TemperatureSensor rename temperature_sensor
 singleton AP_TemperatureSensor method get_temperature boolean float'Null uint8_t'skip_check
+
+-- Include the header file that defines the Volz_State class
+include AP_MAX14830/AP_VOLZ_State.h
+include AP_MAX14830/AP_MAX14830_config.h
+singleton AP_VOLZ_State rename volz
+singleton AP_VOLZ_State method get_sweep_angle float
+singleton AP_VOLZ_State method set_target_command void uint8_t 8 88
