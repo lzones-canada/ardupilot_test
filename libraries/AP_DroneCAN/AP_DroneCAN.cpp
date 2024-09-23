@@ -80,10 +80,6 @@ extern const AP_HAL::HAL& hal;
 #define DRONECAN_STACK_SIZE     4096
 #endif
 
-#ifndef AP_DRONECAN_VOLZ_FEEDBACK_ENABLED
-#define AP_DRONECAN_VOLZ_FEEDBACK_ENABLED 0
-#endif
-
 #ifndef AP_DRONECAN_DEFAULT_NODE
 #define AP_DRONECAN_DEFAULT_NODE 10
 #endif
@@ -713,14 +709,17 @@ void AP_DroneCAN::handle_node_info_request(const CanardRxTransfer& transfer, con
 
 int16_t AP_DroneCAN::scale_esc_output(uint8_t idx){
     static const int16_t cmd_max = ((1<<13)-1);
-    float scaled = 0;
-
+    float scaled = hal.rcout->scale_esc_to_unity(_SRV_conf[idx].pulse);
+    // Prevent invalid values (from misconfigured scaling parameters) from sending non-zero commands
+    if (!isfinite(scaled)) {
+        return 0;
+    }
+    scaled = constrain_float(scaled, -1, 1);
     //Check if this channel has a reversible ESC. If it does, we can send negative commands.
     if ((((uint32_t) 1) << idx) & _esc_rv) {
-        scaled = cmd_max * (hal.rcout->scale_esc_to_unity(_SRV_conf[idx].pulse));
+        scaled *= cmd_max;
     } else {
-        scaled = cmd_max * (hal.rcout->scale_esc_to_unity(_SRV_conf[idx].pulse) + 1.0) / 2.0;
-        scaled = constrain_float(scaled, 0, cmd_max);
+        scaled = cmd_max * (scaled + 1.0) / 2.0;
     }
 
     return static_cast<int16_t>(scaled);
@@ -1424,7 +1423,7 @@ void AP_DroneCAN::handle_actuator_status_Volz(const CanardRxTransfer& transfer, 
         ToDeg(msg.actual_position),
         msg.current * 0.025f,
         msg.voltage * 0.2f,
-        msg.motor_pwm * (100.0/255.0),
+        uint8_t(msg.motor_pwm * (100.0/255.0)),
         int16_t(msg.motor_temperature) - 50);
 #endif
 }

@@ -170,6 +170,10 @@ void Plane::init_ardupilot()
 
     // Placeholder for future use if needed to init user code.
     init_payload_control();
+#if AP_ICENGINE_ENABLED
+    g2.ice_control.init();
+#endif
+
 }
 
 #if AP_FENCE_ENABLED

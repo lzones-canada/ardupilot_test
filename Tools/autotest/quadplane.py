@@ -1049,12 +1049,26 @@ class AutoTestQuadPlane(vehicle_test_suite.TestSuite):
                 raise NotAchievedException("Changed throttle output on mode change to QHOVER")
         self.disarm_vehicle()
 
-    def setup_ICEngine_vehicle(self, start_chan):
-        '''restarts SITL with an IC Engine setup'''
-        self.set_parameters({
-            'ICE_START_CHAN': start_chan,
-        })
+    def CopterTailsitter(self):
+        '''copter tailsitter test'''
+        self.customise_SITL_commandline(
+            [],
+            defaults_filepath=self.model_defaults_filepath('quadplane-copter_tailsitter'),
+            model="quadplane-copter_tailsitter",
+            wipe=True,
+        )
 
+        self.reboot_sitl()
+        self.wait_ready_to_arm()
+        self.takeoff(60, mode='GUIDED')
+        self.context_collect("STATUSTEXT")
+        self.progress("Starting QLAND")
+        self.change_mode("QLAND")
+        self.wait_statustext("Rangefinder engaged")
+        self.wait_disarmed(timeout=100)
+
+    def setup_ICEngine_vehicle(self):
+        '''restarts SITL with an IC Engine setup'''
         model = "quadplane-ice"
         self.customise_SITL_commandline(
             [],
@@ -1066,7 +1080,7 @@ class AutoTestQuadPlane(vehicle_test_suite.TestSuite):
     def ICEngine(self):
         '''Test ICE Engine support'''
         rc_engine_start_chan = 11
-        self.setup_ICEngine_vehicle(start_chan=rc_engine_start_chan)
+        self.setup_ICEngine_vehicle()
 
         self.wait_ready_to_arm()
         self.wait_rpm(1, 0, 0, minimum_duration=1)
@@ -1105,7 +1119,7 @@ class AutoTestQuadPlane(vehicle_test_suite.TestSuite):
     def ICEngineMission(self):
         '''Test ICE Engine Mission support'''
         rc_engine_start_chan = 11
-        self.setup_ICEngine_vehicle(start_chan=rc_engine_start_chan)
+        self.setup_ICEngine_vehicle()
 
         self.load_mission("mission.txt")
         self.wait_ready_to_arm()
@@ -1123,7 +1137,7 @@ class AutoTestQuadPlane(vehicle_test_suite.TestSuite):
         expected_starter_rpm_max = 355
 
         rc_engine_start_chan = 11
-        self.setup_ICEngine_vehicle(start_chan=rc_engine_start_chan)
+        self.setup_ICEngine_vehicle()
 
         self.wait_ready_to_arm()
 
@@ -1560,6 +1574,29 @@ class AutoTestQuadPlane(vehicle_test_suite.TestSuite):
 
         self.fly_home_land_and_disarm()
 
+    def TransitionMinThrottle(self):
+        '''Ensure that TKOFF_THR_MIN is applied during the forward transition'''
+        wps = self.create_simple_relhome_mission([
+            (mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 30),
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 2000, 0, 30),
+            (mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0),
+        ])
+        self.check_mission_upload_download(wps)
+        self.set_parameter('TKOFF_THR_MIN', 80)
+
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+
+        self.arm_vehicle()
+        self.wait_current_waypoint(2)
+        # Wait for 5 seconds into the transition.
+        self.delay_sim_time(5)
+        # Ensure TKOFF_THR_MIN is still respected.
+        thr_min = self.get_parameter('TKOFF_THR_MIN')
+        self.wait_servo_channel_value(3, 1000+thr_min*10, comparator=operator.eq)
+
+        self.fly_home_land_and_disarm()
+
     def MAV_CMD_NAV_TAKEOFF(self):
         '''test issuing takeoff command via mavlink'''
         self.change_mode('GUIDED')
@@ -1793,6 +1830,7 @@ class AutoTestQuadPlane(vehicle_test_suite.TestSuite):
             self.QAssist,
             self.GyroFFT,
             self.Tailsitter,
+            self.CopterTailsitter,
             self.ICEngine,
             self.ICEngineMission,
             self.MAV_CMD_DO_ENGINE_CONTROL,
@@ -1815,6 +1853,7 @@ class AutoTestQuadPlane(vehicle_test_suite.TestSuite):
             self.RCDisableAirspeedUse,
             self.mission_MAV_CMD_DO_VTOL_TRANSITION,
             self.mavlink_MAV_CMD_DO_VTOL_TRANSITION,
+            self.TransitionMinThrottle,
             self.MAV_CMD_NAV_TAKEOFF,
             self.Q_GUIDED_MODE,
             self.DCMClimbRate,
