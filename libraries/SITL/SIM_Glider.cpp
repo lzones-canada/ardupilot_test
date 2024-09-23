@@ -255,12 +255,26 @@ void Glider::calculate_forces(const struct sitl_input &input, Vector3f &rot_acce
 
     //float balloon  = filtered_servo_range(input, 5);    // SERVO6
     float balloon  = MAX(0.0f, filtered_servo_range(input, 5)); // Don't let the balloon receive downwards commands.
-    uint8_t balloon_cut = hal.gpio->read(HAL_GPIO_PIN_BLN_RELEASE);
 
-    // Volz sweep wing angle
+#if AP_HITL_GLIDER_ENABLED
+    float balloon_cut = 1.0f - static_cast<float>(hal.gpio->read(HAL_GPIO_PIN_BLN_RELEASE));
+#else
+    float balloon_cut = 0.5*(filtered_servo_range(input, 6) + 1); // SERVO7
+#endif
+
+#if AP_HITL_GLIDER_ENABLED
     float wing_sweep_deg = volz_state.get_sweep_angle();
     float wing_sweep_offset = (wing_sweep_deg - 10.0); // offsetting so this value is 0.0 when wing_sweep_deg is 10.0, because that is what my aerodynamic model requires
-    //GCS_SEND_TEXT(MAV_SEVERITY_INFO,"SWEEP_WING: %.1f\n", wing_sweep_deg);
+#else
+    // Volz sweep wing angle
+    filtered_servo_setup(13, 1100, 1900, 40.0);  // swing wing +- 40 degrees, from 8 to 88 deg. So 48 deg is centre. 1900-1100 = 800 us, for 80 degrees = 0.1 deg / us
+    float wing_sweep_deg  = (filtered_servo_angle(input, 13) * 40.0) + 48.0; // returns -40 to 40, so shift it by 48.0
+    float wing_sweep_offset = (wing_sweep_deg - 10); // offsetting so this value is 0.0 when wing_sweep_deg is 10.0, because that is what my aerodynamic model requires
+    // if (fabs(wing_sweep_deg - last_wing_sweep_deg) > epsilon) {
+    //     GCS_SEND_TEXT(MAV_SEVERITY_INFO,"SWEEP_WING: %.1f\n", wing_sweep_deg);
+    //     last_wing_sweep_deg = wing_sweep_deg;
+    // }
+#endif
 
     // Move balloon upwards using balloon velocity from channel 6
     // Aircraft is released from ground constraint when channel 6 PWM > 1010
@@ -271,7 +285,7 @@ void Glider::calculate_forces(const struct sitl_input &input, Vector3f &rot_acce
         const float height_AMSL = 0.01f * (float)home.alt - position.z;
         // release at burst height or when balloon cut output goes high
         if (hal.scheduler->is_system_initialized() &&
-            (height_AMSL > balloon_burst_amsl || !balloon_cut)) {
+            (height_AMSL > balloon_burst_amsl || balloon_cut > 0.8)) {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "pre-release at %i m AMSL\n", (int)height_AMSL);
             carriage_state = carriageState::PRE_RELEASE;
         }

@@ -47,6 +47,9 @@ define RELAY5_PIN_DEFAULT           105
 define HAL_ANALOG_PIN_SERV0          12
 define HAL_ANALOG_PIN_BOARD_TEMP     13
 
+# Enable Glider Pullup Mode
+define AP_PLANE_GLIDER_PULLUP_ENABLED 1
+
 ## Simulate save some_flash_file as it does not exists...
 define AC_OAPATHPLANNER_ENABLED 0
 define AC_PRECLAND_ENABLED 0
