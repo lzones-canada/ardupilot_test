@@ -238,8 +238,10 @@ void Plane::failsafe_long_off_event(ModeReason reason)
     if (reason == ModeReason:: GCS_FAILSAFE) {
         gcs().send_text(MAV_SEVERITY_WARNING, "GCS Failsafe Off");
         // Reset our short failsafes values
+#if AP_MAX14830_ENABLED
         balloon_release->write(1);
         plane.adsb_transponder_failsafe(false);
+#endif
     }
     else {
         gcs().send_text(MAV_SEVERITY_WARNING, "RC Long Failsafe Cleared");

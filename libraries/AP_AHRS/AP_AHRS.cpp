@@ -424,6 +424,7 @@ void AP_AHRS::update(bool skip_ins_update)
 #endif
     }
 
+#if HAL_NAVEKF2_AVAILABLE
     if ((_ekf_type == 2 || _ekf_type == 3) && _ekf2_started && _ekf3_started) {
         const float score2 = EKF2.errorScore();
         const float score3 = EKF3.errorScore();
@@ -441,6 +442,7 @@ void AP_AHRS::update(bool skip_ins_update)
             _ekf_type.set_and_notify(3);
         }
     }
+#endif
 
 #if AP_MODULE_SUPPORTED
     // call AHRS_update hook if any

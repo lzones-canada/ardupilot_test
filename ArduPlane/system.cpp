@@ -165,15 +165,17 @@ void Plane::init_ardupilot()
     g2.precland.init(scheduler.get_loop_rate_hz());
 #endif
 
+#if AP_MAX14830_ENABLED
     // Init MAX14830 SPI-UART
     max14830.init();
 
     // Placeholder for future use if needed to init user code.
     init_payload_control();
+#endif
+
 #if AP_ICENGINE_ENABLED
     g2.ice_control.init();
 #endif
-
 }
 
 #if AP_FENCE_ENABLED
@@ -361,12 +363,14 @@ void Plane::check_long_failsafe()
             // time is relative to when short failsafe enabled
             radio_timeout_ms = failsafe.short_timer_ms;
         }
+#if AP_MAX14830_ENABLED
         // Custom action leveraging the short timer parameter
         if ((tnow - gcs_last_seen_ms) > g.fs_timeout_short*1000) {
             // Trigger our custom short failsafe actions.
             balloon_release->write(0);
             plane.adsb_transponder_failsafe(true);
         }
+#endif
         if (failsafe.rc_failsafe &&
             (tnow - radio_timeout_ms) > g.fs_timeout_long*1000) {
             failsafe_long_on_event(FAILSAFE_LONG, ModeReason::RADIO_FAILSAFE);

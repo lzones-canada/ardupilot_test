@@ -458,8 +458,10 @@ bool GCS_MAVLINK_Plane::try_send_message(enum ap_message id)
         break;
 
     case MSG_PAYLOAD_STATUS:
+#if AP_MAX14830_ENABLED
         CHECK_PAYLOAD_SIZE(PAYLOAD_STATUS);
         send_payload_status();
+#endif
         break;
 
     case MSG_STATION_STATUS:

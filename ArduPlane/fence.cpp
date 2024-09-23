@@ -91,8 +91,10 @@ void Plane::fence_check()
                     // already landing
                     return;
                 }
+#if AP_MAX14830_ENABLED
                 // Custom action to release from balloon
                 balloon_release->write(0);
+#endif
                 set_mode(mode_rtl, ModeReason::FENCE_BREACHED);
             } else {
                 set_mode(mode_guided, ModeReason::FENCE_BREACHED);
