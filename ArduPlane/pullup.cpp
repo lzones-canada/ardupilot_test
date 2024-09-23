@@ -1,4 +1,9 @@
 #include "Plane.h"
+
+#if AP_SIM_ENABLED
+#include <SITL/SITL.h>
+#endif
+
 /*
   support for pullup after an alitude wait. Used for high altitude gliders
  */
@@ -91,7 +96,12 @@ bool GliderPullup::pullup_start(void)
     }
 
     // release balloon
+#if AP_MAX14830_ENABLED
+    // Custom action to release from balloon
+    plane.balloon_release->write(0);
+#elif AP_SIM_ENABLED
     SRV_Channels::set_output_scaled(SRV_Channel::k_lift_release, 100);
+#endif
 
     stage = Stage::WAIT_AIRSPEED;
     plane.auto_state.idle_mode = false;
@@ -99,7 +109,7 @@ bool GliderPullup::pullup_start(void)
     if (!plane.ahrs.airspeed_estimate(aspeed)) {
         aspeed = -1;
     }
-    gcs().send_text(MAV_SEVERITY_INFO, "Start pullup airspeed %.1fm/s at %.1fm AMSL", aspeed, plane.current_loc.alt*0.01);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Start pullup airspeed %.1fm/s at %.1fm AMSL", aspeed, plane.current_loc.alt*0.01);
     return true;
 }
 
@@ -116,7 +126,7 @@ bool GliderPullup::verify_pullup(void)
     case Stage::WAIT_AIRSPEED: {
         float aspeed;
         if (ahrs.airspeed_estimate(aspeed) && aspeed > airspeed_start) {
-            gcs().send_text(MAV_SEVERITY_INFO, "Pullup airspeed %.1fm/s alt %.1fm AMSL", aspeed, current_loc.alt*0.01);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Pullup airspeed %.1fm/s alt %.1fm AMSL", aspeed, current_loc.alt*0.01);
             stage = Stage::WAIT_PITCH;
         }
         return false;
@@ -124,7 +134,7 @@ bool GliderPullup::verify_pullup(void)
 
     case Stage::WAIT_PITCH: {
         if (ahrs.pitch_sensor*0.01 > pitch_start && fabsf(ahrs.roll_sensor*0.01) < 90) {
-            gcs().send_text(MAV_SEVERITY_INFO, "Pullup pitch p=%.1f r=%.1f alt %.1fm AMSL",
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Pullup pitch p=%.1f r=%.1f alt %.1fm AMSL",
                             ahrs.pitch_sensor*0.01,
                             ahrs.roll_sensor*0.01,
                             current_loc.alt*0.01);
@@ -150,12 +160,12 @@ bool GliderPullup::verify_pullup(void)
         bool airspeed_low = ahrs.airspeed_estimate(aspeed) ? (aspeed + aspeed_derivative * pitch_lag_time) < 0.01f * (float)plane.target_airspeed_cm : true;
         bool roll_control_lost = fabsf(ahrs.roll_sensor*0.01) > aparm.roll_limit;
         if (pitchup_complete && airspeed_low && !roll_control_lost) {
-                gcs().send_text(MAV_SEVERITY_INFO, "Pullup level r=%.1f p=%.1f alt %.1fm AMSL",
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Pullup level r=%.1f p=%.1f alt %.1fm AMSL",
                                 ahrs.roll_sensor*0.01, ahrs.pitch_sensor*0.01, current_loc.alt*0.01);
                 break;
         } else if (pitchup_complete && roll_control_lost) {
                 // push nose down and wait to get roll control back
-                gcs().send_text(MAV_SEVERITY_ALERT, "Pullup level roll bad r=%.1f p=%.1f",
+                GCS_SEND_TEXT(MAV_SEVERITY_ALERT, "Pullup level roll bad r=%.1f p=%.1f",
                                 ahrs.roll_sensor*0.01,
                                 ahrs.pitch_sensor*0.01);
                 stage = Stage::PUSH_NOSE_DOWN;
