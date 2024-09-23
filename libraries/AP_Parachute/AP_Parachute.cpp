@@ -105,7 +105,7 @@ void AP_Parachute::release()
         return;
     }
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO,"Parachute: Released");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO,"Parachute: Deployed");
     LOGGER_WRITE_EVENT(LogEvent::PARACHUTE_RELEASED);
 
     bool need_disarm = (_options.get() & uint32_t(Options::SkipDisarmBeforeParachuteRelease)) == 0;

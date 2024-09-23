@@ -59,11 +59,9 @@ define HAL_GENERATOR_ENABLED 0
 # Saving space for flash (Enabling EKF2)
 # disable rangefinder
 define AP_RANGEFINDER_BACKEND_DEFAULT_ENABLED 0
-//define AP_RANGEFINDER_MAVLINK_ENABLED 1
 
 # disable camera
 define AP_CAMERA_BACKEND_DEFAULT_ENABLED 0
-//define AP_CAMERA_MAVLINK_ENABLED 1
 
 // disable sprayer
 define HAL_SPRAYER_ENABLED 0
