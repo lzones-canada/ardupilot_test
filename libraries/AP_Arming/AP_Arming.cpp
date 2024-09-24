@@ -580,7 +580,7 @@ bool AP_Arming::compass_checks(bool report)
         if (!_compass.learn_offsets_enabled())
 #endif
         {
-            char failure_msg[50] = {};
+            char failure_msg[100] = {};
             if (!_compass.configured(failure_msg, ARRAY_SIZE(failure_msg))) {
                 check_failed(ARMING_CHECK_COMPASS, report, "%s", failure_msg);
                 return false;
@@ -639,7 +639,7 @@ bool AP_Arming::gps_checks(bool report)
     if (check_enabled(ARMING_CHECK_GPS)) {
 
         // Any failure messages from GPS backends
-        char failure_msg[50] = {};
+        char failure_msg[100] = {};
         if (!AP::gps().backends_healthy(failure_msg, ARRAY_SIZE(failure_msg))) {
             if (failure_msg[0] != '\0') {
                 check_failed(ARMING_CHECK_GPS, report, "%s", failure_msg);
@@ -1241,7 +1241,7 @@ bool AP_Arming::proximity_checks(bool report) const
 bool AP_Arming::can_checks(bool report)
 {
     if (check_enabled(ARMING_CHECK_SYSTEM)) {
-        char fail_msg[50] = {};
+        char fail_msg[100] = {};
         (void)fail_msg; // might be left unused
         uint8_t num_drivers = AP::can().get_num_drivers();
 
@@ -1534,7 +1534,7 @@ bool AP_Arming::generator_checks(bool display_failure) const
     if (generator == nullptr) {
         return true;
     }
-    char failure_msg[50] = {};
+    char failure_msg[100] = {};
     if (!generator->pre_arm_check(failure_msg, sizeof(failure_msg))) {
         check_failed(display_failure, "Generator: %s", failure_msg);
         return false;
@@ -1549,7 +1549,7 @@ bool AP_Arming::opendroneid_checks(bool display_failure)
 {
     auto &opendroneid = AP::opendroneid();
 
-    char failure_msg[50] {};
+    char failure_msg[100] {};
     if (!opendroneid.pre_arm_check(failure_msg, sizeof(failure_msg))) {
         check_failed(display_failure, "OpenDroneID: %s", failure_msg);
         return false;
