@@ -2479,6 +2479,15 @@ function rc:find_channel_for_option(aux_fun) end
 ---@return integer|nil -- pwm input or nil if not availables
 function rc:get_pwm(chan_num) end
 
+-- desc
+---@class SRV_RelayEvent
+SRV_RelayEvent = {}
+
+-- desc
+---@param channel integer
+---@param pwm integer
+---@return boolean
+function SRV_RelayEvent:do_set_servo(channel, pwm) end
 
 -- desc
 SRV_Channels = {}
@@ -3973,8 +3982,8 @@ function visual_odom:quality() end
 volz = {}
 
 -- desc
----@param param1 integer
-function volz:set_target_command(param1) end
+---@param sweep_angle integer
+function volz:set_target_command(sweep_angle) end
 
 -- desc
 ---@return number

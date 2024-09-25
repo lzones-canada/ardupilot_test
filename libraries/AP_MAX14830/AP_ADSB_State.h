@@ -30,9 +30,8 @@ public:
         return _singleton;
     }
 
-    // Delete the copy constructor and assignment operator to prevent copying
-    AP_ADSB_State(const AP_ADSB_State&) = delete;
-    AP_ADSB_State& operator=(const AP_ADSB_State&) = delete;
+    /* Do not allow copies */
+    CLASS_NO_COPY(AP_ADSB_State);
 
     // Setter for ADSB failsafe flag
     void set_adsb_failsafe(bool value) { _adsb_failsafe = value; }

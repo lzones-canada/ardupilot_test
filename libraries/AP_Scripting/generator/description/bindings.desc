@@ -380,6 +380,11 @@ singleton SRV_Channels method set_range void SRV_Channel::Aux_servo_function_t'e
 singleton SRV_Channels method get_emergency_stop boolean
 singleton SRV_Channels manual get_safety_state SRV_Channels_get_safety_state 0 1
 
+include AP_ServoRelayEvents/AP_ServoRelayEvents.h
+singleton AP_ServoRelayEvents depends (!defined(HAL_BUILD_AP_PERIPH) || defined(HAL_PERIPH_ENABLE_RC_OUT))
+singleton AP_ServoRelayEvents rename SRV_RelayEvent
+singleton AP_ServoRelayEvents method do_set_servo boolean uint8_t 1 NUM_SERVO_CHANNELS uint16_t 1100 1900
+
 ap_object RC_Channel depends AP_RC_CHANNEL_ENABLED
 ap_object RC_Channel method norm_input float
 ap_object RC_Channel method norm_input_dz float
