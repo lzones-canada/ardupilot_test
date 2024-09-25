@@ -16,5 +16,11 @@
 #define FW_PATCH 0
 #define FW_TYPE FIRMWARE_VERSION_TYPE_DEV
 
+// Custom version heading
+#define MID_MAJOR 0
+#define MID_MINOR 6
+#define MID_PATCH 0
+#define MID_FW_TYPE FIRMWARE_VERSION_TYPE_DEV
+
 #include <AP_Common/AP_FWVersionDefine.h>
 #include <AP_CheckFirmware/AP_CheckFirmwareDefine.h>

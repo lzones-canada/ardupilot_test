@@ -2933,6 +2933,13 @@ void GCS_MAVLINK::send_autopilot_version() const
                         version.patch << (8 * 1) | \
                         (uint32_t)(version.fw_type) << (8 * 0);
 
+#ifdef MID_MAJOR
+    middleware_sw_version = MID_MAJOR << (8 * 3) | \
+                            MID_MINOR << (8 * 2) | \
+                            MID_PATCH << (8 * 1) | \
+                            (uint32_t)(MID_FW_TYPE) << (8 * 0);
+#endif
+
     if (version.fw_hash_str) {
         strncpy_noterm(flight_custom_version, version.fw_hash_str, ARRAY_SIZE(flight_custom_version));
     }
