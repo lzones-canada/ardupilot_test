@@ -1,0 +1,35 @@
+------------------------------------------------------------------
+ArduPilot LZC-Plane Release Notes:
+------------------------------------------------------------------
+
+Release Plane-v0.5 ?Date?
+-------------------------------------------------
+Ardupilot: 4.5.6 Official
+githash:   ??
+md5:       ??
+-------------------------------------------------
+Changes from v0.4
+
+1) Upgrade to ArduPlane 4.5.6 Official
+2) Updated params from over the air update from Flight #4 from Foremost
+3) Stub out custom drivers for building with SITL
+4) Backport SITL / HITL Glider feature from master such can all build in one branch
+5) Added in pullup support for high altitude gliders (Merged in Tridge docs)
+6) Refactor the States for ADSB & Volz sweep wing to allow exposure to Lua Scripts
+7) Expose getting and setting Sweep wing angle to the Lua script functionality
+8) Add custom LZC Version for reading on VCSi panel (Repurpose middleware_sw_version)
+9) Enable build dates on the Firmware (Sent in os_sw_version)
+
+
+-------------------------------------------------
+Release Plane-v0.4 22 Aug 2024
+-------------------------------------------------
+Ardupilot: 4.5.5 Official
+githash:   76bfdba38f43b090b65e494429db7e6b2126f6a5
+md5:       2d5766f674f4e97f47e7557cd80cc074
+-------------------------------------------------
+No Changes, first documented release here
+
+1) Refactored iMet to handle garbage data on boot with some payloads crashing firmware
+2) Added param files to repository
+3) This was firmware used for Flights 3 & 4 during Foremost flight trials (GlideX-1)

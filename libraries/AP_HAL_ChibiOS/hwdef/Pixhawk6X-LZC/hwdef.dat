@@ -7,7 +7,7 @@ include ../Pixhawk6X/hwdef.dat
 include ../include/save_some_flash.inc
 
 # Custom Firmware String
-define AP_CUSTOM_FIRMWARE_STRING "LZC-Gitpo"
+define AP_CUSTOM_FIRMWARE_STRING "LZC"
 
 # Max14830 SPI6 Configuration
 SPIDEV max14830 SPI6 DEVID1 EXT1_CS MODE0 10*MHZ 10*MHZ
