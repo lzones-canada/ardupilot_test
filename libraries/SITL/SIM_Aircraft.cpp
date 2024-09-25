@@ -636,11 +636,6 @@ void Aircraft::update_model(const struct sitl_input &input)
     }
 }
 
-void Aircraft::update_air_density()
-{
-    air_density = AP_Baro::get_air_density_for_alt_amsl(location.alt*0.01);
-}
-
 /*
   update the simulation attitude and relative position
  */

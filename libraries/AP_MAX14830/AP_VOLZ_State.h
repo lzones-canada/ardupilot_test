@@ -34,9 +34,8 @@ public:
         return _singleton;
     }
 
-    // Delete the copy constructor and assignment operator to prevent copying
-    AP_VOLZ_State(const AP_VOLZ_State&) = delete;
-    AP_VOLZ_State& operator=(const AP_VOLZ_State&) = delete;
+    /* Do not allow copies */
+    CLASS_NO_COPY(AP_VOLZ_State);
 
     // Setter for target percent command.
     void set_target_command(uint8_t value) { _target_command = value; }
