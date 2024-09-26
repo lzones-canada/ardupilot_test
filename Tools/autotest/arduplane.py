@@ -5360,6 +5360,22 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         self.wait_text("Flare", check_context=True, timeout=400)
         self.wait_text("Auto disarmed", check_context=True, timeout=200)
 
+    def MAV_CMD_NAV_LOITER_TO_ALT(self):
+        '''test loiter to alt mission item'''
+        self.upload_simple_relhome_mission([
+            (mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 30),
+            (mavutil.mavlink.MAV_CMD_NAV_LOITER_TO_ALT, 0, 0, 500),
+            (mavutil.mavlink.MAV_CMD_NAV_LOITER_TO_ALT, 0, 0, 100),
+            (mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 800, 0, 0),
+        ])
+        self.change_mode('AUTO')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.wait_altitude(450, 475, relative=True, timeout=600)
+        self.wait_altitude(75, 125, relative=True, timeout=600)
+        self.wait_current_waypoint(4)
+        self.fly_home_land_and_disarm()
+
     def tests(self):
         '''return list of all tests'''
         ret = super(AutoTestPlane, self).tests()
@@ -5404,6 +5420,7 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.AdvancedFailsafe,
             self.LOITER,
             self.MAV_CMD_NAV_LOITER_TURNS,
+            self.MAV_CMD_NAV_LOITER_TO_ALT,
             self.DeepStall,
             self.WatchdogHome,
             self.LargeMissions,
