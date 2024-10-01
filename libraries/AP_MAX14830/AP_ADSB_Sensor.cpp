@@ -135,10 +135,13 @@ void AP_ADSB_Sensor::send_cs_msg()
     tx_cs_msg[11] = ctrl.callsign[7];
 
     // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
-    CharPair chksum = calc_hex_to_ascii_crc(tx_cs_msg, CS_MSG_LENGTH-4);
+    chksum = crc_sum_of_bytes(tx_cs_msg, CS_MSG_LENGTH-4);
+    // Extract the high and low nibbles and convert to ASCII
+    highChar = uint8_to_hex(HIGH_NIBBLE(chksum));
+    lowChar  = uint8_to_hex(LOW_NIBBLE(chksum));
     // Extract the two ASCII hex digits from chksum
-    tx_cs_msg[12] = chksum.highChar;       // Extract the first hex digit
-    tx_cs_msg[13] = chksum.lowChar;        // Extract the second hex digit
+    tx_cs_msg[12] = highChar;       // Extract the first hex digit
+    tx_cs_msg[13] = lowChar;        // Extract the second hex digit
 
     // Append New Line Field (idx: 16)
     tx_cs_msg[14] = 0x0D;  // '\r'
@@ -190,10 +193,13 @@ void AP_ADSB_Sensor::send_op_mode_msg()
     tx_mode_msg[13] = 0x31;          // In hex ASCII '1'
 
     // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
-    CharPair chksum = calc_hex_to_ascii_crc(tx_mode_msg, MODE_MSG_LENGTH-4);
+    chksum = crc_sum_of_bytes(tx_mode_msg, MODE_MSG_LENGTH-4);
+    // Extract the high and low nibbles and convert to ASCII
+    highChar = uint8_to_hex(HIGH_NIBBLE(chksum));
+    lowChar  = uint8_to_hex(LOW_NIBBLE(chksum));
     // Extract the two ASCII hex digits from chksum
-    tx_mode_msg[14] = chksum.highChar;        // Extract the first hex digit
-    tx_mode_msg[15] = chksum.lowChar;         // Extract the second hex digit
+    tx_mode_msg[14] = highChar;        // Extract the first hex digit
+    tx_mode_msg[15] = lowChar;         // Extract the second hex digit
 
     // Append New Line Field (idx: 16)
     tx_mode_msg[16] = 0x0D;  // '\r'
@@ -222,10 +228,13 @@ void AP_ADSB_Sensor::send_vfr_msg()
     tx_vfr_msg[7] = (ctrl.squawkCode % 10)       + '0';   // Ones digit
 
     // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
-    CharPair chksum = calc_hex_to_ascii_crc(tx_vfr_msg, VFR_MSG_LENGTH-4);
+    chksum = crc_sum_of_bytes(tx_mode_msg, MODE_MSG_LENGTH-4);
+    // Extract the high and low nibbles and convert to ASCII
+    highChar = uint8_to_hex(HIGH_NIBBLE(chksum));
+    lowChar  = uint8_to_hex(LOW_NIBBLE(chksum));
     // Extract the two ASCII hex digits from chksum
-    tx_vfr_msg[8] = chksum.highChar;       // Extract the first hex digit
-    tx_vfr_msg[9] = chksum.lowChar;        // Extract the second hex digit
+    tx_vfr_msg[8] = highChar;       // Extract the first hex digit
+    tx_vfr_msg[9] = lowChar;        // Extract the second hex digit
 
 
     // Append New Line Field (idx: 16)
@@ -457,7 +466,6 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
 
             // Heading (Repurposed in Vertical Accuracy)
             tx_dynamic.accuracyVert = rx.decoded.ownship_report.report.heading * GDL_RES_HEAD;
-            //double tmp = rx.decoded.ownship_report.report.heading * GDL_RES_HEAD;
 
             // Vertical Velocity - 64 Feet per Minute
             tx_dynamic.velVert = rx.decoded.ownship_report.report.verticalVelocity * GDL_RES_VERTVEL;
@@ -582,28 +590,22 @@ void AP_ADSB_Sensor::handle_out_control(const mavlink_uavionix_adsb_out_control_
 
 /* ************************************************************************* */
 
-CharPair AP_ADSB_Sensor::calc_hex_to_ascii_crc(uint8_t *buf, uint8_t len)
+/*
+ * helper function for converting an uint8 value to its ASCII hex character.
+ */
+
+uint8_t AP_ADSB_Sensor::uint8_to_hex(uint8_t val)
 {
-    // The checksum is algebraic sum of the message byte values.
-    uint8_t chksum = 0;
+    uint8_t res = 0;
 
-    for(int i=0; i<len; i++) {
-        chksum += buf[i];
+    if (val <= 9) {
+        res = val + 0x30;  // 0-9 -> '0'-'9'
+    } else if (val >= 10 && val <= 15) {
+        res = val + 0x41 - 10;  // 10-15 -> 'A'-'F'
+    } else {
+        return res;  // Input is out of valid range (0-15)
     }
-
-    // Extract the high and low nibbles
-    unsigned char highNibble = (chksum >> 4) & 0xF;
-    unsigned char lowNibble = chksum & 0xF;
-
-    // Convert the high and low nibbles to ASCII characters
-    char highChar = (highNibble < 10) ? ('0' + highNibble) : ('A' + (highNibble - 10));
-    char lowChar = (lowNibble < 10) ? ('0' + lowNibble) : ('A' + (lowNibble - 10));
-
-    CharPair charPair;
-    charPair.highChar = highChar;
-    charPair.lowChar = lowChar;
-
-    return charPair;
+    return res;
 }
 
 /* ************************************************************************* */

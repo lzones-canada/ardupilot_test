@@ -73,14 +73,6 @@ struct EMERG
 
 /*=========================================================================*/
 
-//------------------------------------------------------------------------------
-// Struct Pair for Hex to ASCII Chksum conversion.
-//------------------------------------------------------------------------------
-struct CharPair {
-    char highChar;
-    char lowChar;
-};
-
 // Forward declaration
 class AP_MAX14830;
 
@@ -124,8 +116,8 @@ public:
     // Helper function to return operating mode.
     uint8_t get_mode(void);
 
-    // CRC Function for ADSB - ASCII Hex Representation.
-    CharPair calc_hex_to_ascii_crc(uint8_t *buf, uint8_t len);
+    // return the ascii hex character of an uint8 value
+    uint8_t uint8_to_hex(uint8_t a);
 
     // Mavlink ADSB out status Packet
     mavlink_uavionix_adsb_out_status_t tx_status;
@@ -158,6 +150,14 @@ public:
     // Flag to signal change in Callsign.
     bool cs_flag_change;
 
+    // Variable to store calculated checksum.
+    uint8_t chksum;
+
+    // High Nibble of Checksum in ASCII,
+    uint8_t highChar;
+
+    // Low Nibble of Checksum in ASCII.
+    uint8_t lowChar;
 
     // ADSB Data
     struct 

@@ -45,6 +45,9 @@ public:
     // Constructor
     AP_MAX14830();
 
+    /* Do not allow copies */
+    CLASS_NO_COPY(AP_MAX14830);
+
     // initialize sensor object
     void init();
 
