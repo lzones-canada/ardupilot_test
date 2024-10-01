@@ -79,6 +79,7 @@ Glider::Glider(const char *frame_str) :
     carriage_state = carriageState::WAITING_FOR_PICKUP;
     AP::sitl()->models.glider_ptr = this;
     AP_Param::setup_object_defaults(this, var_info);
+    AP_VOLZ_State::get_singleton();
 }
 
 
@@ -262,12 +263,13 @@ void Glider::calculate_forces(const struct sitl_input &input, Vector3f &rot_acce
 #endif
 
 #if AP_HITL_GLIDER_ENABLED
-    float wing_sweep_deg = volz_state.get_sweep_angle();
+    float wing_sweep_deg = AP_VOLZ_State::get_singleton().get_sweep_angle();
     float wing_sweep_offset = (wing_sweep_deg - 10.0); // offsetting so this value is 0.0 when wing_sweep_deg is 10.0, because that is what my aerodynamic model requires
 #else
     // Volz sweep wing angle
     filtered_servo_setup(13, 1100, 1900, 40.0);  // swing wing +- 40 degrees, from 8 to 88 deg. So 48 deg is centre. 1900-1100 = 800 us, for 80 degrees = 0.1 deg / us
     float wing_sweep_deg  = (filtered_servo_angle(input, 13) * 40.0) + 48.0; // returns -40 to 40, so shift it by 48.0
+    AP_VOLZ_State::get_singleton().set_sweep_angle(wing_sweep_deg); // Store the current wing sweep angle for lua script usage.
     float wing_sweep_offset = (wing_sweep_deg - 10); // offsetting so this value is 0.0 when wing_sweep_deg is 10.0, because that is what my aerodynamic model requires
     // if (fabs(wing_sweep_deg - last_wing_sweep_deg) > epsilon) {
     //     GCS_SEND_TEXT(MAV_SEVERITY_INFO,"SWEEP_WING: %.1f\n", wing_sweep_deg);
