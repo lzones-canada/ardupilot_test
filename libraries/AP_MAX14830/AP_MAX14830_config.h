@@ -4,7 +4,7 @@
 #include <AP_MSP/msp.h>
 
 #ifndef AP_MAX14830_ENABLED
- #define AP_MAX14830_ENABLED (CONFIG_HAL_BOARD != HAL_BOARD_SITL)
+ #define AP_MAX14830_ENABLED (CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS)
 #endif
 
 /////////////////////////////////////////////////////////////////////////////

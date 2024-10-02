@@ -4134,11 +4134,13 @@ void GCS_MAVLINK::handle_adsb_message(const mavlink_message_t &msg)
         adsb->handle_message(chan, msg);
     }
 
+#if AP_MAX14830_ENABLED
     // Send out on our Custom Driver
     AP_MAX14830 *max14830 = AP::MAX14830();
     if (max14830 != nullptr) {
         max14830->adsb.handle_message(chan, msg);
     }
+#endif
 }
 #endif
 
