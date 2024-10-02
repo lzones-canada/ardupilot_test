@@ -984,8 +984,8 @@ void AP_Baro::update_field_elevation(void)
         update_calibration();
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Field Elevation Set: %.0fm", _field_elevation_active);
     }
-}
 #endif
+}
 
 /*
   call accumulate on all drivers
