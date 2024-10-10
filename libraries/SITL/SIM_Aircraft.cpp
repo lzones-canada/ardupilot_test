@@ -1018,30 +1018,30 @@ void Aircraft::update_external_payload(const struct sitl_input &input)
     if (parachute && parachute->is_enabled()) {
         parachute->update(input);
         // TODO: add drag to vehicle, presumably proportional to velocity
-        if(parachute->is_deployed()) {
-            // Get the airspeed relative to the ground or air (use velocity_air_ef if accounting for wind)
-            // Vector3f velocity = velocity_air_ef;
+        // if(parachute->is_deployed()) {
+        //     Get the airspeed relative to the ground or air (use velocity_air_ef if accounting for wind)
+        //     Vector3f velocity = velocity_air_ef;
 
-            // // Define constants for drag computation
-            // const float p = air_density; // air density (can be treated as constant or vary with altitude).
-            // const float Cd = 1.5f;    // drag coefficient for a parachute (can be tuned)
-            // const float A = 10.0f;    // effective area of the parachute (m^2)
+        //     // Define constants for drag computation
+        //     const float p = air_density; // air density (can be treated as constant or vary with altitude).
+        //     const float Cd = 1.5f;    // drag coefficient for a parachute (can be tuned)
+        //     const float A = 10.0f;    // effective area of the parachute (m^2)
 
-            // // Calculate the magnitude of velocity (speed)
-            // float speed = velocity.length(); // magnitude of velocity vector
+        //     // Calculate the magnitude of velocity (speed)
+        //     float speed = velocity.length(); // magnitude of velocity vector
 
-            // // Calculate drag force (Fd = 1/2 * p * Cd * A * v^2)
-            // float drag_magnitude = 0.5f * p * Cd * A * sq(speed);
+        //     // Calculate drag force (Fd = 1/2 * p * Cd * A * v^2)
+        //     float drag_magnitude = 0.5f * p * Cd * A * sq(speed);
 
-            // // Normalize the velocity vector and apply drag in the opposite direction
-            // Vector3f drag_force = velocity.normalized() * -drag_magnitude;
+        //     // Normalize the velocity vector and apply drag in the opposite direction
+        //     Vector3f drag_force = velocity.normalized() * -drag_magnitude;
 
-            // // Apply drag force to the vehicle's acceleration (F = ma => a = F/m)
-            // Vector3f drag_acceleration = drag_force / mass;
+        //     // Apply drag force to the vehicle's acceleration (F = ma => a = F/m)
+        //     Vector3f drag_acceleration = drag_force / mass;
 
-            // // Update the velocity by subtracting drag acceleration
-            // velocity_ef += drag_acceleration * (frame_time_us * 1.0e-6f); // apply the drag
-        }
+        //     // Update the velocity by subtracting drag acceleration
+        //     velocity_ef += drag_acceleration * (frame_time_us * 1.0e-6f); // apply the drag
+        // }
     }
 
     if (precland && precland->is_enabled()) {
