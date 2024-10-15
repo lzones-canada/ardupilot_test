@@ -125,8 +125,8 @@ bool GliderPullup::verify_pullup(void)
     switch (stage) {
     case Stage::WAIT_AIRSPEED: {
         float aspeed;
-        if (ahrs.airspeed_estimate(aspeed) && aspeed > airspeed_start) {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Pullup airspeed %.1fm/s alt %.1fm AMSL", aspeed, current_loc.alt*0.01);
+        if (ahrs.airspeed_estimate(aspeed) && (aspeed > airspeed_start || ahrs.pitch_sensor*0.01 > pitch_start)) {
+            gcs().send_text(MAV_SEVERITY_INFO, "Pullup airspeed %.1fm/s alt %.1fm AMSL", aspeed, current_loc.alt*0.01);
             stage = Stage::WAIT_PITCH;
         }
         return false;
