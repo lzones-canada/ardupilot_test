@@ -52,6 +52,10 @@ const AP_FWVersion AP_FWVersion::fwver{
     .minor = FW_MINOR,
     .patch = FW_PATCH,
     .fw_type = FW_TYPE,
+    .mw_major = MID_MAJOR,
+    .mw_minor = MID_MINOR,
+    .mw_patch = MID_PATCH,
+    .mw_fw_type = MID_FW_TYPE,
 #ifdef BUILD_DATE_YEAR
     // encode build date in os_sw_version
    .os_sw_version = (BUILD_DATE_YEAR*100*100) + (BUILD_DATE_MONTH*100) + BUILD_DATE_DAY,

@@ -38,6 +38,7 @@ import sys
 from waflib import Context, Logs, Node
 from waflib.Configure import conf
 from waflib.TaskGen import before_method, feature
+import custom_version
 
 MAX_TARGETS = 20
 
@@ -50,6 +51,7 @@ header_text = {
     'size_total': 'Total Flash Used (B)',
     'size_free_flash': 'Free Flash (B)',
     'ext_flash_used': 'External Flash Used (B)',
+    'version': 'Custom Version',
 }
 
 def text(label, text=''):
@@ -118,6 +120,15 @@ def _build_summary(bld):
     text('BUILD SUMMARY')
     text('Build directory: ', bld.bldnode.abspath())
 
+    # Get the current version
+    version = custom_version.get_custom_version()  # Call the imported function
+    # Convert the tuple (0, 0, 1) to a string '0.0.1'
+    version_str = ".".join(map(str, version))
+    # Print the version
+    Logs.info(f"LZC Firmware: {version_str}")
+    # Extract away the patch number
+    #version_str = version_str[:-2]
+
     targets_suppressed = False
     if bld.targets == '*':
         taskgens = bld.get_all_task_gen()
@@ -144,6 +155,9 @@ def _build_summary(bld):
                 continue
             n = t.outputs[0]
             tg.build_summary['binary'] = str(n)
+
+        # Add version to each task generator's build summary
+        tg.build_summary['version'] = version_str
 
         nodes.append(n)
         filtered_taskgens.append(tg)
@@ -293,4 +307,5 @@ def configure(cfg):
             'size_total',
             'size_free_flash',
             'ext_flash_used',
+            'version',
         ]

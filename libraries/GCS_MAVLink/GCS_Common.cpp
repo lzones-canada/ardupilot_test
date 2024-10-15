@@ -1086,6 +1086,10 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
 #if AP_MAVLINK_MSG_RELAY_STATUS_ENABLED
         { MAVLINK_MSG_ID_RELAY_STATUS, MSG_RELAY_STATUS},
 #endif
+#if AP_MAX14830_ENABLED
+        { MAVLINK_MSG_ID_PAYLOAD_STATUS,        MSG_PAYLOAD_STATUS},
+        { MAVLINK_MSG_ID_STATION_STATUS,        MSG_STATION_STATUS},
+#endif        
             };
 
     for (uint8_t i=0; i<ARRAY_SIZE(map); i++) {
@@ -2730,11 +2734,11 @@ void GCS_MAVLINK::send_autopilot_version() const
                         version.patch << (8 * 1) | \
                         (uint32_t)(version.fw_type) << (8 * 0);
 
-#ifdef MID_MAJOR
-    middleware_sw_version = MID_MAJOR << (8 * 3) | \
-                            MID_MINOR << (8 * 2) | \
-                            MID_PATCH << (8 * 1) | \
-                            (uint32_t)(MID_FW_TYPE) << (8 * 0);
+#ifdef AP_CUSTOM_FIRMWARE_STRING
+    middleware_sw_version = version.mw_major << (8 * 3) | \
+                            version.mw_minor << (8 * 2) | \
+                            version.mw_patch << (8 * 1) | \
+                            (uint32_t)(version.mw_fw_type) << (8 * 0);
 #endif
 
     if (version.fw_hash_str) {

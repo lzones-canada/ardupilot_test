@@ -12,6 +12,11 @@
 #define FW_PATCH 4
 #define FW_TYPE FIRMWARE_VERSION_TYPE_DEV
 
+#define MID_MAJOR 6
+#define MID_MINOR 9
+#define MID_PATCH 9
+#define MID_FW_TYPE FIRMWARE_VERSION_TYPE_DEV
+
 /*
  *  GCS backend used for many examples and tools
  */
