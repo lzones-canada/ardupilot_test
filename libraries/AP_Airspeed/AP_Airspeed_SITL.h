@@ -25,12 +25,6 @@ public:
     // temperature not available via analog backend
     bool get_temperature(float &temperature) override;
 
-    // this reads airspeed directly
-    bool has_airspeed() override {return true;}
-
-    // read the from the sensor
-    bool get_airspeed(float &airspeed) override;
-
 private:
 };
 
