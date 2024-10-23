@@ -276,30 +276,40 @@ private:
     // Volz Protocol support for sharing values
     // Set the target percent command for Volz Loop from GCS
     void volz_wing_deg_cmd (uint8_t value) {
+        // Get the singleton instance
+        AP_VOLZ_State& volz_state = AP_VOLZ_State::get_singleton();
         // Access singleton instance and set the target command
-        AP_VOLZ_State::get_singleton().set_target_command(value);
+        volz_state.set_target_command(value);
     }
 
     // Calibrate flag for Volz Loop from GCS
     void volz_wing_calibrate (bool calibr) {
-        // Access singleton instance and set the calibration flag
-        AP_VOLZ_State::get_singleton().set_calibrate(calibr);
+        // Get the singleton instance
+        AP_VOLZ_State& volz_state = AP_VOLZ_State::get_singleton();
+        // Access singleton instance and set the target command
+        volz_state.set_calibrate(calibr);
     }
 
     // Get the sweep angle to send to GCS.
-    float get_volz_sweep_wing () const {
-        // Access singleton instance and get the sweep angle
-        return AP_VOLZ_State::get_singleton().get_sweep_angle();
+    float get_volz_sweep_wing () {
+        // Get the singleton instance
+        AP_VOLZ_State& volz_state = AP_VOLZ_State::get_singleton();
+        // Access singleton instance and set the target command
+        return volz_state.get_sweep_angle();
     }
 
     // ADSB support for sharing values (Turn off ADSB transponder)
     void adsb_transponder_failsafe (bool flag) { 
-            // Access singleton instance and set the ADSB failsafe
-            AP_ADSB_State::get_singleton().set_adsb_failsafe(flag); 
+        // Get the singleton instance
+        AP_ADSB_State& adsb_state = AP_ADSB_State::get_singleton();
+        // set the ADSB failsafe
+        adsb_state.set_adsb_failsafe(flag); 
     }
 
+#if AP_MAX14830_ENABLED
     // IMET sensor
     AP_MAX14830 max14830;
+#endif
 
     AP_TECS TECS_controller{ahrs, aparm, landing, MASK_LOG_TECS};
     AP_L1_Control L1_controller{ahrs, &TECS_controller};

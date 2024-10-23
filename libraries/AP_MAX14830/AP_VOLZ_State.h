@@ -38,33 +38,54 @@ public:
     CLASS_NO_COPY(AP_VOLZ_State);
 
     // Setter for target percent command.
-    void set_target_command(uint8_t value) { _target_command = value; }
+    void set_target_command(uint8_t value) { 
+        WITH_SEMAPHORE(_sem);
+        _target_command = value;
+    }
 
     // Getter for target percent command.
-    uint8_t get_target_command() const { return _target_command; }
+    uint8_t get_target_command() { 
+        WITH_SEMAPHORE(_sem);
+        return _target_command;
+    }
 
     // Setter for wing calibrate flag.
-    void set_calibrate(bool value) { _wing_calibrate = value; }
+    void set_calibrate(bool value) { 
+        WITH_SEMAPHORE(_sem);
+        _wing_calibrate = value;
+    }
 
     // Getter for wing calibrate flag.
-    bool get_calibrate() const { return _wing_calibrate; }
+    bool get_calibrate() { 
+        WITH_SEMAPHORE(_sem);
+        return _wing_calibrate;
+    }
 
     // Setter for sweep wing angle.
-    void set_sweep_angle(float value) { _sweep_angle = value; }
+    void set_sweep_angle(float value) { 
+        WITH_SEMAPHORE(_sem);
+        _sweep_angle = value;
+    }
 
     // Getter for sweep wing angle.
-    float get_sweep_angle() const { return _sweep_angle; }
+    float get_sweep_angle() { 
+        WITH_SEMAPHORE(_sem);
+        return _sweep_angle;
+    }
 
 private:
-    // Private constructor to prevent instantiation
-    AP_VOLZ_State() : _target_command(0), _sweep_angle(0.0), _wing_calibrate(false) {}
+    // Private constructor to prevent direct instantiation
+    AP_VOLZ_State() = default; 
 
     // Target percent command.
-    uint8_t _target_command;
+    uint8_t _target_command = 0;
 
     // Sweep wing angle in Degrees.
-    float _sweep_angle;
+    float _sweep_angle = 0.0;
 
     // Flag to calibrate wing.
-    bool _wing_calibrate;
+    bool _wing_calibrate = false;
+
+    // Semaphore for access to shared frontend data
+    HAL_Semaphore _sem;
 };

@@ -37,16 +37,25 @@ public:
     /* Do not allow copies */
     CLASS_NO_COPY(AP_ADSB_State);
 
-    // Setter for ADSB failsafe flag
-    void set_adsb_failsafe(bool value) { _adsb_failsafe = value; }
+    // Setter for ADS-B failsafe flag.
+    void set_adsb_failsafe(bool value) {
+        WITH_SEMAPHORE(_sem);
+        _adsb_failsafe = value;
+    }
 
-    // Getter for ADSB failsafe flag
-    bool get_adsb_failsafe() const { return _adsb_failsafe; }
+    // Getter for ADS-B failsafe flag.
+    bool get_adsb_failsafe() {
+        WITH_SEMAPHORE(_sem);
+        return _adsb_failsafe;
+    }
 
 private:
     // Private constructor to prevent direct instantiation
-    AP_ADSB_State() : _adsb_failsafe(false) {}
-
+    AP_ADSB_State() = default; 
+    
     // Flag to indicate ADSB failsafe
-    bool _adsb_failsafe;
+    bool _adsb_failsafe = false;
+
+    // Semaphore for access to shared frontend data
+    HAL_Semaphore _sem;
 };
