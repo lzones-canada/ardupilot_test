@@ -1264,7 +1264,7 @@ bool Plane::verify_nav_script_time(const AP_Mission::Mission_Command& cmd)
 // check if we are in a NAV_SCRIPT_* command
 bool Plane::nav_scripting_active(void)
 {
-    if (nav_scripting.enabled && AP_HAL::millis() - nav_scripting.current_ms > 1000) {
+    if (nav_scripting.enabled && AP_HAL::millis() - nav_scripting.current_ms > 60000) {
         // set_target_throttle_rate_rpy has not been called from script in last 1000ms
         nav_scripting.enabled = false;
         nav_scripting.current_ms = 0;

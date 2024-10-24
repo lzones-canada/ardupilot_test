@@ -127,6 +127,8 @@ bool GliderPullup::verify_pullup(void)
         float aspeed;
         if (ahrs.airspeed_estimate(aspeed) && (aspeed > airspeed_start || ahrs.pitch_sensor*0.01 > pitch_start)) {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Pullup airspeed %.1fm/s alt %.1fm AMSL", aspeed, current_loc.alt*0.01);
+            // Enabled Automatic wing control
+            AP_Param::set_by_name("SCR_USER1", 1.0);
             stage = Stage::WAIT_PITCH;
         }
         return false;
@@ -175,6 +177,9 @@ bool GliderPullup::verify_pullup(void)
     case Stage::NONE:
         break;
     }
+
+    // Custum status text to trigger Short loss of links off balloon release
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "LEVEL_FLIGHT");
 
     // all done
     stage = Stage::NONE;
