@@ -7,7 +7,7 @@ local MAV_SEVERITY = {EMERGENCY=0, ALERT=1, CRITICAL=2, ERROR=3, WARNING=4, NOTI
 local WING_MIN_DEGREES = 8
 local WING_MAX_DEGREES = 88
 
-local SWEEP_WING_SRV_CHANNEL = 14
+local SWEEP_WING_SRV_CHANNEL = 13
 
 -- Variable to keep track of time
 local time_counter_s = 0
