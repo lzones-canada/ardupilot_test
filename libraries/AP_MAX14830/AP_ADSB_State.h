@@ -20,10 +20,6 @@
 
 #pragma once
 
-// get high or low nibble from byte
-#define LOW_NIBBLE(x)	((uint8_t) (x & 0xf))
-#define HIGH_NIBBLE(x)	((uint8_t) ((x >> 4) & 0xf))
-
 // Stores the current state read by system
 // All backends are required to fill in this state structure
 class AP_ADSB_State {

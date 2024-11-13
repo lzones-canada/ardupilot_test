@@ -55,8 +55,8 @@ AP_IMET_Sensor::AP_IMET_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
 void AP_IMET_Sensor::handle_imet_uart2_interrupt()
 {
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    _max14830->set_uart_address(UART::ADDR_2);
-    rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
+    _max14830->set_uart_address(IMET_UART_ADDR);
+    const uint16_t bytes_read = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
     // Clear the interrupt.
     _max14830->clear_interrupts();
 
@@ -64,7 +64,7 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
     rx_buffer_ptr = &rx_fifo_buffer[0];
 
     // For loop to iterate over all the recieve data
-    for(int i=0; i<rxbuf_fifo_len; i++)
+    for(int i=0; i<bytes_read; i++)
     {
         // Temporary copy for readability.
         char character = *rx_buffer_ptr;

@@ -77,7 +77,7 @@ void AP_ADSB_Sensor::init()
 {
     // Retrieve Squawk Code from ADSB_SQUAWK parameter and Init value from Parameter.
     squawk_octal_param = (AP_Int16*)AP_Param::find("ADSB_SQUAWK", &ptype);
-    ctrl.squawkCode = (uint16_t)squawk_octal_param->get();
+    ctrl.squawkCode = static_cast<uint16_t>(squawk_octal_param->get());
 
     return;
 }
@@ -257,8 +257,8 @@ void AP_ADSB_Sensor::handle_adsb_uart3_interrupt()
     rx.status.state = GDL90_RX_IDLE;
 
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    _max14830->set_uart_address(UART::ADDR_3);
-    rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
+    _max14830->set_uart_address(ADSB_UART_ADDR);
+    const uint16_t bytes_read = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
     // Clear the interrupt.
     _max14830->clear_interrupts();
 
@@ -271,7 +271,7 @@ void AP_ADSB_Sensor::handle_adsb_uart3_interrupt()
     while(true)
     {
         // Parse all data until the end of the fifo buffer.
-        if(rxbuf_fifo_len == byte_count) {
+        if(bytes_read == byte_count) {
             // Finished converting all new data.
             break;
         }
@@ -612,7 +612,7 @@ uint8_t AP_ADSB_Sensor::uint8_to_hex(uint8_t val)
 
 bool AP_ADSB_Sensor::_tx_write(uint8_t *buffer, uint16_t length)
 {
-    _max14830->set_uart_address(UART::ADDR_3);
+    _max14830->set_uart_address(ADSB_UART_ADDR);
     _max14830->tx_write(buffer, length);
 
     return true;

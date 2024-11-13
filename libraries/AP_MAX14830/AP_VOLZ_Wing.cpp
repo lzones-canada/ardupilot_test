@@ -20,28 +20,13 @@
 
 #include "AP_VOLZ_Wing.h"
 #include "AP_MAX14830.h"
-#include <cstdio> // Add this line to include the required header
 
 
 //------------------------------------------------------------------------------
 // Static FIFO buffer to retrieve rx message from Volz Wing UART1 FIFO
 //------------------------------------------------------------------------------
-
 static const uint8_t MESSAGE_BUFFER_LENGTH = 128;
 static uint8_t rx_fifo_buffer[MESSAGE_BUFFER_LENGTH];
-
-//------------------------------------------------------------------------------
-// Static buffer to store the message to be converted in.
-//------------------------------------------------------------------------------
-
-static uint8_t rx_buffer[MESSAGE_BUFFER_LENGTH];
-
-
-//------------------------------------------------------------------------------
-// Static pointer to control access to the contents of message_buffer.
-//------------------------------------------------------------------------------
-
-static uint8_t *rx_buffer_ptr = rx_buffer;
 
 
 #define SCALING_FACTOR     (360.0 / 4096.0)
@@ -80,8 +65,8 @@ void AP_VOLZ_Wing::init()
     prev_raw_position = 0;
     total_position = 0;
     target_position = 0;
-    offset = 0;
-    servo_cmd = 0;
+    servo_power = 0;
+    msg_counter = 0;
 
     // Init target command to min degrees (fully open)
     volz_state.set_target_command(WING_MIN_DEGREES);
@@ -90,9 +75,6 @@ void AP_VOLZ_Wing::init()
 
     // Init state machine.
     machine_state = INIT_REQUEST;
-
-    // Initialize the last wing log time
-    last_wing_log_ms = AP_HAL::millis();
 
     return;
 }
@@ -106,16 +88,10 @@ void AP_VOLZ_Wing::update()
     // Update the sweep wing angle every iteration.
     update_position();
 
-    // ---------------------------------------
-    // read any available data on serial port
-    // ---------------------------------------
-    // Done through polling interrupt now!
 
-
-    // ---------------------------------------
+    // --------------------------------------------------------------
     // Wing limit switch logic
-    // ---------------------------------------
-    // Read the limit switch state
+    // --------------------------------------------------------------
     _wing_limit_state = _wing_limit->read();
 
     // Transition to the next state after a certain condition (e.g., after a number of iterations)
@@ -194,9 +170,9 @@ void AP_VOLZ_Wing::update()
 
         case ACTIVE:
             // This calculates our servo direction command based on the current and target positions
-            servo_cmd = calc_servo_command(total_position, target_position);
+            servo_power = calc_servo_power(total_position, target_position);
             // Send out the servo command
-            set_servo_command(servo_cmd);
+            set_servo_command(servo_power);
             break;
 
         case ACTIVE_REQUEST:
@@ -209,9 +185,17 @@ void AP_VOLZ_Wing::update()
             request_position();
             break;
 
-        case DEADBAND:
-            // Do nothing..
+        case DEADBAND: {
+            // Request telem data while doing nothing...
+            uint32_t tnow = AP_HAL::millis();
+            if (tnow - telem.data.last_response_ms > 300) {
+                // Every 300ms
+                request_telem();
+                // Update timestamp for the next request cycle
+                telem.data.last_response_ms = tnow;
+            }
             break;
+        }
 
         default:
             break;
@@ -222,133 +206,176 @@ void AP_VOLZ_Wing::update()
 
 /* ************************************************************************* */
 
-void AP_VOLZ_Wing::handle_volz_uart1_interrupt()
-{
-    //uint8_t rx_data[VOLZ_DATA_FRAME_SIZE] = {0}; 
+void AP_VOLZ_Wing::request_telem() {
+    // Assemble the command based on the current telemetry request type
+    CMD cmd {};
+    cmd.ID = telem.types[telem.request_type];
+    cmd.actuator_id = VOLZ_ID;
 
-    // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
-    _max14830->set_uart_address(UART::ADDR_4);
-    rxbuf_fifo_len = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
-    // Clear the interrupt on this UART Address.
-    _max14830->clear_interrupts();
+    // Send the command
+    send_command(cmd);
 
-    // Pointer to the start of FIFO buffer.
-    const uint8_t *byte_ptr = &rx_fifo_buffer[0];
-
-    // Check if we have enough data to process.
-    if(rxbuf_fifo_len < VOLZ_DATA_FRAME_SIZE) {
-        // Not enough data to process. Reset our buffer pointer and return.
-        rx_buffer_ptr = rx_buffer;
-        return;
+    // Increment the request type
+    telem.request_type++;
+    // Cycle back to the first telemetry type
+    if (telem.request_type >= VOLZ_NUM_TELEM_TYPES) {
+        telem.request_type = 0;
     }
-
-    // Copy over the data from the FIFO buffer to our rx buffer.
-    while (rxbuf_fifo_len--) {
-        // Copy data over to rx buffer.
-        *rx_buffer_ptr = *byte_ptr;
-        // Increment our buffer indices.
-        byte_ptr++;
-        rx_buffer_ptr++;
-    }
-
-    // Copy over into a Working Buffer for further processing.
-    uint8_t *rx_work_buffer = rx_buffer;
-
-    // Reset to the start of the message buffer and start looking for a new message.
-    rx_buffer_ptr = rx_buffer;
-
-    handle_volz_message(rx_work_buffer);
 
     return;
 }
 
 /* ************************************************************************* */
 
-void AP_VOLZ_Wing::handle_volz_message(uint8_t* rx_work_buffer)
+// Return true if the given ID is a valid response
+bool AP_VOLZ_Wing::is_response(uint8_t ID) const
 {
-    // Confirm our received address is for the Volz Wing
-    if (rx_work_buffer[1] == VOLZ_ADDR) 
-    {
-        /// Extract msgid
-        uint8_t msgid = rx_work_buffer[0];
+    switch(ID) {
+        case (uint8_t)CMD_ID::MOTOR_POWER_CONTROL_RESPONSE:
+        case (uint8_t)CMD_ID::POSITION_RAW_RESPONSE:
+        case (uint8_t)CMD_ID::CURRENT_RESPONSE:
+        case (uint8_t)CMD_ID::VOLTAGE_RESPONSE:
+        case (uint8_t)CMD_ID::TEMPERATURE_RESPONSE:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
+/* ************************************************************************* */
+
+void AP_VOLZ_Wing::handle_volz_uart1_interrupt()
+{
+    // Read FIFO data
+    _max14830->set_uart_address(VOLZ_UART_ADDR);
+    const uint16_t bytes_read = _max14830->rx_read(rx_fifo_buffer, MESSAGE_BUFFER_LENGTH);
+    // Clear the interrupt.
+    _max14830->clear_interrupts();
+
+    // Validate received data length
+    if (bytes_read < VOLZ_DATA_FRAME_SIZE) {
+        return;  // Remove unnecessary buffer reset
+    }
+
+     // Copy data into telem.cmd_buffer
+    memcpy(telem.cmd_buffer.data, rx_fifo_buffer, bytes_read);
+    //memmove(telem.cmd_buffer.data, rx_fifo_buffer, bytes_read);  // Works but slower
+
+     // Check for valid response start byte
+    if (is_response(telem.cmd_buffer.data[0])) {
         // Calc CRC and compare with received CRC
-        uint16_t received_crc = UINT16_VALUE(rx_work_buffer[4], rx_work_buffer[5]);
-        uint16_t calculated_crc = calc_volz_crc(rx_work_buffer);
+        uint16_t received_crc = UINT16_VALUE(telem.cmd_buffer.crc1, telem.cmd_buffer.crc2);
+        uint16_t calculated_crc = calculate_volz_crc(telem.cmd_buffer);
         // Process message only on CRC match
          if(received_crc == calculated_crc) {
-            // Handle message
-            switch (msgid) 
-            {
-                case VOLZ_POS_RAW_STAT:
-                    // Handle position message
-                    handle_pos_msg(rx_work_buffer);
-                    // Flip flop between the command and request state.
-                    if(machine_state == ACTIVE_REQUEST) {
-                        // Transition to the next state after the wing limit state transitions back to false
-                        machine_state = ACTIVE;
-                    }
-                    if(machine_state == CALIBRATE_COMPLETE) {
-                        // Finished Calibrating and acknowledge, set our position and transition state.
-                        // Set our position to 0 as we are at the wing limit
-                        total_position = 0;
-                        // Set prev to current on postion.
-                        prev_raw_position = raw_position;
-                        // Set our internal states to the min value
-                        volz_state.set_target_command(WING_MIN_DEGREES);
-                        prev_target_command = WING_MIN_DEGREES;
-                        // Transition to the next state after the wing limit state transitions back to false
-                        machine_state = DEADBAND;
-                    }
-                    if(machine_state == INIT_REQUEST) {
-                        // capture our offset
-                        offset = total_position;
-                        // Transition out
-                        machine_state = DEADBAND;
-                    }
-                    break;
-                
-                case VOLZ_PWR_CTRL_STAT:
-                    // FD Acknowledgement
-                    if(rx_work_buffer[2] == VOLZ_PWR_FD_CMD) {
-                        if(machine_state == CALIBRATE) {
-                            // Acknowledgement for power control command, move ahead state machine
-                            machine_state = REQUEST_POSITION;
-                        }
-                        // Power control with valid motor power
-                        if(machine_state == ACTIVE && rx_work_buffer[3] != 0) {
-                            // Acknowledgement for power control command, move ahead state machine
-                            machine_state = ACTIVE_REQUEST;
-                        }
-                        // Power control with no motor power being sent
-                        if(machine_state == ACTIVE && rx_work_buffer[3] == 0) {
-                            // Transition into deadband state with no motor power being sent
-                            machine_state = DEADBAND;
-                        }
-                    }
-                    // BD Acknowledgement
-                    if(rx_work_buffer[2] == VOLZ_PWR_BD_CMD) {
-                        // Power control with valid motor power
-                        if(machine_state == ACTIVE && rx_work_buffer[3] != 0) {
-                            // Acknowledgement for power control command, move ahead state machine
-                            machine_state = ACTIVE_REQUEST;
-                        }
-                        // Power control with no motor power being sent
-                        if(machine_state == ACTIVE && rx_work_buffer[3] == 0) {
-                            // Transition into deadband state with no motor power being sent
-                            machine_state = DEADBAND;
-                        }
-                    }
-                    // Idle Acknowledgement
-                    if(rx_work_buffer[2] == VOLZ_PWR_ID_CMD) {
-                        if(machine_state == WING_LIMIT_HIT) {
-                            // Acknowledgement for power control command, move ahead state machine
-                            machine_state = CALIBRATE_COMPLETE;
-                        }
-                    }
+            // Process message directly from rx_buffer
+            handle_volz_message(telem.cmd_buffer);
+        }
+    }
+    return;
+}
 
-                default:
-                    break;
-            }
+/* ************************************************************************* */
+
+void AP_VOLZ_Wing::handle_volz_message(const CMD &cmd)
+{
+    // Confirm our received address is for the Volz Wing
+    if(cmd.actuator_id == VOLZ_ID) {
+        // Handle message
+        switch (cmd.ID) {
+            case CMD_ID::POSITION_RAW_RESPONSE:
+                // Handle position message
+                handle_pos_msg(cmd.arg1, cmd.arg2);
+                // Flip flop between the command and request state.
+                if(machine_state == ACTIVE_REQUEST) {
+                    // Transition to the next state after the wing limit state transitions back to false
+                    machine_state = ACTIVE;
+                }
+                if(machine_state == CALIBRATE_COMPLETE) {
+                    // Finished Calibrating and acknowledge, set our position and transition state.
+                    // Set our position to 0 as we are at the wing limit
+                    total_position = 0;
+                    // Set prev to current on postion.
+                    prev_raw_position = raw_position;
+                    // Set our internal states to the min value
+                    volz_state.set_target_command(WING_MIN_DEGREES);
+                    prev_target_command = WING_MIN_DEGREES;
+                    // Transition to the next state after the wing limit state transitions back to false
+                    machine_state = DEADBAND;
+                }
+                if(machine_state == INIT_REQUEST) {
+                    // Transition out
+                    machine_state = DEADBAND;
+                }
+                break;
+            
+            case CMD_ID::MOTOR_POWER_CONTROL_RESPONSE:
+                // FD Acknowledgement
+                if(cmd.arg1 == PWR_ARG::FORWARD_DIRECTION) {
+                    if(machine_state == CALIBRATE) {
+                        // Acknowledgement for power control command, move ahead state machine
+                        machine_state = REQUEST_POSITION;
+                    }
+                    // Power control with valid motor power
+                    if(machine_state == ACTIVE && cmd.arg2 != 0) {
+                        // Acknowledgement for power control command, move ahead state machine
+                        machine_state = ACTIVE_REQUEST;
+                    }
+                    // Power control with no motor power being sent
+                    if(machine_state == ACTIVE && cmd.arg2 == 0) {
+                        // Transition into deadband state with no motor power being sent
+                        machine_state = DEADBAND;
+                    }
+                }
+                // BD Acknowledgement
+                if(cmd.arg1 == PWR_ARG::BACKWARD_DIRECTION) {
+                    // Power control with valid motor power
+                    if(machine_state == ACTIVE && cmd.arg2 != 0) {
+                        // Acknowledgement for power control command, move ahead state machine
+                        machine_state = ACTIVE_REQUEST;
+                    }
+                    // Power control with no motor power being sent
+                    if(machine_state == ACTIVE && cmd.arg2 == 0) {
+                        // Transition into deadband state with no motor power being sent
+                        machine_state = DEADBAND;
+                    }
+                }
+                // Idle Acknowledgement
+                if(cmd.arg1 == PWR_ARG::IDLE) {
+                    if(machine_state == WING_LIMIT_HIT) {
+                        // Acknowledgement for power control command, move ahead state machine
+                        machine_state = CALIBRATE_COMPLETE;
+                    }
+                }
+                break;
+
+            case CMD_ID::TEMPERATURE_RESPONSE:
+                // Temperature is reported relative to -50 deg C
+                telem.data.pcb_temp_raw = -50.0 + cmd.arg1;
+                volz_state.set_pcb_temp(telem.data.pcb_temp_raw);
+                DEV_PRINTF("PcbTemp: %.2f deg\n", volz_state.get_pcb_temp());
+                break;
+
+            case CMD_ID::VOLTAGE_RESPONSE:
+                // Voltage is reported in 200mv increments (0.2v)
+                telem.data.input_voltage = 0.2 * cmd.arg1;
+                volz_state.set_voltage(telem.data.input_voltage);
+                DEV_PRINTF("Voltage: %.2f V\n", volz_state.get_voltage());
+                break;
+
+            case CMD_ID::CURRENT_RESPONSE:
+                // Current is reported in 20mA increments (0.02A)
+                telem.data.current_consump = 0.02 * cmd.arg1;
+                volz_state.set_current(telem.data.current_consump);
+                DEV_PRINTF("Current: %.2f A\n", volz_state.get_current());
+                break;
+
+            default:
+                // This should never happen
+                break;
         }
     }
 
@@ -357,10 +384,10 @@ void AP_VOLZ_Wing::handle_volz_message(uint8_t* rx_work_buffer)
 
 /* ************************************************************************* */
 
-void AP_VOLZ_Wing::handle_pos_msg(uint8_t data[VOLZ_DATA_FRAME_SIZE])
+void AP_VOLZ_Wing::handle_pos_msg(uint8_t arg1, uint8_t arg2)
 {
     // Parse the data & extract/decode position data
-    raw_position = decode_position(data[2], data[3]);
+    raw_position = decode_position(arg1, arg2);
 
     // Calculate the angle difference between current and previous positions
     int16_t angle_diff = raw_position - prev_raw_position;
@@ -384,13 +411,13 @@ void AP_VOLZ_Wing::handle_pos_msg(uint8_t data[VOLZ_DATA_FRAME_SIZE])
 
 /* ************************************************************************* */
 
-uint16_t AP_VOLZ_Wing::decode_position(uint8_t arg1, uint8_t arg2)
+uint16_t AP_VOLZ_Wing::decode_position(uint8_t arg1, uint8_t arg2) const
 {
     // Extracting individual nibbles from the arguments
-    uint8_t A = (arg1 >> 4) & 0xF;
-    uint8_t B = (arg1 & 0xF);
-    uint8_t C = (arg2 >> 4) & 0xF;
-    uint8_t D = (arg2 & 0xF);
+    uint8_t A = HIGH_NIBBLE(arg1);
+    uint8_t B = LOW_NIBBLE(arg1);
+    uint8_t C = HIGH_NIBBLE(arg2);
+    uint8_t D = LOW_NIBBLE(arg2);
 
     // Combining nibbles to form the actual position
     uint16_t decoded_pos = (A << 12) | (B << 8) | (C << 4) | D;
@@ -405,57 +432,45 @@ uint16_t AP_VOLZ_Wing::decode_position(uint8_t arg1, uint8_t arg2)
 
 /* ************************************************************************* */
 
-int16_t AP_VOLZ_Wing::calc_servo_command(int32_t current_pos, uint16_t target_pos)
+int16_t AP_VOLZ_Wing::calc_servo_power(int32_t current_pos, uint16_t target_pos)
 {
     // calculate the error between the current and target position    
     int error = target_pos - current_pos;
-    // Initialize command to zero
-    int16_t command = 0;
+    // Initialize power to zero
+    int16_t power = 0;
 
-    // apply saturation filter to clamp the max command speed
+    // apply saturation filter to clamp the max power.
     if (error > THRESHOLD_POSITION)
     {
-        command = -MAX_POWER;
+        power = -MAX_POWER;
     }
     else if (error < -THRESHOLD_POSITION)
     {
-        command = MAX_POWER;
+        power = MAX_POWER;
     }
     // Check if the current position is within the tolerance range of the target position
     else if (fabs(error) <= THRESHOLD_POSITION)
     {
-        command = 0;
+        power = 0;
     }
 
-    return command;
+    return power;
 }
 
 /* ************************************************************************* */
 
-void AP_VOLZ_Wing::set_servo_command(int16_t command)
+void AP_VOLZ_Wing::set_servo_command(int16_t power)
 {
-
-    // DEV_PRINTF("command: %d\n", command);
-    // DEV_PRINTF("\n");
-
-    // Command Forward when positive
-    if (command >= 0) {
-        send_fwd(command);
+    // Command Forward when positive power
+    if (power >= 0) {
+        send_fwd(power);
     }
     // Command Reverse when negative
     else {
         // Remove our negation by taking absolute value.
-        send_rev(abs(command));
+        send_rev(abs(power));
     }
     return;
-}
-
-/* ************************************************************************* */
-
-float AP_VOLZ_Wing::wing_status_percent(int32_t position)
-{
-    float percent = (position / static_cast<float>(TOTAL_TICKS)) * 100.0f;
-    return percent;
 }
 
 /* ************************************************************************* */
@@ -487,36 +502,60 @@ uint16_t AP_VOLZ_Wing::calc_target_ticks(uint8_t value)
 void AP_VOLZ_Wing::send_idle()
 {
     // Idle command message
-    uint8_t idle[VOLZ_DATA_FRAME_SIZE] = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, 0x00, 0x00, 0x00, 0x00};
+    CMD cmd {};
+    cmd.ID = CMD_ID::MOTOR_POWER_CONTROL;
+    cmd.actuator_id = VOLZ_ID;
+    cmd.arg1 = PWR_ARG::IDLE;
+
     // Send out the idle command
-    send_command(idle);
+    send_command(cmd);
     return;
 }
 
 /* ************************************************************************* */
 
-void AP_VOLZ_Wing::send_fwd(uint8_t command)
+void AP_VOLZ_Wing::send_fwd(uint8_t motor_power)
 {
     // Forward command message
-    uint8_t fwd[VOLZ_DATA_FRAME_SIZE]  = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, VOLZ_PWR_FD_CMD, 0x00, 0x00, 0x00};
-    // Set the command value
-    fwd[3] = command;
+    CMD cmd;
+    cmd.ID = CMD_ID::MOTOR_POWER_CONTROL;
+    cmd.actuator_id = VOLZ_ID;
+    cmd.arg1 = PWR_ARG::FORWARD_DIRECTION;
+    cmd.arg2 = motor_power;
+
     // Send out the forward command
-    send_command(fwd);
+    send_command(cmd);
     return;
 }
 
 
 /* ************************************************************************* */
 
-void AP_VOLZ_Wing::send_rev(uint8_t command)
+void AP_VOLZ_Wing::send_rev(uint8_t motor_power)
 {
     // Reverse command message
-    uint8_t rev[VOLZ_DATA_FRAME_SIZE]  = { VOLZ_PWR_CTRL_CMD, VOLZ_ADDR, VOLZ_PWR_BD_CMD, 0x00, 0x00, 0x00};
-    // Set the command value
-    rev[3] = command;
+    CMD cmd;
+    cmd.ID = CMD_ID::MOTOR_POWER_CONTROL;
+    cmd.actuator_id = VOLZ_ID;
+    cmd.arg1 = PWR_ARG::BACKWARD_DIRECTION;
+    cmd.arg2 = motor_power;
+    
     // Send out the reverse command
-    send_command(rev);
+    send_command(cmd);
+    return;
+}
+
+/* ************************************************************************* */
+
+void AP_VOLZ_Wing::request_current()
+{
+    // Request Current message
+    CMD cmd {};
+    cmd.ID = CMD_ID::READ_CURRENT;
+    cmd.actuator_id = VOLZ_ID;
+
+    // Send out the Current request
+    send_command(cmd);
     return;
 }
 
@@ -525,9 +564,21 @@ void AP_VOLZ_Wing::send_rev(uint8_t command)
 void AP_VOLZ_Wing::request_position()
 {
     // Request position message
-    uint8_t pos_req[VOLZ_DATA_FRAME_SIZE]  = { VOLZ_POS_RAW_CMD, VOLZ_ADDR, 0x00, 0x00, 0x00, 0x00};
-    // Send out the position request
-    send_command(pos_req);
+    CMD cmd {};
+    cmd.ID = CMD_ID::READ_POSITION_RAW;
+    cmd.actuator_id = VOLZ_ID;
+
+    // Sneak in a current request every 8th request
+    if (msg_counter <= 8) {
+        // Send out the position request
+        send_command(cmd);
+        msg_counter++;
+    } else {
+        // Send out the current request
+        request_current();
+        msg_counter = 0;
+    }
+
     return;
 }
 
@@ -542,11 +593,28 @@ void AP_VOLZ_Wing::update_position()
     // Current Timestamps
     uint32_t now = AP_HAL::millis();
     // Log the wing position every 500ms
+    float sweep_temp = floorf(volz_state.get_sweep_angle() + 0.5);
     if (now - last_wing_log_ms > 500) {
-        AP::logger().WriteStreaming("WING", "TimeUS,DesPos,Pos", "QBf",
-                                    AP_HAL::micros64(),
-                                    volz_state.get_target_command(),
-                                    volz_state.get_sweep_angle());
+        // @LoggerMessage: VOLZ
+        // @Description: Volz servo data
+        // @Field: TimeUS: Time since system startup
+        // @Field: DesPos: desired position
+        // @Field: Pos: reported position
+        // @Field: volt: supply voltage
+        // @Field: curr: supply current
+        // @Field: temp: temperature
+        AP::logger().WriteStreaming("VOLZ",
+            "TimeUS,DesPos,Pos,Volt,Curr,Temp",
+            "sddvAO",
+            "F00000",
+            "QBBfff",
+            AP_HAL::micros64(),
+            volz_state.get_target_command(),
+            float_to_uint8(sweep_temp),
+            volz_state.get_voltage(),
+            volz_state.get_current(),
+            volz_state.get_pcb_temp()
+            );
         last_wing_log_ms = now;
     }
 #endif
@@ -557,33 +625,32 @@ void AP_VOLZ_Wing::update_position()
 /* ************************************************************************* */
 
 // calculate CRC for volz serial protocol and send the data.
-void AP_VOLZ_Wing::send_command(uint8_t tx_data[VOLZ_DATA_FRAME_SIZE])
+void AP_VOLZ_Wing::send_command(CMD &cmd)
 {
-    // calculate CRC
-    uint16_t crc = calc_volz_crc(tx_data);
+    const uint16_t crc = calculate_volz_crc(cmd);
 
     // add CRC result to the message
-    tx_data[4] = HIGHBYTE(crc);
-    tx_data[5] = LOWBYTE(crc);
+    cmd.crc1 = HIGHBYTE(crc);
+    cmd.crc2 = LOWBYTE(crc);
 
-    tx_write(tx_data, VOLZ_DATA_FRAME_SIZE);
+    tx_write(cmd.data, sizeof(cmd));
 
     return;
 }
 
 /* ************************************************************************* */
 
-uint16_t AP_VOLZ_Wing::calc_volz_crc(uint8_t data[VOLZ_DATA_FRAME_SIZE])
+// Return the crc for a given command packet
+uint16_t AP_VOLZ_Wing::calculate_volz_crc(const CMD &cmd) const
 {
-    uint8_t i,j;
     uint16_t crc = 0xFFFF;
 
     // calculate Volz CRC value according to protocol definition
-    for(i=0; i<4; i++) {
+    for(uint8_t i=0; i<4; i++) {
         // take input data into message that will be transmitted.
-        crc = ((data[i] << 8) ^ crc);
+        crc = (cmd.data[i] << 8) ^ crc;
 
-        for(j=0; j<8; j++) {
+        for(uint8_t j=0; j<8; j++) {
             if (crc & 0x8000) {
                 crc = (crc << 1) ^ 0x8005;
             } else {
@@ -597,10 +664,10 @@ uint16_t AP_VOLZ_Wing::calc_volz_crc(uint8_t data[VOLZ_DATA_FRAME_SIZE])
 
 /* ************************************************************************* */
 
-bool AP_VOLZ_Wing::tx_write(uint8_t *buffer, uint16_t length)
+bool AP_VOLZ_Wing::tx_write(uint8_t *buff, uint16_t len)
 {
-    _max14830->set_uart_address(UART::ADDR_4);
-    _max14830->tx_write(buffer, length);
+    _max14830->set_uart_address(VOLZ_UART_ADDR);
+    _max14830->tx_write(buff, len);
 
     return true;
 }

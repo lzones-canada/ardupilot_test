@@ -27,7 +27,7 @@
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
-
+#define IMET_UART_ADDR      (UART::ADDR_2)
 
 // Forward declaration
 class AP_MAX14830;
@@ -47,9 +47,6 @@ public:
 
     // Handle complete IMET message.
     void handle_complete_imet_msg(const char* message, const uint8_t message_length);
-
-    // Length of bytes to read - returned from Max14830 FIFO.
-    uint8_t rxbuf_fifo_len;
 
 private:
     // Pointer to MAX14830 object

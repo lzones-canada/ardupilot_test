@@ -13,9 +13,35 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 /*
- * AP_VOLZ_Wing.h
+ * AP_VOLZ_PROTOCOL.h
  *
- *      Author: Kyle Fruson
+ *  Author: Kyle Fruson
+ *
+ * Baud-Rate: 115.200 bits per second
+ * Number of Data bits: 8
+ * Number of Stop bits: 1
+ * Parity: None
+ * Half/Full Duplex: Half Duplex
+ *
+ * Volz Command and Response are all 6 bytes
+ *
+ * Command
+ * byte	|	Communication Type
+ * 1		Command Code
+ * 2		Actuator ID
+ * 3		Argument 1
+ * 4		Argument 2
+ * 5		CRC High-byte
+ * 6		CRC	Low-Byte
+ *
+ * byte	|	Communication Type
+ * 1		Response Code
+ * 2		Actuator ID
+ * 3		Argument 1
+ * 4		Argument 2
+ * 5		CRC High-byte
+ * 6		CRC	Low-Byte
+ *
  */
 
 #pragma once
@@ -30,16 +56,14 @@
 #include "AP_VOLZ_State.h"
 
 
-#define VOLZ_DATA_FRAME_SIZE		 		6
-#define VOLZ_ADDR                       	0x01
-#define VOLZ_PWR_CTRL_CMD               	0x9A
-#define VOLZ_PWR_CTRL_STAT               	0x4A
-#define VOLZ_PWR_FD_CMD                 	0xFD
-#define VOLZ_PWR_BD_CMD                 	0xBD
-#define VOLZ_PWR_ID_CMD                 	0x00
-#define VOLZ_MAX_PWR_CMD                 	0xFF
-#define VOLZ_POS_RAW_CMD             	    0xE5
-#define VOLZ_POS_RAW_STAT             	    0x45
+#define VOLZ_DATA_FRAME_SIZE 6
+#define VOLZ_ID              1
+#define VOLZ_UART_ADDR       (UART::ADDR_4)
+#define VOLZ_NUM_TELEM_TYPES 3
+
+//------------------------------------------------------------------------------
+// ENUMS
+//------------------------------------------------------------------------------
 
 // Initialize the state machine state
 enum State {
@@ -51,6 +75,27 @@ enum State {
     ACTIVE_REQUEST,
     INIT_REQUEST,
     DEADBAND,
+};
+
+// Command and response IDs
+enum class CMD_ID : uint8_t {
+    MOTOR_POWER_CONTROL = 0x9A,
+    MOTOR_POWER_CONTROL_RESPONSE = 0x4A,
+    READ_POSITION_RAW = 0xE5,
+    POSITION_RAW_RESPONSE = 0x45,
+    READ_CURRENT = 0xB0,
+    CURRENT_RESPONSE = 0x30,
+    READ_VOLTAGE = 0xB1,
+    VOLTAGE_RESPONSE = 0x31,
+    READ_TEMPERATURE = 0xC0,
+    TEMPERATURE_RESPONSE = 0x10,
+};
+
+// Motor Power Control Arguments
+enum PWR_ARG : uint8_t {
+    FORWARD_DIRECTION  = 0xFD,
+    BACKWARD_DIRECTION = 0xBD,
+    IDLE               = 0x00,
 };
 
 
@@ -83,24 +128,63 @@ private:
     // Structure for Volz State as need frequent access
     AP_VOLZ_State& volz_state;
 
+    // Command frame
+    union CMD {
+        struct PACKED {
+            CMD_ID ID;
+            uint8_t actuator_id; // actuator send to or receiving from
+            uint8_t arg1; // CMD dependant argument 1
+            uint8_t arg2; // CMD dependant argument 2
+            uint8_t crc1;
+            uint8_t crc2;
+        };
+        uint8_t data[VOLZ_DATA_FRAME_SIZE];
+    };
+
+    // Telemetry structure
+    struct {
+        CMD_ID types[VOLZ_NUM_TELEM_TYPES] {
+            CMD_ID::READ_TEMPERATURE,
+            CMD_ID::READ_VOLTAGE,
+            CMD_ID::READ_CURRENT,
+        };
+        uint8_t actuator_id;
+        uint8_t request_type;
+        CMD cmd_buffer;
+        struct {
+            // Last response time in milliseconds
+            uint32_t last_response_ms;
+            // Sensor on main PCB - degrees
+            float pcb_temp_raw;
+            // Input Voltage
+            float input_voltage;
+            // Current Consumption
+            float current_consump;
+        } data;
+    } telem;
+
     // Private functors
-    void send_command(uint8_t data[VOLZ_DATA_FRAME_SIZE]);
-    void handle_volz_message(uint8_t* rx_work_buffer);
-    void handle_pos_msg(uint8_t data[VOLZ_DATA_FRAME_SIZE]);
-    void set_servo_command(int16_t command);
+    void send_command(CMD &cmd);
+    void handle_volz_message(const CMD &cmd);
+    void handle_pos_msg(uint8_t arg1, uint8_t arg2);
+    void set_servo_command(int16_t power);
     void send_idle(void);
-    void send_fwd(uint8_t command);
-    void send_rev(uint8_t command);
+    void send_fwd(uint8_t motor_power);
+    void send_rev(uint8_t motor_power);
     void request_position(void);
+    void request_current(void);
+    void request_telem(void);
     void update_position(void);
-    float wing_status_percent(int32_t position);
     float wing_status_degree(int32_t position);
-    int16_t calc_servo_command(int32_t current_pos, uint16_t target_pos);
+    int16_t calc_servo_power(int32_t current_pos, uint16_t target_pos);
     uint16_t calc_target_ticks(uint8_t value);
-    uint16_t decode_position(uint8_t arg1, uint8_t arg2);
-    uint16_t calc_volz_crc(uint8_t data[VOLZ_DATA_FRAME_SIZE]);
+    uint16_t decode_position(uint8_t arg1, uint8_t arg2) const;
+    // Return the crc for a given command packet
+    uint16_t calculate_volz_crc(const CMD &cmd) const;
     // Write Function for Volz Wing
-    bool tx_write(uint8_t *buffer, uint16_t length);
+    bool tx_write(uint8_t *buff, uint16_t len);
+    // Return true if the given ID is a valid response
+    bool is_response(uint8_t ID) const;
 
     // Access and setup for Wing Limit Switch.
     AP_HAL::DigitalSource *_wing_limit;
@@ -108,19 +192,14 @@ private:
     // Limit the sweep angle
     LimitedValueFilter<float> sweep_angle_limit;
 
+    // initialize the state machine
+    State machine_state;
+
     // wing limit switch pin state
     bool _wing_limit_state;
     // store previous wing limit switch state
     bool _prev_wing_limit_state;
 
-    // initialize the state machine
-    State machine_state;
-
-    // Length of bytes to read - returned from Max14830 FIFO.
-    uint8_t rxbuf_fifo_len;
-
-    // variable to store our current offset from the init position
-    uint16_t offset;
     // variable to track total position of the wing 
     int32_t total_position;
     // variable to store target position
@@ -129,11 +208,12 @@ private:
     uint16_t raw_position;
     // variable to store the previous raw position
     uint16_t prev_raw_position;
-    // current servo command
-    int16_t servo_cmd;
-
+    // servo power control
+    int16_t servo_power;
+    // Last wing log time in milliseconds
     uint32_t last_wing_log_ms;
-
+    // Message counter for current request
+    uint8_t msg_counter;
     // variable to store current command in degrees
     uint8_t target_command;
     // variable to store the previous position

@@ -31,6 +31,7 @@
 #include "AP_ADSB/sagetech-sdk/sagetech_mxs.h"
 #include "AP_ADSB_State.h"
 
+#define ADSB_UART_ADDR      (UART::ADDR_3)
 
 /*=========================================================================*/
 // Mode Message Enums
@@ -140,9 +141,6 @@ public:
 
     // Timer for last Ownship Message.
     uint32_t last_Ownship_ms;
-
-    // Length of bytes to read - returned from Max14830 FIFO.
-    uint8_t rxbuf_fifo_len;
 
     // Array for holding our callsign
     uint8_t callsign[8] = {0};

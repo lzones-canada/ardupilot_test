@@ -37,13 +37,13 @@ public:
     /* Do not allow copies */
     CLASS_NO_COPY(AP_VOLZ_State);
 
-    // Setter for target percent command.
+    // Setter for target command.
     void set_target_command(uint8_t value) { 
         WITH_SEMAPHORE(_sem);
         _target_command = value;
     }
 
-    // Getter for target percent command.
+    // Getter for target command.
     uint8_t get_target_command() { 
         WITH_SEMAPHORE(_sem);
         return _target_command;
@@ -73,6 +73,42 @@ public:
         return _sweep_angle;
     }
 
+    // Setter for PCB temperature.
+    void set_pcb_temp(float value) { 
+        WITH_SEMAPHORE(_sem);
+        _pcb_temp_scaled = value;
+    }
+
+    // Getter for PCB temperature.
+    float get_pcb_temp() { 
+        WITH_SEMAPHORE(_sem);
+        return _pcb_temp_scaled;
+    }
+
+    // Setter for voltage.
+    void set_voltage(float value) { 
+        WITH_SEMAPHORE(_sem);
+        _voltage_raw = value;
+    }
+
+    // Getter for voltage.
+    float get_voltage() { 
+        WITH_SEMAPHORE(_sem);
+        return _voltage_raw;
+    }
+
+    // Setter for current.
+    void set_current(float value) { 
+        WITH_SEMAPHORE(_sem);
+        _current_raw = value;
+    }
+
+    // Getter for current.
+    float get_current() { 
+        WITH_SEMAPHORE(_sem);
+        return _current_raw;
+    }
+
 private:
     // Private constructor to prevent direct instantiation
     AP_VOLZ_State() = default; 
@@ -82,6 +118,15 @@ private:
 
     // Sweep wing angle in Degrees.
     float _sweep_angle = 0.0;
+
+    // PCB Temperature - raw value.
+    float _pcb_temp_scaled = 0;
+
+    // Voltage Input - raw value.
+    float _voltage_raw = 0;
+
+    // Current Consumption - raw value.
+    float _current_raw = 0;
 
     // Flag to calibrate wing.
     bool _wing_calibrate = false;
