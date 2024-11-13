@@ -162,10 +162,9 @@ void Plane::init_ardupilot()
 #if AP_MAX14830_ENABLED
     // Init MAX14830 SPI-UART
     max14830.init();
-
+#endif
     // Placeholder for future use if needed to init user code.
     init_payload_control();
-#endif
 }
 
 //********************************************************************************

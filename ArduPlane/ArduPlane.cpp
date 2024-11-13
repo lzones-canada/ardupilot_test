@@ -146,9 +146,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if AC_PRECLAND_ENABLED
     SCHED_TASK(precland_update, 400, 50, 160),
 #endif
-#if AP_MAX14830_ENABLED
     SCHED_TASK(update_payload_control, 10, 500, 200),
-#endif
 };
 
 void Plane::get_scheduler_tasks(const AP_Scheduler::Task *&tasks,

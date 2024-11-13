@@ -458,10 +458,8 @@ bool GCS_MAVLINK_Plane::try_send_message(enum ap_message id)
         break;
 
     case MSG_PAYLOAD_STATUS:
-#if AP_MAX14830_ENABLED
         CHECK_PAYLOAD_SIZE(PAYLOAD_STATUS);
         send_payload_status();
-#endif
         break;
 
     case MSG_STATION_STATUS:
@@ -579,18 +577,24 @@ void GCS_MAVLINK_Plane::send_payload_status()
     }
 
     // Message Body.
-    const uint8_t  link_quality = plane.get_link_quality();
-    const uint16_t servo_vcc    = plane.get_servo_volt() * 1000.0;
-    const int16_t  board_temp   = plane.get_support_board_temp() * 100.0;
-    const uint16_t sweep_wing   = plane.get_volz_sweep_wing() * 100.0;
+    const uint8_t  link_quality      = plane.get_link_quality();
+    const uint16_t servo_vcc         = plane.get_servo_volt() * 1000.0;
+    const int16_t  board_temp        = plane.get_support_board_temp() * 100.0;
+    const uint16_t sweep_wing_angle  = plane.get_volz_sweep_angle() * 100.0;
+    const uint16_t sweep_wing_volt   = plane.get_volz_sweep_wing_voltage() * 1000.0;
+    const int16_t  sweep_wing_temp   = plane.get_volz_sweep_wing_temperature() * 100.0;
+    const uint16_t sweep_wing_curr   = plane.get_volz_sweep_wing_current() * 1000.0;
 
     mavlink_msg_payload_status_send(
             chan,
             flags,
-            link_quality,   // link quality
-            servo_vcc,      // Servo Voltage Rail - millivolts
-            board_temp,     // Support Board Temperature.
-            sweep_wing);    // Sweep wing angle - centi-degrees.
+            link_quality,       // link quality
+            servo_vcc,          // Servo Voltage Rail - millivolts
+            board_temp,         // Support Board Temperature.
+            sweep_wing_angle,   // Sweep wing angle - centi-degrees.
+            sweep_wing_volt,    // Sweep wing voltage - millivolts.
+            sweep_wing_temp,    // Sweep wing temperature - centi-degrees.
+            sweep_wing_curr);   // Sweep wing current - milliamps.
 
     return;
 }
@@ -1603,7 +1607,7 @@ void GCS_MAVLINK_Plane::handle_payload_ctrl(const mavlink_message_t &msg)
     {
         plane.volz_wing_calibrate(payload_ctrl.sweep_wing_calibrate);
     }
-    // Payload Control - Sweep Wing Control Percentage
+    // Payload Control - Sweep Wing Control Target
     if(payload_ctrl.flags & PAYLOAD_CTRL_FLAGS::SWEEP_WING_VAL)
     {
         plane.volz_wing_deg_cmd(payload_ctrl.sweep_wing_value);

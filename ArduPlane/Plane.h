@@ -291,11 +291,35 @@ private:
     }
 
     // Get the sweep angle to send to GCS.
-    float get_volz_sweep_wing () {
+    float get_volz_sweep_angle () {
         // Get the singleton instance
         AP_VOLZ_State& volz_state = AP_VOLZ_State::get_singleton();
         // Access singleton instance and set the target command
         return volz_state.get_sweep_angle();
+    }
+
+    // Get the voltage to send to GCS.
+    float get_volz_sweep_wing_voltage () {
+        // Get the singleton instance
+        AP_VOLZ_State& volz_state = AP_VOLZ_State::get_singleton();
+        // Access singleton instance and set the target command
+        return volz_state.get_voltage();
+    }
+
+    // Get the temperature to send to GCS.
+    float get_volz_sweep_wing_temperature () {
+        // Get the singleton instance
+        AP_VOLZ_State& volz_state = AP_VOLZ_State::get_singleton();
+        // Access singleton instance and set the target command
+        return volz_state.get_pcb_temp();
+    }
+
+    // Get the current to send to GCS.
+    float get_volz_sweep_wing_current () {
+        // Get the singleton instance
+        AP_VOLZ_State& volz_state = AP_VOLZ_State::get_singleton();
+        // Access singleton instance and set the target command
+        return volz_state.get_current();
     }
 
     // ADSB support for sharing values (Turn off ADSB transponder)

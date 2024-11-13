@@ -18,8 +18,8 @@
 
 // Custom version heading
 #define MID_MAJOR 0
-#define MID_MINOR 6
-#define MID_PATCH 0
+#define MID_MINOR 77
+#define MID_PATCH 99
 #define MID_FW_TYPE FIRMWARE_VERSION_TYPE_DEV
 
 #include <AP_Common/AP_FWVersionDefine.h>
