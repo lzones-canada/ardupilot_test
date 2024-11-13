@@ -39,12 +39,18 @@ define HAL_GPIO_PIN_BCN_LIGHTS      102
 define HAL_GPIO_PIN_CHUTE_RELEASE   103
 define HAL_GPIO_PIN_BLN_RELEASE     104
 define HAL_GPIO_PIN_HSTM_POWER      105
+
+# Define number of Relay Pins
+define AP_RELAY_NUM_RELAYS          6
+
 # Set Relay Pins to default value
 define RELAY1_PIN_DEFAULT           101
 define RELAY2_PIN_DEFAULT           102
 define RELAY3_PIN_DEFAULT           103
 define RELAY4_PIN_DEFAULT           104
 define RELAY5_PIN_DEFAULT           105
+
+#ROMFS message-intervals-chan2.txt libraries/AP_HAL_ChibiOS/hwdef/Pixhawk6X-LZC/message-intervals-chan2.txt
 
 # Analog Input Pins
 define HAL_ANALOG_PIN_SERV0          12

@@ -509,6 +509,11 @@ int32_t float_to_int32(const float v)
     return int32_t(constrain_float(v, INT32_MIN, INT32_MAX));
 }
 
+uint8_t float_to_uint8(const float v)
+{
+    return uint8_t(constrain_float(v, 0, UINT8_MAX));
+}
+
 uint16_t float_to_uint16(const float v)
 {
     return uint16_t(constrain_float(v, 0, UINT16_MAX));

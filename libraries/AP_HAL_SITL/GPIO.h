@@ -18,7 +18,7 @@ public:
     /* return true if USB cable is connected */
     bool usb_connected(void) override;
 
-    bool valid_pin(uint8_t pin) const override { return pin < 16; }
+    bool valid_pin(uint8_t pin) const override { return pin <= 16; }
     
 private:
     SITL_State *_sitlState;

@@ -368,6 +368,7 @@ float degF_to_Kelvin(float temp_f);
 /*
   constraining conversion functions to prevent undefined behaviour
  */
+uint8_t float_to_uint8(const float v);
 int16_t float_to_int16(const float v);
 uint16_t float_to_uint16(const float v);
 int32_t float_to_int32(const float v);

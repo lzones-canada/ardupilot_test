@@ -17,7 +17,7 @@
 #include <AP_Relay/AP_Relay_Params.h>
 
 #ifndef AP_RELAY_NUM_RELAYS
-  #define AP_RELAY_NUM_RELAYS 6
+  #define AP_RELAY_NUM_RELAYS 16
 #endif
 
 #if AP_RELAY_NUM_RELAYS < 1
