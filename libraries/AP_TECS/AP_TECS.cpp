@@ -1438,3 +1438,175 @@ void AP_TECS::update_pitch_throttle(int32_t hgt_dem_cm,
     }
 #endif
 }
+
+// set minimum throttle override, [-1, -1] range
+// it is applicable for one control cycle only
+void AP_TECS::set_throttle_min(const float thr_min) {
+    // Don't change the limit if it is already covered.
+    if (thr_min > _THRminf_ext) {
+        _THRminf_ext = thr_min;
+    }
+}
+
+// set minimum throttle override, [0, -1] range
+// it is applicable for one control cycle only
+void AP_TECS::set_throttle_max(const float thr_max) {
+    // Don't change the limit if it is already covered.
+    if (thr_max < _THRmaxf_ext) {
+        _THRmaxf_ext = thr_max;
+    }
+}
+
+void AP_TECS::_update_throttle_limits() {
+
+    // Configure max throttle; constrain to the external safety limits.
+    _THRmaxf = MIN(1.0f, _THRmaxf_ext);
+    // Configure min throttle; constrain to the external safety limits.
+    _THRminf = MAX(-1.0f, _THRminf_ext);
+
+    // Allow a minimum of 1% throttle range, primarily to prevent TECS numerical errors.
+    const float thr_eps = 0.01;
+    if (fabsf(_THRminf-_THRmaxf) < thr_eps) {
+        _flag_throttle_forced = true;
+        if (_THRmaxf < 1) {
+            _THRmaxf = MAX(_THRmaxf, _THRminf + 0.01f);
+        } else {
+            _THRminf = MIN(_THRminf, _THRmaxf - 0.01f);
+        }
+    } else {
+        _flag_throttle_forced = false;
+    }
+    
+    // Reset the external throttle limits.
+    // Caller will have to reset them in the next iteration.
+    _THRminf_ext = -1.0f;
+    _THRmaxf_ext = 1.0f;
+}
+
+void AP_TECS::set_pitch_min(const float pitch_min) {
+    // Don't change the limit if it is already covered.
+    if (pitch_min > _PITCHminf_ext) {
+        _PITCHminf_ext = pitch_min;
+    }
+}
+
+void AP_TECS::set_pitch_max(const float pitch_max) {
+    // Don't change the limit if it is already covered.
+    if (pitch_max < _PITCHmaxf_ext) {
+        _PITCHmaxf_ext = pitch_max;
+    }
+}
+
+void AP_TECS::_update_pitch_limits(const int32_t ptchMinCO_cd) {
+    // If TECS_PITCH_{MAX,MIN} isn't set then use LIM_PITCH_{MAX,MIN}.
+    // Don't allow TECS_PITCH_{MAX,MIN} to be larger than LIM_PITCH_{MAX,MIN}.
+    if (_pitch_max == 0) {
+        _PITCHmaxf = aparm.pitch_limit_max;
+    } else {
+        _PITCHmaxf = _pitch_max;
+    }
+
+    if (_pitch_min == 0) {
+        _PITCHminf = aparm.pitch_limit_min;
+    } else {
+        _PITCHminf = _pitch_min;
+    }
+
+    if (!_landing.is_on_approach()) {
+        // reset land pitch min when not landing
+        _land_pitch_min = _PITCHminf;
+    }
+
+    // calculate the expected pitch angle from the demanded climb rate and airspeed for use during approach and flare
+    if (_landing.is_flaring()) {
+        // smoothly move the min pitch to the required minimum at touchdown
+        float p; // 0 at start of flare, 1 at finish
+        if (!_flare_initialised) {
+            p = 0.0f;
+        } else if (_hgt_at_start_of_flare > _flare_holdoff_hgt) {
+            p = constrain_float((_hgt_at_start_of_flare - _hgt_afe) / _hgt_at_start_of_flare, 0.0f, 1.0f);
+        } else {
+            p = 1.0f;
+        }
+        const float pitch_limit_deg = (1.0f - p) * _pitch_min_at_flare_entry + p * 0.01f * _landing.get_pitch_cd();
+
+        // in flare use min pitch from LAND_PITCH_DEG
+        _PITCHminf = MAX(_PITCHminf, pitch_limit_deg);
+
+        // and use max pitch from TECS_LAND_PMAX
+        if (_land_pitch_max != 0) {
+            // note that this allows a flare pitch outside the normal TECS auto limits
+            _PITCHmaxf = _land_pitch_max;
+        }
+    } else if (_landing.is_on_approach()) {
+        _PITCHminf = MAX(_PITCHminf, aparm.pitch_limit_min);
+        _pitch_min_at_flare_entry = _PITCHminf;
+        _flare_initialised = false;
+    } else {
+        _flare_initialised = false;
+    }
+
+    if (_landing.is_on_approach()) {
+        // don't allow the lower bound of pitch to decrease, nor allow
+        // it to increase rapidly. This prevents oscillation of pitch
+        // demand while in landing approach based on rapidly changing
+        // time to flare estimate
+        if (_land_pitch_min <= -90) {
+            _land_pitch_min = _PITCHminf;
+        }
+        const float flare_pitch_range = 20;
+        const float delta_per_loop = (flare_pitch_range/_landTimeConst) * _DT;
+        _PITCHminf = MIN(_PITCHminf, _land_pitch_min+delta_per_loop);
+        _land_pitch_min = MAX(_land_pitch_min, _PITCHminf);
+        _PITCHminf = MAX(_land_pitch_min, _PITCHminf);
+    }
+
+    // Apply TAKEOFF minimum pitch
+    if (_flight_stage == AP_FixedWing::FlightStage::TAKEOFF
+        || _flight_stage == AP_FixedWing::FlightStage::ABORT_LANDING)
+    {
+        _PITCHminf = CentiDegreesToRadians(ptchMinCO_cd);
+    }
+
+    // Apply external limits.
+    _PITCHmaxf = MIN(_PITCHmaxf, _PITCHmaxf_ext);
+    _PITCHminf = MAX(_PITCHminf, _PITCHminf_ext);
+    
+    // Reset the external pitch limits.
+    _PITCHminf_ext = -90.0f;
+    _PITCHmaxf_ext = 90.0f;
+
+    // convert to radians
+    _PITCHmaxf = radians(_PITCHmaxf);
+    _PITCHminf = radians(_PITCHminf);
+
+    // don't allow max pitch to go below min pitch
+    _PITCHmaxf = MAX(_PITCHmaxf, _PITCHminf);
+}
+
+void AP_TECS::offset_altitude(const float alt_offset)
+{
+    // Convention: When alt_offset is positive it means that the altitude of
+    // home has increased. Thus, the relative altitude of the vehicle has
+    // decreased.
+    //
+    // Assumption: This method is called more often and before
+    // `update_pitch_throttle()`. This is necessary to ensure that new height
+    // demands which incorporate the home change are compatible with the
+    // (now updated) internal height state.
+
+    _flare_hgt_dem_ideal    -= alt_offset;
+    _flare_hgt_dem_adj      -= alt_offset;
+    _hgt_at_start_of_flare  -= alt_offset;
+    _hgt_dem_in_prev        -= alt_offset;
+    _hgt_dem_lpf            -= alt_offset;
+    _hgt_dem_rate_ltd       -= alt_offset;
+    _hgt_dem_prev           -= alt_offset;
+    _height_filter.height   -= alt_offset;
+
+    // The following variables are updated anew in every call of
+    // `update_pitch_throttle()`. There's no need to update those.
+    // _hgt_dem
+    // _hgt_dem_in_raw
+    // _hgt_dem_in
+}
