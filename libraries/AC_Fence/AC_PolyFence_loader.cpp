@@ -306,7 +306,7 @@ bool AC_PolyFence_loader::formatted() const
 uint16_t AC_PolyFence_loader::max_items() const
 {
     // this is 84 items on PixHawk
-    return MIN(255U, fence_storage.size() / sizeof(Vector2l));
+    return fence_storage.size() / sizeof(Vector2l);
 }
 
 bool AC_PolyFence_loader::format()
@@ -648,7 +648,7 @@ bool AC_PolyFence_loader::load_from_eeprom()
     // FIXME: find some way of factoring out all of these allocation routines.
 
     { // allocate storage for inclusion polyfences:
-        const uint8_t count = index_fence_count(AC_PolyFenceType::POLYGON_INCLUSION);
+        const auto count = index_fence_count(AC_PolyFenceType::POLYGON_INCLUSION);
         Debug("Fence: Allocating %u bytes for inc. fences",
               (unsigned)(count * sizeof(InclusionBoundary)));
         _loaded_inclusion_boundary = new InclusionBoundary[count];
@@ -660,7 +660,7 @@ bool AC_PolyFence_loader::load_from_eeprom()
     }
 
     { // allocate storage for exclusion polyfences:
-        const uint8_t count = index_fence_count(AC_PolyFenceType::POLYGON_EXCLUSION);
+        const auto count = index_fence_count(AC_PolyFenceType::POLYGON_EXCLUSION);
         Debug("Fence: Allocating %u bytes for exc. fences",
               (unsigned)(count * sizeof(ExclusionBoundary)));
         _loaded_exclusion_boundary = new ExclusionBoundary[count];
@@ -672,7 +672,7 @@ bool AC_PolyFence_loader::load_from_eeprom()
     }
 
     { // allocate storage for circular inclusion fences:
-        uint8_t count = index_fence_count(AC_PolyFenceType::CIRCLE_INCLUSION);
+        uint32_t count = index_fence_count(AC_PolyFenceType::CIRCLE_INCLUSION);
         count += index_fence_count(AC_PolyFenceType::CIRCLE_INCLUSION_INT)
         Debug("Fence: Allocating %u bytes for circ. inc. fences",
               (unsigned)(count * sizeof(InclusionCircle)));
@@ -685,7 +685,7 @@ bool AC_PolyFence_loader::load_from_eeprom()
     }
 
     { // allocate storage for circular exclusion fences:
-        uint8_t count = index_fence_count(AC_PolyFenceType::CIRCLE_EXCLUSION);
+        uint32_t count = index_fence_count(AC_PolyFenceType::CIRCLE_EXCLUSION);
         count += index_fence_count(AC_PolyFenceType::CIRCLE_EXCLUSION_INT)
         Debug("Fence: Allocating %u bytes for circ. exc. fences",
               (unsigned)(count * sizeof(ExclusionCircle)));
@@ -1058,7 +1058,7 @@ bool AC_PolyFence_loader::write_fence(const AC_PolyFenceItem *new_items, uint16_
         return false;
     }
 
-    uint8_t total_vertex_count = 0;
+    uint16_t total_vertex_count = 0;
     uint16_t offset = 4; // skipping magic
     uint8_t vertex_count = 0;
     for (uint16_t i=0; i<count; i++) {
