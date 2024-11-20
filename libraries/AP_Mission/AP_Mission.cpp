@@ -2514,7 +2514,7 @@ bool AP_Mission::distance_to_landing(uint16_t index, float &tot_distance, Locati
     }
 
     // run through remainder of mission to approximate a distance to landing
-    for (uint8_t i=0; i<255; i++) {
+    for (uint8_t i=0; i<UINT8_MAX; i++) {
         // search until the end of the mission command list
         for (uint16_t cmd_index = index; cmd_index < (unsigned)_cmd_total; cmd_index++) {
             // get next command
