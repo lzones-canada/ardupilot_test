@@ -5,6 +5,7 @@ AP_FLAKE8_CLEAN
 '''
 
 from __future__ import print_function
+import copy
 import math
 import os
 import signal
@@ -5318,6 +5319,228 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
         home = self.home_position_as_mav_location()
         self.assert_distance(home, adsb_vehicle_loc, 0, 10000)
 
+    def MinThrottle(self):
+        '''Make sure min throttle does not apply in manual mode and does in FBWA'''
+
+        servo_min = self.get_parameter("RC3_MIN")
+        servo_max = self.get_parameter("RC3_MAX")
+        min_throttle = 10
+        servo_min_throttle = servo_min + (servo_max - servo_min) * (min_throttle / 100)
+
+        # Set min throttle
+        self.set_parameter('THR_MIN', min_throttle)
+
+        # Should be 0 throttle while disarmed
+        self.change_mode("MANUAL")
+        self.drain_mav() # make sure we have the latest data before checking throttle output
+        self.assert_servo_channel_value(3, servo_min)
+
+        # Arm and check throttle is still 0 in manual
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.drain_mav()
+        self.assert_servo_channel_value(3, servo_min)
+
+        # FBWA should apply throttle min
+        self.change_mode("FBWA")
+        self.drain_mav()
+        self.assert_servo_channel_value(3, servo_min_throttle)
+
+        # But not when disarmed
+        self.disarm_vehicle()
+        self.drain_mav()
+        self.assert_servo_channel_value(3, servo_min)
+
+    def ClimbThrottleSaturation(self):
+        '''check what happens when throttle is saturated in GUIDED'''
+        self.set_parameters({
+            "TECS_CLMB_MAX": 30,
+            "TKOFF_ALT": 1000,
+        })
+
+        self.change_mode("TAKEOFF")
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.wait_message_field_values('VFR_HUD', {
+            "throttle": 100,
+        }, minimum_duration=30, timeout=90)
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+
+    def GuidedAttitudeNoGPS(self):
+        '''test that guided-attitude still works with no GPS'''
+        self.takeoff(50)
+        self.change_mode('GUIDED')
+        self.context_push()
+        self.set_parameter('SIM_GPS1_ENABLE', 0)
+        self.delay_sim_time(30)
+        self.set_attitude_target()
+        self.context_pop()
+        self.fly_home_land_and_disarm()
+
+    def ScriptStats(self):
+        '''test script stats logging'''
+        self.context_push()
+        self.set_parameters({
+            'SCR_ENABLE': 1,
+            'SCR_DEBUG_OPTS': 8,  # runtime memory usage and time
+        })
+        self.install_test_scripts_context([
+            "math.lua",
+            "strings.lua",
+        ])
+        self.install_example_script_context('simple_loop.lua')
+        self.context_collect('STATUSTEXT')
+
+        self.reboot_sitl()
+
+        self.wait_statustext('hello, world')
+        delay = 20
+        self.delay_sim_time(delay, reason='gather some stats')
+        self.wait_statustext("math.lua exceeded time limit", check_context=True, timeout=0)
+
+        dfreader = self.dfreader_for_current_onboard_log()
+        seen_hello_world = False
+#        runtime = None
+        while True:
+            m = dfreader.recv_match(type=['SCR'])
+            if m is None:
+                break
+            if m.Name == "simple_loop.lua":
+                seen_hello_world = True
+#            if m.Name == "math.lua":
+#                runtime = m.Runtime
+
+        if not seen_hello_world:
+            raise NotAchievedException("Did not see simple_loop.lua script")
+
+#        self.progress(f"math took {runtime} seconds to run over {delay} seconds")
+#        if runtime == 0:
+#            raise NotAchievedException("Expected non-zero runtime for math")
+
+        self.context_pop()
+        self.reboot_sitl()
+
+    def GPSPreArms(self):
+        '''ensure GPS prearm checks work'''
+        self.wait_ready_to_arm()
+        self.start_subtest('DroneCAN sanity checks')
+        self.set_parameter('GPS1_TYPE', 9)
+        self.set_parameter('GPS2_TYPE', 9)
+        self.set_parameter('GPS1_CAN_OVRIDE', 130)
+        self.set_parameter('GPS2_CAN_OVRIDE', 130)
+        self.assert_prearm_failure(
+            "set for multiple GPS",
+            other_prearm_failures_fatal=False,
+        )
+
+    def SetHomeAltChange(self):
+        '''check modes retain altitude when home alt changed'''
+        for mode in 'FBWB', 'CRUISE', 'LOITER':
+            self.wait_ready_to_arm()
+            home = self.home_position_as_mav_location()
+            self.takeoff(20)
+            higher_home = home
+            higher_home.alt += 40
+            self.set_home(higher_home)
+            self.change_mode(mode)
+            self.wait_altitude(15, 25, relative=True, minimum_duration=10)
+            self.disarm_vehicle(force=True)
+            self.reboot_sitl()
+
+    def SetHomeAltChange2(self):
+        '''ensure TECS operates predictably as home altitude changes continuously'''
+        '''
+        This can happen when performing a ship landing, where the home
+        coordinates are continuously set by the ship GNSS RX.
+        '''
+        self.set_parameter('TRIM_THROTTLE', 70)
+        self.wait_ready_to_arm()
+        home = self.home_position_as_mav_location()
+        target_alt = 20
+        self.takeoff(target_alt, mode="TAKEOFF")
+        self.change_mode("LOITER")
+        self.delay_sim_time(20) # Let the plane settle.
+
+        tstart = self.get_sim_time()
+        test_time = 10 # Run the test for 10s.
+        pub_freq = 10
+        for i in range(test_time*pub_freq):
+            tnow = self.get_sim_time()
+            higher_home = copy.copy(home)
+            # Produce 1Hz sine waves in home altitude change.
+            higher_home.alt += 40*math.sin((tnow-tstart)*(2*math.pi))
+            self.set_home(higher_home)
+            if tnow-tstart > test_time:
+                break
+            self.delay_sim_time(1.0/pub_freq)
+
+        # Test if the altitude is still within bounds.
+        self.wait_altitude(home.alt+target_alt-5, home.alt+target_alt+5, relative=False, minimum_duration=1, timeout=2)
+        self.disarm_vehicle(force=True)
+        self.reboot_sitl()
+
+    def ForceArm(self):
+        '''check force-arming functionality'''
+        self.set_parameter("SIM_GPS1_ENABLE", 0)
+        # 21196 is the mavlink standard, 2989 is legacy
+        for magic_value in 21196, 2989:
+            self.wait_sensor_state(mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK,
+                                   present=True,
+                                   enabled=True,
+                                   healthy=False,
+                                   )
+            self.run_cmd(
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                p1=1,  # ARM
+                p2=0,
+                want_result=mavutil.mavlink.MAV_RESULT_FAILED,
+            )
+            self.run_cmd(
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                p1=1,  # ARM
+                p2=magic_value,
+                want_result=mavutil.mavlink.MAV_RESULT_ACCEPTED,
+            )
+            self.disarm_vehicle()
+
+    def _MAV_CMD_EXTERNAL_WIND_ESTIMATE(self, command):
+        self.reboot_sitl()
+
+        def cmp_with_variance(a, b, p):
+            return abs(a - b) < p
+
+        def check_eq(speed, direction, ret_dir, timeout=1):
+            command(mavutil.mavlink.MAV_CMD_EXTERNAL_WIND_ESTIMATE, p1=speed, p3=direction)
+
+            tstart = self.get_sim_time()
+            while True:
+                if self.get_sim_time_cached() - tstart > timeout:
+                    raise NotAchievedException(
+                        f"Failed to set wind speed or/and direction: speed != {speed} or direction != {direction}")
+
+                m = self.assert_receive_message("WIND")
+                if cmp_with_variance(m.speed, speed, 0.5) and cmp_with_variance(m.direction, ret_dir, 5):
+                    return True
+
+        check_eq(1, 45, 45)
+        check_eq(2, 90, 90)
+        check_eq(3, 120, 120)
+        check_eq(4, 180, -180)
+        check_eq(5, 240, -120)
+        check_eq(6, 320, -40)
+        check_eq(7, 360, 0)
+
+        command(mavutil.mavlink.MAV_CMD_EXTERNAL_WIND_ESTIMATE, p1=-2, p3=90, want_result=mavutil.mavlink.MAV_RESULT_DENIED)
+        command(mavutil.mavlink.MAV_CMD_EXTERNAL_WIND_ESTIMATE, p1=2, p3=-90, want_result=mavutil.mavlink.MAV_RESULT_DENIED)
+        command(mavutil.mavlink.MAV_CMD_EXTERNAL_WIND_ESTIMATE, p1=-2, p3=-90, want_result=mavutil.mavlink.MAV_RESULT_DENIED)
+        command(mavutil.mavlink.MAV_CMD_EXTERNAL_WIND_ESTIMATE, p1=2, p3=370, want_result=mavutil.mavlink.MAV_RESULT_DENIED)
+
+    def MAV_CMD_EXTERNAL_WIND_ESTIMATE(self):
+        '''test MAV_CMD_EXTERNAL_WIND_ESTIMATE as a mavlink command'''
+        self._MAV_CMD_EXTERNAL_WIND_ESTIMATE(self.run_cmd)
+        self._MAV_CMD_EXTERNAL_WIND_ESTIMATE(self.run_cmd_int)
+
     def GliderPullup(self):
         '''test pullup of glider after ALTITUDE_WAIT'''
         self.start_subtest("test glider pullup")
@@ -5484,6 +5707,15 @@ class AutoTestPlane(vehicle_test_suite.TestSuite):
             self.TerrainRally,
             self.MAV_CMD_NAV_LOITER_UNLIM,
             self.MAV_CMD_NAV_RETURN_TO_LAUNCH,
+            self.MinThrottle,
+            self.ClimbThrottleSaturation,
+            self.GuidedAttitudeNoGPS,
+            self.ScriptStats,
+            self.GPSPreArms,
+            self.SetHomeAltChange,
+            self.SetHomeAltChange2,
+            self.ForceArm,
+            self.MAV_CMD_EXTERNAL_WIND_ESTIMATE,
             self.GliderPullup,
         ])
         return ret
