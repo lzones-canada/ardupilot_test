@@ -29,12 +29,30 @@
 
 #define IMET_UART_ADDR      (UART::ADDR_2)
 
+/*=========================================================================*/
+// Parser state for the IMET Messages
+/*=========================================================================*/
+
+struct PARSE_STATE
+{
+    enum value
+    {
+        NO_SYNC,                    // Waiting for '0'
+        START_SYNC_0,               // Reserved for ','
+        START_SYNC_1,               // Reserved for '+'
+        WAIT_FOR_STOP_SYNC_1,       // Carriage return (0x0D).
+        WAIT_FOR_STOP_SYNC_2        // Line feed (0x0A).
+    };
+};
+
+/*=========================================================================*/
+
 // Forward declaration
 class AP_MAX14830;
 
-//------------------------------------------------------------------------------
-// IMET Class - UART1
-//------------------------------------------------------------------------------
+/*=========================================================================*/
+// IMET Class - UART2
+/*=========================================================================*/
 
 class AP_IMET_Sensor
 {
@@ -42,32 +60,16 @@ public:
     // Constructor
     AP_IMET_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830);
 
-    // Handle UART1 Interrupt
-    void handle_imet_uart2_interrupt(void);
+    // Handle IMET Interrupt
+    void handle_imet_interrupt(void);
 
+private:
     // Handle complete IMET message.
     void handle_complete_imet_msg(const char* message, const uint8_t message_length);
 
-private:
     // Pointer to MAX14830 object
     AP_HAL::OwnPtr<AP_MAX14830> _max14830;
-    
-    //------------------------------------------------------------------------------
-    // Parser state for the IMET Messages
-    //------------------------------------------------------------------------------
-    struct PARSE_STATE
-    {
-        enum value
-        {
-            NO_SYNC,                    // Waiting for '0'
-            START_SYNC_0,               // Reserved for ','
-            START_SYNC_1,               // Reserved for '+'
-            WAIT_FOR_STOP_SYNC_1,       // Carriage return (0x0D).
-            WAIT_FOR_STOP_SYNC_2        // Line feed (0x0A).
-        };
-    };
 
     // Keeps track of the parsing state of the start sync and stop sync
     PARSE_STATE::value parse_state;
-
 };

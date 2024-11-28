@@ -20,7 +20,6 @@
 
 #include "AP_ADSB_Sensor.h"
 #include "AP_MAX14830.h"
-#include <cstdio> // Add this line to include the required header
 
 
 
@@ -29,7 +28,7 @@
 //------------------------------------------------------------------------------
 #define HEALTHY_LAST_RECEIVED_MSG       10000     // 10sec Timeout.
 #define VEHICLE_OP_MODE                 1000      // 1sec Interval.
-#define VEHICLE_CS_MSG                  60 *1000  // 1min Interval.
+#define VEHICLE_CS_MSG                  60*1000  // 1min Interval.
 // GDL90 Heading Resolution
 #define GDL_RES_HEAD                    (256.0 / 360.0)
 // GDL90 Vertical Velocity Resolution
@@ -45,21 +44,10 @@ static const uint8_t MESSAGE_BUFFER_LENGTH = 255;
 static uint8_t rx_fifo_buffer[MESSAGE_BUFFER_LENGTH];
 
 //------------------------------------------------------------------------------
-// Static buffer to store/send messages.
+// Static pointer to control access to the contents of message_buffer.
 //------------------------------------------------------------------------------
 
-// Tx Buffer for Operating Mode Message.
-static const uint8_t MODE_MSG_LENGTH = 18;
-static uint8_t tx_mode_msg[MODE_MSG_LENGTH];
-
-// Tx Buffer for Call Sign Message.
-static const uint8_t CS_MSG_LENGTH = 16;
-static uint8_t tx_cs_msg[CS_MSG_LENGTH];
-
-// Tx Buffer for VFR Code Message.
-static const uint8_t VFR_MSG_LENGTH = 12;
-static uint8_t tx_vfr_msg[VFR_MSG_LENGTH];
-
+static const uint8_t *rx_buffer_ptr;
 
 
 //------------------------------------------------------------------------------
@@ -78,6 +66,7 @@ void AP_ADSB_Sensor::init()
     // Retrieve Squawk Code from ADSB_SQUAWK parameter and Init value from Parameter.
     squawk_octal_param = (AP_Int16*)AP_Param::find("ADSB_SQUAWK", &ptype);
     ctrl.squawkCode = static_cast<uint16_t>(squawk_octal_param->get());
+    rx_buffer_ptr = rx_fifo_buffer;
 
     return;
 }
@@ -104,6 +93,13 @@ void AP_ADSB_Sensor::update()
         last_mode_msg = now_ms;
     }
 
+    // VFR Code Message - 1 min interval
+    if(now_ms - last_vfr_msg >= VEHICLE_CS_MSG) 
+    {
+        send_vfr_msg();
+        last_vfr_msg = now_ms;
+    }
+
     // if the transponder has stopped giving us the data needed to fill the transponder status mavlink message, reset that data.
     if ((now_ms - last_Heartbeat_ms >= HEALTHY_LAST_RECEIVED_MSG && last_Heartbeat_ms != 0) &&
         (now_ms - last_Ownship_ms   >= HEALTHY_LAST_RECEIVED_MSG && last_Ownship_ms   != 0))
@@ -118,39 +114,30 @@ void AP_ADSB_Sensor::update()
 
 void AP_ADSB_Sensor::send_cs_msg()
 {
-    // Header (idx: 0-3)
-    tx_cs_msg[0] = 0x5E;          // '^'
-    tx_cs_msg[1] = 0x43;          // 'C'
-    tx_cs_msg[2] = 0x53;          // 'S'
-    tx_cs_msg[3] = 0x20;          // ' '
-    // Update ASCII Flight ID (idx: 4)
-    // TODO: Update to use MAVLink Callsign
-    tx_cs_msg[4]  = ctrl.callsign[0];
-    tx_cs_msg[5]  = ctrl.callsign[1];
-    tx_cs_msg[6]  = ctrl.callsign[2];
-    tx_cs_msg[7]  = ctrl.callsign[3];
-    tx_cs_msg[8]  = ctrl.callsign[4];
-    tx_cs_msg[9]  = ctrl.callsign[5];
-    tx_cs_msg[10] = ctrl.callsign[6];
-    tx_cs_msg[11] = ctrl.callsign[7];
+    // Assemble call sign message.
+    CS_CMD cmd {};
 
-    // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
-    chksum = crc_sum_of_bytes(tx_cs_msg, CS_MSG_LENGTH-4);
+    // Header
+    cmd.sync  = 0x5E;      // '^'
+    cmd.type1 = 0x43;      // 'C'
+    cmd.type2 = 0x53;      // 'S'
+    cmd.space = 0x20;      // ' '
+
+    // Payload
+    // Copy the callsign into the message buffer.
+    memcpy(cmd.callsign, ctrl.callsign, sizeof(cmd.callsign));
+
+    // Calculate checksum before setting checksum and terminator bytes
+    uint8_t chksum = crc_sum_of_bytes(cmd.data, ADSB_CS_FRAME_SIZE - 4);
     // Extract the high and low nibbles and convert to ASCII
-    highChar = uint8_to_hex(HIGH_NIBBLE(chksum));
-    lowChar  = uint8_to_hex(LOW_NIBBLE(chksum));
-    // Extract the two ASCII hex digits from chksum
-    tx_cs_msg[12] = highChar;       // Extract the first hex digit
-    tx_cs_msg[13] = lowChar;        // Extract the second hex digit
+    cmd.crc1 = uint8_to_hex(HIGH_NIBBLE(chksum));  // Extract first/hi hex digit
+    cmd.crc2 = uint8_to_hex(LOW_NIBBLE(chksum));   // Extract second/lo hex digit
 
-    // Append New Line Field (idx: 16)
-    tx_cs_msg[14] = 0x0D;  // '\r'
-
-    //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"tx_cs_msg: %s", tx_cs_msg);
+    // Terminator - append carriage return
+    cmd.terminator = 0x0D; // '\r'
 
     // Send out Message.
-    _tx_write(tx_cs_msg, CS_MSG_LENGTH);
-
+    _tx_write(cmd.data, ADSB_CS_FRAME_SIZE);
 
     return;
 }
@@ -159,55 +146,53 @@ void AP_ADSB_Sensor::send_cs_msg()
 
 void AP_ADSB_Sensor::send_op_mode_msg()
 {
-    // Header (idx: 0-3)
-    tx_mode_msg[0] = 0x5E;          // '^'
-    tx_mode_msg[1] = 0x4D;          // 'M'
-    tx_mode_msg[2] = 0x44;          // 'D'
-    tx_mode_msg[3] = 0x20;          // ' '
+    // Assemble operating mode message
+    MODE_CMD cmd {};
+    
+    // Header
+    cmd.sync  = 0x5E;      // '^'
+    cmd.type1 = 0x4D;      // 'M'
+    cmd.type2 = 0x44;      // 'D'
+    cmd.space = 0x20;      // ' '
+    
+    // Payload
+    // Mode field
+    cmd.mode = get_mode();
 
-    // Update Mode Field (idx: 4)
-    tx_mode_msg[4] = get_mode();
+    // Comma field
+    cmd.comma1 = 0x2C;     // ','
 
-    // Comma Field (idx: 5)
-    tx_mode_msg[5] = 0x2C;          // ','
+    // Ident field
+    cmd.ident = ctrl.identActive ? IDENT::ACTVE : IDENT::INACTVE;
 
-    // Update Ident Field (idx: 6)
-    tx_mode_msg[6] = ctrl.identActive ? IDENT::ACTVE : IDENT::INACTVE;
+    // Comma field
+    cmd.comma2 = 0x2C;     // ','
+    
+    // Convert squawk to ASCII Hex
+    cmd.squawk[0] = '0' + (ctrl.squawkCode / 1000);         // Thousands digit
+    cmd.squawk[1] = '0' + (ctrl.squawkCode / 100) % 10;     // Hundreds digit
+    cmd.squawk[2] = '0' + (ctrl.squawkCode / 10) % 10;      // Tens digit
+    cmd.squawk[3] = '0' + (ctrl.squawkCode % 10);           // Ones digit
+    
+    // Emergency field - convert to ASCII
+    cmd.emergency = '0' + (sg_emergc_t)ctrl.emergencyState;
+     // Health bit
+    cmd.health = 0x31;     // '1'
+
+    // Calculate checksum before setting checksum and terminator bytes
+    uint8_t chksum = crc_sum_of_bytes(cmd.data, ADSB_MODE_FRAME_SIZE - 4);
+    // Extract the high and low nibbles and convert to ASCII
+    cmd.crc1 = uint8_to_hex(HIGH_NIBBLE(chksum)); // Extract first/hi hex digit
+    cmd.crc2 = uint8_to_hex(LOW_NIBBLE(chksum));  // Extract second/lo hex digit
+
+    // Terminator - append carriage return
+    cmd.terminator = 0x0D; // '\r'
+
+    // Send message
+    _tx_write(cmd.data, ADSB_MODE_FRAME_SIZE);
+
     // only send identButtonActive once per request
     ctrl.identActive = false;
-
-    // Comma Field (idx: 7)
-    tx_mode_msg[7] = 0x2C;          // ','
-
-    // Update Squawk Code in Tx Buffer [idx: 8-11]
-    //  Convert to ASCII Hex
-    tx_mode_msg[8]  = (ctrl.squawkCode / 1000)     + '0';   // Thousands digit
-    tx_mode_msg[9]  = (ctrl.squawkCode / 100) % 10 + '0';   // Hundreds digit
-    tx_mode_msg[10] = (ctrl.squawkCode / 10) % 10  + '0';   // Tens digit
-    tx_mode_msg[11] = (ctrl.squawkCode % 10)       + '0';   // Ones digit
-
-    // Update Emergency Field (idx: 12)
-    tx_mode_msg[12] = (sg_emergc_t) ctrl.emergencyState + '0'; // In hex ASCII
-
-    // Health bit (idx: 13)
-    tx_mode_msg[13] = 0x31;          // In hex ASCII '1'
-
-    // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
-    chksum = crc_sum_of_bytes(tx_mode_msg, MODE_MSG_LENGTH-4);
-    // Extract the high and low nibbles and convert to ASCII
-    highChar = uint8_to_hex(HIGH_NIBBLE(chksum));
-    lowChar  = uint8_to_hex(LOW_NIBBLE(chksum));
-    // Extract the two ASCII hex digits from chksum
-    tx_mode_msg[14] = highChar;        // Extract the first hex digit
-    tx_mode_msg[15] = lowChar;         // Extract the second hex digit
-
-    // Append New Line Field (idx: 16)
-    tx_mode_msg[16] = 0x0D;  // '\r'
-
-    //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"tx_mode_msg: %s", tx_mode_msg);
-
-    // Send out Message.
-    _tx_write(tx_mode_msg, MODE_MSG_LENGTH);
 
     return;
 }
@@ -216,39 +201,40 @@ void AP_ADSB_Sensor::send_op_mode_msg()
 
 void AP_ADSB_Sensor::send_vfr_msg()
 {
-    // Header (idx: 0-3)
-    tx_vfr_msg[0] = 0x5E;          // '^'
-    tx_vfr_msg[1] = 0x56;          // 'V' 
-    tx_vfr_msg[2] = 0x43;          // 'C'
-    tx_vfr_msg[3] = 0x20;          // ' '
-    // Update Squawk Code in Tx Buffer [idx: 8-11]
-    tx_vfr_msg[4] = (ctrl.squawkCode / 1000)     + '0';   // Thousands digit
-    tx_vfr_msg[5] = (ctrl.squawkCode / 100) % 10 + '0';   // Hundreds digit
-    tx_vfr_msg[6] = (ctrl.squawkCode / 10) % 10  + '0';   // Tens digit
-    tx_vfr_msg[7] = (ctrl.squawkCode % 10)       + '0';   // Ones digit
+    // Assemble vfr message
+    VFR_CMD cmd {};
+    
+    // Header
+    cmd.sync  = 0x5E;      // '^'
+    cmd.type1 = 0x56;      // 'V'
+    cmd.type2 = 0x43;      // 'C'
+    cmd.space = 0x20;      // ' '
+    
+    // Payload
+    // Convert squawk to ASCII Hex
+    cmd.squawk[0] = '0' + (ctrl.squawkCode / 1000);         // Thousands digit
+    cmd.squawk[1] = '0' + (ctrl.squawkCode / 100) % 10;     // Hundreds digit
+    cmd.squawk[2] = '0' + (ctrl.squawkCode / 10) % 10;      // Tens digit
+    cmd.squawk[3] = '0' + (ctrl.squawkCode % 10);           // Ones digit
 
-    // Calculate Checksum - Checksum of bytes 1 through 14. In hex ASCII i.e. “FA”
-    chksum = crc_sum_of_bytes(tx_mode_msg, MODE_MSG_LENGTH-4);
+    // Calculate checksum before setting checksum and terminator bytes
+    uint8_t chksum = crc_sum_of_bytes(cmd.data, ADSB_VFR_FRAME_SIZE - 4);
     // Extract the high and low nibbles and convert to ASCII
-    highChar = uint8_to_hex(HIGH_NIBBLE(chksum));
-    lowChar  = uint8_to_hex(LOW_NIBBLE(chksum));
-    // Extract the two ASCII hex digits from chksum
-    tx_vfr_msg[8] = highChar;       // Extract the first hex digit
-    tx_vfr_msg[9] = lowChar;        // Extract the second hex digit
+    cmd.crc1 = uint8_to_hex(HIGH_NIBBLE(chksum)); // Extract first/hi hex digit
+    cmd.crc2 = uint8_to_hex(LOW_NIBBLE(chksum));  // Extract second/lo hex digit
 
-
-    // Append New Line Field (idx: 16)
-    tx_vfr_msg[10] = 0x0D;  // '\r'
-
-    // Send out Message.
-    _tx_write(tx_vfr_msg, VFR_MSG_LENGTH);
+    // Terminator - append carriage return
+    cmd.terminator = 0x0D; // '\r'
+    
+    // Send message
+    _tx_write(cmd.data, ADSB_VFR_FRAME_SIZE);
 
     return;
 }
 
 /* ************************************************************************* */
 
-void AP_ADSB_Sensor::handle_adsb_uart3_interrupt()
+void AP_ADSB_Sensor::handle_adsb_interrupt()
 {
     rx.status.prev_data = GDL90_FLAG_BYTE;
     //---------------------------------------------------------------------------
@@ -262,51 +248,35 @@ void AP_ADSB_Sensor::handle_adsb_uart3_interrupt()
     // Clear the interrupt.
     _max14830->clear_interrupts();
 
-    // Pointer to the start of FIFO buffer.
-    const uint8_t *byte_ptr = &rx_fifo_buffer[0];
-    // Byte length to track the number of bytes parsed.
-    uint8_t byte_count = 0;
+    // Pointer to FIFO buffer for further processing.
+    rx_buffer_ptr = rx_fifo_buffer;
 
-    // Parse the data in buffer.
-    while(true)
+    // For loop to iterate over all the receive data
+    for(int i=0; i<bytes_read; i++)
     {
-        // Parse all data until the end of the fifo buffer.
-        if(bytes_read == byte_count) {
-            // Finished converting all new data.
-            break;
-        }
-
-        // Track length of buffer pointer.
-        byte_count++;
+        // Temporary copy for readability - Post-increment operator
+        const uint8_t rx_byte = *rx_buffer_ptr++;
 
         // Message parsing state machine.
         switch(rx.status.state)
         {
-            case(GDL90_RX_IDLE):
-            {
+            case GDL90_RX_IDLE:
                 // 0x7E is the flag byte. If we see it, we're in a new message.
-                if(GDL90_FLAG_BYTE == *byte_ptr && GDL90_FLAG_BYTE == rx.status.prev_data)
-                {
+                if(rx_byte == GDL90_FLAG_BYTE && rx.status.prev_data == GDL90_FLAG_BYTE) {
                     rx.status.length = 0;
                     rx.status.state = GDL90_RX_IN_PACKET;
                 }
-                // This if statement has no else, as this will be normal while the
-                //  contents of the message are being copied to the message buffer.
                 break;
-            }
-            case(GDL90_RX_IN_PACKET):
-            {
-                if(GDL90_CONTROL_ESCAPE_BYTE == *byte_ptr)
-                {
+
+            case GDL90_RX_IN_PACKET:
+                if(GDL90_CONTROL_ESCAPE_BYTE == rx_byte) {
                     rx.status.state = GDL90_RX_UNSTUFF;
-                }
-                else if (GDL90_FLAG_BYTE == *byte_ptr) 
-                {
+
+                } else if (GDL90_FLAG_BYTE == rx_byte) {
                     // packet complete! Check CRC and restart packet cycle on all pass or fail scenarios
                     rx.status.state = GDL90_RX_IDLE;
 
-                    if (rx.status.length < GDL90_OVERHEAD_LENGTH) 
-                    {
+                    if (rx.status.length < GDL90_OVERHEAD_LENGTH) {
                         // something is wrong, there's no actual data
                         return;
                     }
@@ -317,39 +287,26 @@ void AP_ADSB_Sensor::handle_adsb_uart3_interrupt()
                     // NOTE: status.length contains messageId, payload and CRC16. So status.length-3 is effective payload length
                     rx.msg.crc = (uint16_t)crc_LSB | ((uint16_t)crc_MSB << 8);
                     const uint16_t crc = crc16_ccitt_GDL90((uint8_t*)&rx.msg.raw, rx.status.length-2, 0);
-                    //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"CRC: 0x%02X, msgCRC: 0x%02X", crc, rx.msg.crc);
                     if (crc == rx.msg.crc) {
-                        rx.status.prev_data = *byte_ptr;
+                        rx.status.prev_data = rx_byte;
                         // NOTE: this is the only path that returns true ie. HANDLE COMPLETE MESSAGE HERE.
                         handle_complete_adsb_msg(rx.msg);
                     }
-                }
-                else if (rx.status.length < GDL90_RX_MAX_PACKET_LENGTH) 
-                {
-                    rx.msg.raw[rx.status.length++] = *byte_ptr;
-                } 
-                else 
-                {
+                    
+                } else if (rx.status.length < GDL90_RX_MAX_PACKET_LENGTH) {
+                    rx.msg.raw[rx.status.length++] = rx_byte;
+
+                } else {
                     rx.status.state = GDL90_RX_IDLE;
                 }
                 break;
-            }
-            case(GDL90_RX_UNSTUFF):
-            {
-                rx.msg.raw[rx.status.length++] = *byte_ptr ^ GDL90_STUFF_BYTE;
+
+            case GDL90_RX_UNSTUFF:
+                rx.msg.raw[rx.status.length++] = rx_byte ^ GDL90_STUFF_BYTE;
                 rx.status.state = GDL90_RX_IN_PACKET;
                 break;
-            }
-            default:
-            {
-                // This should never happen.
-                break;
-            }
         }
-        // Store previous byte.
-        rx.status.prev_data = *byte_ptr;
-        // Increment byte index.
-        byte_ptr++;
+        rx.status.prev_data = rx_byte;
     }
 
     return;
@@ -360,10 +317,9 @@ void AP_ADSB_Sensor::handle_adsb_uart3_interrupt()
 void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
 {
     // Handle the message based on the message ID.
-    switch(msg.messageId)
-    {
-        case(GDL90_ID_HEARTBEAT):
-        {
+    DEV_PRINTF("ADSB: Message ID: %d\n", (int)msg.messageId);
+    switch(msg.messageId) {
+        case GDL90_ID_HEARTBEAT: {
             // The Heartbeat message provides real-time indications of the status and operation of the
             // transponder. The message will be transmitted with a period of one second for the UCP
             // protocol.
@@ -421,10 +377,9 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
 
             //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_HEARTBEAT");
             break;
-            
         }
-        case(GDL90_ID_OWNSHIP_REPORT):
-        {
+            
+        case GDL90_ID_OWNSHIP_REPORT: {
             // The Ownship message contains information on the GNSS position. If the Ownship GNSS
             // position fix is invalid, the Latitude, Longitude, and NIC fields will all have the ZERO value. The
             // Ownship message will be transmitted with a period of one second regardless of data status or
@@ -482,16 +437,14 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             tx_dynamic.VelEW = INT16_MAX;
             tx_dynamic.numSats = UINT8_MAX;
 
-
-            // Send out Mavlink ADSB status messages
-            gcs().send_to_active_channels(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_DYNAMIC, (const char *)&tx_dynamic);
-            gcs().send_to_active_channels(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_STATUS, (const char *)&tx_status);
+            // Trigger Mavlink Sending
+            trig_mav_sending = true;
 
             //GCS_SEND_TEXT(MAV_SEVERITY_DEBUG,"GDL90_ID_OWNSHIP_REPORT");
             break;
         }
-        case(GDL90_ID_OWNSHIP_GEOMETRIC_ALTITUDE):
-        {
+
+        case GDL90_ID_OWNSHIP_GEOMETRIC_ALTITUDE: {
             // An Ownship Geometric Altitude message will be transmitted with a period of one second when
             // the GNSS fix is valid for the UCP protocol. All fields in the Geometric Ownship Altitude
             // message are transmitted MSB first.
@@ -500,13 +453,11 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
             tx_dynamic.gpsAlt = htobe16(rx.decoded.ownship_geometric_altitude.geometricAltitude) * GDL_RES_ALT;
 
             break;
-    
         }
+    
         default:
-        {
             // This should never happen.
             break;
-        }
     }
 
     // Squawk Code
@@ -542,6 +493,13 @@ void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
         tx_status.state |= UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
     } else {
         tx_status.state &= ~UAVIONIX_ADSB_OUT_STATUS_STATE_XBIT_ENABLED;
+    }
+
+    if (trig_mav_sending) {
+        // Send out Mavlink ADSB status messages
+        gcs().send_to_active_channels(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_DYNAMIC, (const char *)&tx_dynamic);
+        gcs().send_to_active_channels(MAVLINK_MSG_ID_UAVIONIX_ADSB_OUT_STATUS, (const char *)&tx_status);
+        trig_mav_sending = false;
     }
 
     return;
@@ -622,21 +580,33 @@ bool AP_ADSB_Sensor::_tx_write(uint8_t *buffer, uint16_t length)
 
 uint8_t AP_ADSB_Sensor::get_mode()
 {
-    if (!ctrl.modeAEnabled && !ctrl.modeCEnabled && !ctrl.modeSEnabled && !ctrl.es1090TxEnabled) {
-        ctrl.mode = MODE::STBY;
-    }
-    if (ctrl.modeAEnabled && !ctrl.modeCEnabled && ctrl.modeSEnabled && ctrl.es1090TxEnabled) {
-        ctrl.mode = MODE::ON;
-    }
-    if (ctrl.modeAEnabled && ctrl.modeCEnabled &&  ctrl.modeSEnabled && ctrl.es1090TxEnabled) {
-        ctrl.mode = MODE::ALT;
-    }
-    // Turn off the transponder if we are in failsafe
+    // Turn off the transponder if we are in failsafe - Reset
     if (adsb_state.get_adsb_failsafe()) {
-        ctrl.mode = MODE::OFF;
+        ctrl.modeAEnabled = false;
+        ctrl.modeCEnabled = false;
+        ctrl.modeSEnabled = false;
+        ctrl.es1090TxEnabled = false;
+        adsb_state.set_adsb_failsafe(false);
+        return MODE::OFF;
     }
 
-    return ctrl.mode;
+    // Check for standby mode
+    if (!ctrl.modeAEnabled && !ctrl.modeCEnabled && !ctrl.modeSEnabled && !ctrl.es1090TxEnabled) {
+        return MODE::STBY;
+    }
+
+    // Check for ON mode
+    if (ctrl.modeAEnabled && !ctrl.modeCEnabled && ctrl.modeSEnabled && ctrl.es1090TxEnabled) {
+        return MODE::ON;
+    }
+
+    // Check for ALT mode
+    if (ctrl.modeAEnabled && ctrl.modeCEnabled && ctrl.modeSEnabled && ctrl.es1090TxEnabled) {
+        return MODE::ALT;
+    }
+
+    // Default to standby if no other mode matches
+    return MODE::STBY;
 }
 
 /* ************************************************************************* */

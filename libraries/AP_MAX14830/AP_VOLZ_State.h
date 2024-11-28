@@ -120,13 +120,13 @@ private:
     float _sweep_angle = 0.0;
 
     // PCB Temperature - raw value.
-    float _pcb_temp_scaled = 0;
+    float _pcb_temp_scaled = 0.0;
 
     // Voltage Input - raw value.
-    float _voltage_raw = 0;
+    float _voltage_raw = 0.0;
 
     // Current Consumption - raw value.
-    float _current_raw = 0;
+    float _current_raw = 0.0;
 
     // Flag to calibrate wing.
     bool _wing_calibrate = false;

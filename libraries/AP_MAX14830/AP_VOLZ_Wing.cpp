@@ -25,7 +25,7 @@
 //------------------------------------------------------------------------------
 // Static FIFO buffer to retrieve rx message from Volz Wing UART1 FIFO
 //------------------------------------------------------------------------------
-static const uint8_t MESSAGE_BUFFER_LENGTH = 128;
+static const uint8_t MESSAGE_BUFFER_LENGTH = 255;
 static uint8_t rx_fifo_buffer[MESSAGE_BUFFER_LENGTH];
 
 
@@ -247,7 +247,7 @@ bool AP_VOLZ_Wing::is_response(uint8_t ID) const
 
 /* ************************************************************************* */
 
-void AP_VOLZ_Wing::handle_volz_uart1_interrupt()
+void AP_VOLZ_Wing::handle_volz_interrupt()
 {
     // Read FIFO data
     _max14830->set_uart_address(VOLZ_UART_ADDR);
@@ -356,21 +356,20 @@ void AP_VOLZ_Wing::handle_volz_message(const CMD &cmd)
                 // Temperature is reported relative to -50 deg C
                 telem.data.pcb_temp_raw = -50.0 + cmd.arg1;
                 volz_state.set_pcb_temp(telem.data.pcb_temp_raw);
-                DEV_PRINTF("PcbTemp: %.2f deg\n", volz_state.get_pcb_temp());
+                // TODO: DELETE
+                //DEV_PRINTF("PcbTemp: %.2f deg\n", volz_state.get_pcb_temp());
                 break;
 
             case CMD_ID::VOLTAGE_RESPONSE:
                 // Voltage is reported in 200mv increments (0.2v)
                 telem.data.input_voltage = 0.2 * cmd.arg1;
                 volz_state.set_voltage(telem.data.input_voltage);
-                DEV_PRINTF("Voltage: %.2f V\n", volz_state.get_voltage());
                 break;
 
             case CMD_ID::CURRENT_RESPONSE:
                 // Current is reported in 20mA increments (0.02A)
                 telem.data.current_consump = 0.02 * cmd.arg1;
                 volz_state.set_current(telem.data.current_consump);
-                DEV_PRINTF("Current: %.2f A\n", volz_state.get_current());
                 break;
 
             default:

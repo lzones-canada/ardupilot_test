@@ -55,15 +55,18 @@
 #include <Filter/LimitedValueFilter.h>
 #include "AP_VOLZ_State.h"
 
+/*=========================================================================*/
+// VOLZ Definitions
+/*=========================================================================*/
 
 #define VOLZ_DATA_FRAME_SIZE 6
 #define VOLZ_ID              1
 #define VOLZ_UART_ADDR       (UART::ADDR_4)
 #define VOLZ_NUM_TELEM_TYPES 3
 
-//------------------------------------------------------------------------------
+/*=========================================================================*/
 // ENUMS
-//------------------------------------------------------------------------------
+/*=========================================================================*/
 
 // Initialize the state machine state
 enum State {
@@ -98,13 +101,15 @@ enum PWR_ARG : uint8_t {
     IDLE               = 0x00,
 };
 
+/*=========================================================================*/
+
 
 // Forward declaration
 class AP_MAX14830;
 
-//------------------------------------------------------------------------------
-// Volz Class - UART1
-//------------------------------------------------------------------------------
+/*=========================================================================*/
+// Volz Class - UART4
+/*=========================================================================*/
 
 class AP_VOLZ_Wing
 {
@@ -118,8 +123,8 @@ public:
     // Update function for Volz Wing
     void update(void);
 
-    // Handle VOLZ-UART1 Interrupt
-    void handle_volz_uart1_interrupt(void);
+    // Handle VOLZ Interrupt
+    void handle_volz_interrupt(void);
 
 private:
     // Pointer to MAX14830 object

@@ -101,19 +101,19 @@ void AP_MAX14830::_timer(void)
     
     // Handle UART2 Interrupt - IMET data.
     if(global_irq &  UART2_INTERRUPT) {
-        imet.handle_imet_uart2_interrupt();
+        imet.handle_imet_interrupt();
         //DEV_PRINTF("IMET-INTERUPT2\n");
     }
 
     // Handle UART3 Interrupt - ADSB data.
     if(global_irq &  UART3_INTERRUPT) {
-        adsb.handle_adsb_uart3_interrupt();
+        adsb.handle_adsb_interrupt();
         //DEV_PRINTF("ADSB-INTERUPT3\n");
     }
 
     // Handle UART4 Interrupt - Reserved.
     if(global_irq &  UART4_INTERRUPT) {
-        volz.handle_volz_uart1_interrupt();
+        volz.handle_volz_interrupt();
         //DEV_PRINTF("VOLZ-WING-INTERUPT1\n");
     }
 

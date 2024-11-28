@@ -31,7 +31,15 @@
 #include "AP_ADSB/sagetech-sdk/sagetech_mxs.h"
 #include "AP_ADSB_State.h"
 
-#define ADSB_UART_ADDR      (UART::ADDR_3)
+/*=========================================================================*/
+// ADSB Definitions
+/*=========================================================================*/
+
+#define ADSB_UART_ADDR        (UART::ADDR_3)
+#define ADSB_MODE_FRAME_SIZE  18
+#define ADSB_CS_FRAME_SIZE	  16
+#define ADSB_VFR_FRAME_SIZE	  12
+
 
 /*=========================================================================*/
 // Mode Message Enums
@@ -44,7 +52,7 @@ struct MODE
         OFF  = 0x4F,    // 'O'
         STBY = 0x41,    // 'A'
         ON   = 0x43,    // 'C'
-        ALT  = 0x53     // 'S'
+        ALT  = 0x53,    // 'S'
     };
 };
 
@@ -53,7 +61,7 @@ struct IDENT
     enum
     {
         ACTVE   = 0x49,  // 'I'
-        INACTVE = 0x2D   // '-'
+        INACTVE = 0x2D,  // '-'
     };
 };
 
@@ -77,9 +85,9 @@ struct EMERG
 // Forward declaration
 class AP_MAX14830;
 
-//------------------------------------------------------------------------------
-// ADSB Class - UART2
-//------------------------------------------------------------------------------
+/*=========================================================================*/
+// ADSB Class - UART3
+/*=========================================================================*/
 
 class AP_ADSB_Sensor
 {
@@ -87,99 +95,57 @@ public:
     // Constructor
     AP_ADSB_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830);
 
-    // Initialize ADSB object
-    void init(void);
+    void init(void); // Initialize ADSB object
+    void update(void); // Update function for ADSB out.
+    void handle_adsb_interrupt(void); // Handle ADSB Interrupt
+    void handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg); // mavlink message handler
 
-    // Update function for ADSB out.
-    void update(void);
+private:
+    // Pointer to MAX14830 object
+    AP_HAL::OwnPtr<AP_MAX14830> _max14830;
 
-    // Call Sign Message - 1 min interval or on change
-    void send_cs_msg(void);
+    // Structure for ADSB State as need frequent access
+    AP_ADSB_State& adsb_state;
 
-    // Operating Mode Message - 1 Second interval (nominal)
-    void send_op_mode_msg(void);
+    // Message Handlers
+    void send_cs_msg(void);      // Call Sign Message - 1 min interval or on change
+    void send_op_mode_msg(void); // Operating Mode Message - 1 Second interval (nominal)
+    void send_vfr_msg(void);     // VFR Code Message - 1 min interval or on change
+    void handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg); // Handle complete ABSB message.
+    void handle_out_control(const mavlink_uavionix_adsb_out_control_t &packet); // control ADSB-out transcievers
+    uint8_t get_mode(void); // Helper function to return operating mode.
+    uint8_t uint8_to_hex(uint8_t a); // return the ascii hex character of an uint8 value
+    bool _tx_write(uint8_t *buffer, uint16_t length); // Write Function for ADSB out.
 
-    // VFR Code Message - 1 min interval or on change
-    void send_vfr_msg(void);
-
-    // Handle ADSB-UART2 Interrupt
-    void handle_adsb_uart3_interrupt(void);
-
-    // Handle complete ABSB message.
-    void handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg);
-
-    // mavlink message handler
-    void handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg);
-
-    // control ADSB-out transcievers
-    void handle_out_control(const mavlink_uavionix_adsb_out_control_t &packet);
-
-    // Helper function to return operating mode.
-    uint8_t get_mode(void);
-
-    // return the ascii hex character of an uint8 value
-    uint8_t uint8_to_hex(uint8_t a);
-
-    // Mavlink ADSB out status Packet
-    mavlink_uavionix_adsb_out_status_t tx_status;
-
-    // Mavlink ADSB out dynamic Packet
-    mavlink_uavionix_adsb_out_dynamic_t tx_dynamic;
-
+    mavlink_uavionix_adsb_out_status_t tx_status; // Mavlink ADSB out status Packet
+    mavlink_uavionix_adsb_out_dynamic_t tx_dynamic; // Mavlink ADSB out dynamic Packet
     // ADSB Squak Code
     enum ap_var_type ptype;
     AP_Int16   *squawk_octal_param;
 
-    // Timer for last Call Sign Message.
+    // Timing and State
     uint32_t last_cs_msg;
-
-    // Timer for last Op Mode Message.
     uint32_t last_mode_msg;
-
-    // Timer for last Heartbeat Message.
+    uint32_t last_vfr_msg;
     uint32_t last_Heartbeat_ms;
-
-    // Timer for last Ownship Message.
     uint32_t last_Ownship_ms;
-
-    // Array for holding our callsign
-    uint8_t callsign[8] = {0};
-
-    // Flag to signal change in Callsign.
     bool cs_flag_change;
+    bool trig_mav_sending;
 
-    // Variable to store calculated checksum.
-    uint8_t chksum;
-
-    // High Nibble of Checksum in ASCII,
-    uint8_t highChar;
-
-    // Low Nibble of Checksum in ASCII.
-    uint8_t lowChar;
-
-    // ADSB Data
-    struct 
-    {
+// Receiver State
+    struct {
         uint32_t last_msg_ms;
         GDL90_RX_MESSAGE msg;
         GDL90_RX_STATUS status;
-
-        // cache local copies so we always have the latest info of everything.
-        struct 
-        {
-            GDL90_IDENTIFICATION_V3 identification;
-            GDL90_TRANSPONDER_CONFIG_MSG_V4_V5 transponder_config;
+        struct {
             GDL90_HEARTBEAT heartbeat;
-            GDL90_TRANSPONDER_STATUS_MSG transponder_status;
             GDL90_OWNSHIP_REPORT ownship_report;
             GDL90_OWNSHIP_GEO_ALTITUDE ownship_geometric_altitude;
-            GDL90_SENSOR_BARO_MESSAGE sensor_message;
         } decoded;
-
     } rx;
 
-    struct
-    {
+    // Control State
+    struct {
         bool baroCrossChecked;
         uint8_t airGroundState;
         bool identActive;
@@ -193,15 +159,69 @@ public:
         uint8_t callsign[8];
         uint8_t mode = MODE::OFF;
         bool x_bit;
-    } ctrl; // Declare ctrl as a member variable
+    } ctrl;
 
-private:
-    // Pointer to MAX14830 object
-    AP_HAL::OwnPtr<AP_MAX14830> _max14830;
+    // Call Sign Command frame
+    union CS_CMD {
+        struct PACKED {
+            // Header
+            uint8_t sync;        // '^'
+            uint8_t type1;       // 'C'
+            uint8_t type2;       // 'S'
+            uint8_t space;       // ' '
+            // Payload
+            uint8_t callsign[8];
+            // Footer
+            uint8_t crc1;
+            uint8_t crc2;
+            uint8_t terminator;  // '\r'
+        };
+        uint8_t data[ADSB_CS_FRAME_SIZE];
+    };
 
-    // Structure for ADSB State as need frequent access
-    AP_ADSB_State& adsb_state;
+    // Operating Mode Command frame
+    union MODE_CMD {
+        struct PACKED {
+            // Header (4 bytes)
+            uint8_t sync;        // '^'
+            uint8_t type1;       // 'M'
+            uint8_t type2;       // 'D'
+            uint8_t space;       // ' '
+            
+            // Payload (9 bytes)
+            uint8_t mode;        // Operating mode
+            uint8_t comma1;      // ','
+            uint8_t ident;       // Ident state
+            uint8_t comma2;      // ','
+            uint8_t squawk[4];   // Squawk code in ASCII
+            uint8_t emergency;   // Emergency state
+            uint8_t health;      // Health status '1'
+            
+            // Footer (3 bytes)
+            uint8_t crc1;        // High nibble CRC
+            uint8_t crc2;        // Low nibble CRC
+            uint8_t terminator;  // '\r'
+        };
+        uint8_t data[ADSB_MODE_FRAME_SIZE];
+    };
 
-    // Write Function for ADSB out.
-    bool _tx_write(uint8_t *buffer, uint16_t length);
+    // VFR Command frame
+    union VFR_CMD {
+        struct PACKED {
+            // Header (4 bytes)
+            uint8_t sync;        // '^'
+            uint8_t type1;       // 'V'
+            uint8_t type2;       // 'C'
+            uint8_t space;       // ' '
+            
+            // Payload (4 bytes)
+            uint8_t squawk[4];   // Squawk code in ASCII
+            
+            // Footer (3 bytes)
+            uint8_t crc1;        // High nibble CRC
+            uint8_t crc2;        // Low nibble CRC
+            uint8_t terminator;  // '\r'
+        };
+        uint8_t data[ADSB_VFR_FRAME_SIZE];
+    };
 };

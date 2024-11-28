@@ -31,7 +31,7 @@ static uint8_t rx_fifo_buffer[MESSAGE_BUFFER_LENGTH];
 // Static pointer to control access to the contents of message_buffer.
 //------------------------------------------------------------------------------
 
-static uint8_t *rx_buffer_ptr;
+static const uint8_t *rx_buffer_ptr;
 
 //------------------------------------------------------------------------------
 // Message buffer for accumulated data for partial storing.
@@ -52,7 +52,7 @@ AP_IMET_Sensor::AP_IMET_Sensor(AP_HAL::OwnPtr<AP_MAX14830> max14830) :
 
 /* ************************************************************************* */
 
-void AP_IMET_Sensor::handle_imet_uart2_interrupt()
+void AP_IMET_Sensor::handle_imet_interrupt()
 {
     // Read Data out of FIFO when interrupt triggered, store current length of FIFO.
     _max14830->set_uart_address(IMET_UART_ADDR);
@@ -60,14 +60,14 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
     // Clear the interrupt.
     _max14830->clear_interrupts();
 
-    // Pointer to the start of FIFO buffer.
-    rx_buffer_ptr = &rx_fifo_buffer[0];
+    // Pointer to FIFO buffer for further processing.
+    rx_buffer_ptr = rx_fifo_buffer;
 
     // For loop to iterate over all the recieve data
     for(int i=0; i<bytes_read; i++)
     {
-        // Temporary copy for readability.
-        char character = *rx_buffer_ptr;
+        // Temporary copy for readability - Post-increment operator
+        const char character = *rx_buffer_ptr++;
 
         // Accumulate data into the message buffer for partial storage.
         _message_buffer[_message_buffer_length++] = character;
@@ -75,7 +75,7 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
         // Wait for a stop sync to be received.
         switch(parse_state)
         {
-            case(PARSE_STATE::NO_SYNC):
+            case PARSE_STATE::NO_SYNC:
             {
                 // Carriage Return '\r' (0x0D).
                 if('0' == character)
@@ -86,7 +86,7 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
                 //  contents of the message are being copied to the message buffer.
                 break;
             }
-            case(PARSE_STATE::START_SYNC_0):
+            case PARSE_STATE::START_SYNC_0:
             {
                 if(',' == character)
                 {
@@ -99,7 +99,7 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
                 }
                 break;
             }
-            case(PARSE_STATE::START_SYNC_1):
+            case PARSE_STATE::START_SYNC_1 :
             {
                 if('+' == character)
                 {
@@ -112,7 +112,7 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
                 }
                 break;
             }
-            case(PARSE_STATE::WAIT_FOR_STOP_SYNC_1):
+            case PARSE_STATE::WAIT_FOR_STOP_SYNC_1:
             {
                 // Carriage Return '\r' (0x0D).
                 if('\r' == character)
@@ -123,7 +123,7 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
                 //  contents of the message are being copied to the message buffer.
                 break;
             }
-            case(PARSE_STATE::WAIT_FOR_STOP_SYNC_2):
+            case PARSE_STATE::WAIT_FOR_STOP_SYNC_2:
             {
                 // Line Feed '\n' (0x0A).
                 if('\n' == character)
@@ -145,9 +145,6 @@ void AP_IMET_Sensor::handle_imet_uart2_interrupt()
                 break;
             }
         }
-
-        // increment our byte
-        ++rx_buffer_ptr;
     }
 
     return;
