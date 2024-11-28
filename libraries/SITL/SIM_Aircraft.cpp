@@ -395,6 +395,8 @@ void Aircraft::fill_fdm(struct sitl_fdm &fdm)
     fdm.velocity_air_bf = velocity_air_bf;
     fdm.battery_voltage = battery_voltage;
     fdm.battery_current = battery_current;
+    fdm.support_board_volt = support_board_volt; // Support board temperature in voltage - LZC
+    fdm.servo_rail_voltage = servo_rail_voltage; // Servo rail voltage - LZC
     fdm.motor_mask = motor_mask | sitl->vibe_motor_mask;
     memcpy(fdm.rpm, rpm, sizeof(fdm.rpm));
     fdm.rcin_chan_count = rcin_chan_count;
@@ -650,7 +652,7 @@ void Aircraft::update_dynamics(const Vector3f &rot_accel)
     const float delta_time = frame_time_us * 1.0e-6f;
 
     // update eas2tas and air density
-    eas2tas = AP_Baro::get_EAS2TAS_for_alt_amsl(location.alt*0.01);
+    //eas2tas = AP_Baro::get_EAS2TAS_for_alt_amsl(location.alt*0.01);
     air_density = AP_Baro::get_air_density_for_alt_amsl(location.alt*0.01);
 
     // update rotational rates in body frame
@@ -972,7 +974,7 @@ void Aircraft::extrapolate_sensors(float delta_time)
     // new velocity and position vectors
     velocity_ef += accel_earth * delta_time;
     position += (velocity_ef * delta_time).todouble();
-    velocity_air_ef = velocity_ef - wind_ef;
+    velocity_air_ef = (velocity_ef - wind_ef) / eas2tas;
     velocity_air_bf = dcm.transposed() * velocity_air_ef;
 }
 
@@ -1223,6 +1225,7 @@ float Aircraft::get_air_density(float alt_amsl) const
  */
 void Aircraft::update_eas_airspeed()
 {
+    // calculate equivalent airspeed
     airspeed = velocity_air_ef.length() / eas2tas;
 
     /*
@@ -1244,4 +1247,8 @@ void Aircraft::update_eas_airspeed()
         const float gain_factor = M_PI_2 / (radians(90) - max_pitot_aoa);
         airspeed_pitot *= cosf((pitot_aoa - max_pitot_aoa) * gain_factor);
     }
+
+    // limit to speed common pitot setups can measure
+    const float airspeed_eas_max = 120.0;
+    airspeed_pitot = constrain_float(airspeed_pitot, 0.0f, airspeed_eas_max);
 }

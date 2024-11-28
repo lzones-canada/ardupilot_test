@@ -195,6 +195,8 @@ protected:
     float airspeed_pitot;                // m/s, EAS airspeed, as seen by fwd pitot tube
     float battery_voltage;
     float battery_current;
+    double support_board_volt;             // Support board temperature in Voltage - LZC
+    double servo_rail_voltage;             // Servo rail voltage - LZC
     float local_ground_level;            // ground level at local position
     bool lock_step_scheduled;
     uint32_t last_one_hz_ms;
