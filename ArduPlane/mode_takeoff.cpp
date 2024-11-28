@@ -62,7 +62,8 @@ ModeTakeoff::ModeTakeoff() :
 
 bool ModeTakeoff::_enter()
 {
-    takeoff_started = false;
+    takeoff_mode_setup = false;
+    have_autoenabled_fences = false;
 
     return true;
 }
@@ -88,7 +89,7 @@ void ModeTakeoff::update()
             if (altitude >= alt) {
                 gcs().send_text(MAV_SEVERITY_INFO, "Above TKOFF alt - loitering");
                 plane.next_WP_loc = plane.current_loc;
-                takeoff_started = true;
+                takeoff_mode_setup = true;
                 plane.set_flight_stage(AP_FixedWing::FlightStage::NORMAL);
             } else {
                 gcs().send_text(MAV_SEVERITY_INFO, "Climbing to TKOFF alt then loitering");

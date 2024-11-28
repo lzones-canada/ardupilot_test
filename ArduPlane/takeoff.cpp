@@ -57,7 +57,7 @@ bool Plane::auto_takeoff_check(void)
     bool do_takeoff_attitude_check = !(flight_option_enabled(FlightOptions::DISABLE_TOFF_ATTITUDE_CHK));
 #if HAL_QUADPLANE_ENABLED
     // disable attitude check on tailsitters
-    do_takeoff_attitude_check = !quadplane.tailsitter.enabled();
+    do_takeoff_attitude_check &= !quadplane.tailsitter.enabled();
 #endif
 
     if (!takeoff_state.launchTimerStarted && !is_zero(g.takeoff_throttle_min_accel)) {
@@ -374,3 +374,28 @@ void Plane::landing_gear_update(void)
     g2.landing_gear.update(relative_ground_altitude(g.rangefinder_landing));
 }
 #endif
+
+/*
+ check takeoff_timeout; checks time after the takeoff start time; returns true if timeout has occurred and disarms on timeout
+*/
+
+bool Plane::check_takeoff_timeout(void)
+{
+    if (takeoff_state.start_time_ms != 0 && g2.takeoff_timeout > 0) {
+        const float ground_speed = AP::gps().ground_speed();
+        const float takeoff_min_ground_speed = 4;
+        if (ground_speed >= takeoff_min_ground_speed) {
+            takeoff_state.start_time_ms = 0;
+            return false;
+        } else {
+            uint32_t now = AP_HAL::millis();
+            if (now - takeoff_state.start_time_ms > (uint32_t)(1000U * g2.takeoff_timeout)) {
+                gcs().send_text(MAV_SEVERITY_INFO, "Takeoff timeout: %.1f m/s speed < 4m/s", ground_speed);
+                arming.disarm(AP_Arming::Method::TAKEOFFTIMEOUT);
+                takeoff_state.start_time_ms = 0;
+                return true;
+            }
+        }
+     }
+     return false;
+}

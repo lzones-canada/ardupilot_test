@@ -809,10 +809,16 @@ protected:
     AP_Int16 target_dist;
     AP_Int8 level_pitch;
 
-    bool takeoff_started;
+    bool takeoff_mode_setup;
     Location start_loc;
 
     bool _enter() override;
+
+private:
+
+    // flag that we have already called autoenable fences once in MODE TAKEOFF
+    bool have_autoenabled_fences;
+
 };
 
 #if HAL_SOARING_ENABLED

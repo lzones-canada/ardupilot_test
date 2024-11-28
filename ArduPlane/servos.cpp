@@ -508,19 +508,21 @@ void Plane::throttle_watt_limiter(int8_t &min_throttle, int8_t &max_throttle)
 #endif // #if AP_BATTERY_WATT_MAX_ENABLED
 
 /*
-  Apply min/max limits to throttle
+  Apply min/max safety limits to throttle.
  */
 float Plane::apply_throttle_limits(float throttle_in)
 {
-    // convert 0 to 100% (or -100 to +100) into PWM
+    // Pull the base throttle limits.
+    // These are usually set to map the ESC operating range.
     int8_t min_throttle = aparm.throttle_min.get();
     int8_t max_throttle = aparm.throttle_max.get();
 
 #if AP_ICENGINE_ENABLED
-    // apply idle governor
+    // Apply idle governor.
     g2.ice_control.update_idle_governor(min_throttle);
 #endif
 
+    // If reverse thrust is enabled not allowed right now, the minimum throttle must not fall below 0.
     if (min_throttle < 0 && !allow_reverse_thrust()) {
         // reverse thrust is available but inhibited.
         min_throttle = 0;
@@ -538,6 +540,8 @@ float Plane::apply_throttle_limits(float throttle_in)
         max_throttle = takeoff_state.throttle_lim_max;
         min_throttle = takeoff_state.throttle_lim_min;
     } else if (landing.is_flaring()) {
+        // Allow throttle cutoff when flaring.
+        // This is to allow the aircraft to bleed speed faster and land with a shut off thruster.
         min_throttle = 0;
     }
 
@@ -545,7 +549,7 @@ float Plane::apply_throttle_limits(float throttle_in)
     g2.fwd_batt_cmp.apply_min_max(min_throttle, max_throttle);
 
 #if AP_BATTERY_WATT_MAX_ENABLED
-    // apply watt limiter
+    // Ensure that the power draw limits are not exceeded.
     throttle_watt_limiter(min_throttle, max_throttle);
 #endif
 

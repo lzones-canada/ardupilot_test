@@ -130,7 +130,7 @@ bool AP_Arming_Plane::pre_arm_checks(bool display_failure)
         ret = false;
     }
 
-    char failure_msg[50] {};
+    char failure_msg[100] {};
     if (!plane.control_mode->pre_arm_checks(ARRAY_SIZE(failure_msg), failure_msg)) {
         check_failed(display_failure, "%s %s", plane.control_mode->name(), failure_msg);
         return false;
@@ -171,7 +171,7 @@ bool AP_Arming_Plane::quadplane_checks(bool display_failure)
         ret = false;
     }
 
-    char failure_msg[50] {};
+    char failure_msg[100] {};
     if (!plane.quadplane.motors->arming_checks(ARRAY_SIZE(failure_msg), failure_msg)) {
         check_failed(display_failure, "Motors: %s", failure_msg);
         ret = false;
@@ -238,7 +238,7 @@ bool AP_Arming_Plane::ins_checks(bool display_failure)
 
     // additional plane specific checks
     if (check_enabled(ARMING_CHECK_INS)) {
-        char failure_msg[50] = {};
+        char failure_msg[100] = {};
         if (!AP::ahrs().pre_arm_check(true, failure_msg, sizeof(failure_msg))) {
             check_failed(ARMING_CHECK_INS, display_failure, "AHRS: %s", failure_msg);
             return false;
