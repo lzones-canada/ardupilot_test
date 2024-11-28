@@ -317,7 +317,6 @@ void AP_ADSB_Sensor::handle_adsb_interrupt()
 void AP_ADSB_Sensor::handle_complete_adsb_msg(const GDL90_RX_MESSAGE &msg)
 {
     // Handle the message based on the message ID.
-    DEV_PRINTF("ADSB: Message ID: %d\n", (int)msg.messageId);
     switch(msg.messageId) {
         case GDL90_ID_HEARTBEAT: {
             // The Heartbeat message provides real-time indications of the status and operation of the

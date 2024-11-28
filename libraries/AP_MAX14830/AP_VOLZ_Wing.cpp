@@ -356,8 +356,6 @@ void AP_VOLZ_Wing::handle_volz_message(const CMD &cmd)
                 // Temperature is reported relative to -50 deg C
                 telem.data.pcb_temp_raw = -50.0 + cmd.arg1;
                 volz_state.set_pcb_temp(telem.data.pcb_temp_raw);
-                // TODO: DELETE
-                //DEV_PRINTF("PcbTemp: %.2f deg\n", volz_state.get_pcb_temp());
                 break;
 
             case CMD_ID::VOLTAGE_RESPONSE:
